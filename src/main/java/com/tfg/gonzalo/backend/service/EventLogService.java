@@ -1,0 +1,62 @@
+package com.tfg.gonzalo.backend.service;
+
+import com.tfg.gonzalo.backend.dto.event.EventLogEntryResponse;
+import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
+import com.tfg.gonzalo.backend.model.Event;
+import com.tfg.gonzalo.backend.model.EventLog;
+import com.tfg.gonzalo.backend.model.enums.EventActionType;
+import com.tfg.gonzalo.backend.repository.EventLogRepository;
+import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.security.AccessControlService;
+import jakarta.transaction.Transactional;
+import java.util.List;
+import org.springframework.stereotype.Service;
+
+@Service
+public class EventLogService {
+
+    private final EventRepository eventRepository;
+    private final EventLogRepository eventLogRepository;
+    private final AccessControlService accessControlService;
+
+    public EventLogService(EventRepository eventRepository,
+                           EventLogRepository eventLogRepository,
+                           AccessControlService accessControlService) {
+        this.eventRepository = eventRepository;
+        this.eventLogRepository = eventLogRepository;
+        this.accessControlService = accessControlService;
+    }
+
+    @Transactional
+    public List<EventLogEntryResponse> getLogs(Long eventId, Long groupId, EventActionType actionType) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+        accessControlService.requireReadAccessToEvent(event);
+
+        List<EventLog> logs;
+        if (groupId != null && actionType != null) {
+            logs = eventLogRepository.findByEventIdAndGroupIdAndActionTypeOrderByCreatedAtDesc(eventId, groupId, actionType);
+        } else if (groupId != null) {
+            logs = eventLogRepository.findByEventIdAndGroupIdOrderByCreatedAtDesc(eventId, groupId);
+        } else if (actionType != null) {
+            logs = eventLogRepository.findByEventIdAndActionTypeOrderByCreatedAtDesc(eventId, actionType);
+        } else {
+            logs = eventLogRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+        }
+
+        return logs.stream().map(this::mapLog).toList();
+    }
+
+    private EventLogEntryResponse mapLog(EventLog eventLog) {
+        return new EventLogEntryResponse(
+                eventLog.getId(),
+                eventLog.getCreatedAt(),
+                eventLog.getActor() == null ? null : eventLog.getActor().getDisplayName(),
+                eventLog.getGroup() == null ? null : eventLog.getGroup().getIdentifier(),
+                eventLog.getActionType(),
+                eventLog.getPreviousValue(),
+                eventLog.getNewValue(),
+                eventLog.getNotes()
+        );
+    }
+}
