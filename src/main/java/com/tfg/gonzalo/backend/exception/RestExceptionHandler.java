@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -36,6 +38,20 @@ public class RestExceptionHandler {
                 .toList();
 
         return buildResponse(HttpStatus.BAD_REQUEST, "La petición contiene datos no válidos.", details);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException exception) {
+        return buildResponse(HttpStatus.BAD_REQUEST,
+                "El archivo enviado supera el tamaño máximo permitido.",
+                List.of());
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMultipartError(MultipartException exception) {
+        return buildResponse(HttpStatus.BAD_REQUEST,
+                "No se pudo procesar el formulario multipart enviado.",
+                List.of());
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(HttpStatus status,

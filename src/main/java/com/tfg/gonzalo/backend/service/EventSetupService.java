@@ -9,13 +9,11 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
-import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
-import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.repository.PodRepository;
@@ -33,23 +31,26 @@ public class EventSetupService {
     private final PodRepository podRepository;
     private final EventGroupRepository eventGroupRepository;
     private final GameStateRepository gameStateRepository;
-    private final EventLogRepository eventLogRepository;
+    private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
+    private final VillainFormulaService villainFormulaService;
     private final AccessControlService accessControlService;
 
     public EventSetupService(EventRepository eventRepository,
                              PodRepository podRepository,
                              EventGroupRepository eventGroupRepository,
                              GameStateRepository gameStateRepository,
-                             EventLogRepository eventLogRepository,
+                             EventLogService eventLogService,
                              CodeGeneratorService codeGeneratorService,
+                             VillainFormulaService villainFormulaService,
                              AccessControlService accessControlService) {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.gameStateRepository = gameStateRepository;
-        this.eventLogRepository = eventLogRepository;
+        this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
+        this.villainFormulaService = villainFormulaService;
         this.accessControlService = accessControlService;
     }
 
@@ -63,7 +64,8 @@ public class EventSetupService {
         pod.setSortOrder(request.sortOrder() == null ? 0 : request.sortOrder());
         pod = podRepository.save(pod);
 
-        registerLog(event, EventActionType.POD_CREATED, pod.getName(), "Pod creado para el evento.");
+        eventLogService.appendOrganizerLog(event, EventActionType.POD_CREATED,
+            null, pod.getName(), "Pod creado para el evento.");
         return mapPodResponse(pod, List.of());
     }
 
@@ -73,7 +75,7 @@ public class EventSetupService {
         Pod pod = findPod(podId, eventId);
 
         if (eventGroupRepository.existsByEventIdAndIdentifierIgnoreCase(eventId, request.identifier().trim())) {
-            throw new BusinessRuleException("Ya existe un grupo con ese identificador dentro del evento.");
+            throw new BusinessRuleException("Ya existe una mesa con ese identificador dentro del evento.");
         }
 
         EventGroup group = new EventGroup();
@@ -86,10 +88,16 @@ public class EventSetupService {
         group = eventGroupRepository.save(group);
 
         GameState gameState = findGameState(eventId);
-        gameState.setSchemeThreatTarget(eventGroupRepository.findByEventId(eventId).size() * 2);
+        int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
+        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+            event.getVillainThreatRuleTypeSnapshot(),
+            event.getVillainThreatRuleValueSnapshot(),
+            currentGroupCount
+        ));
         gameStateRepository.save(gameState);
 
-        registerLog(event, EventActionType.GROUP_CREATED, group.getIdentifier(), "Grupo creado y amenaza objetivo recalculada.");
+        eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
+            null, group.getIdentifier(), "Mesa creado y amenaza objetivo recalculada.");
         return mapGroupResponse(group);
     }
 
@@ -191,7 +199,7 @@ public class EventSetupService {
     private List<String> buildWarnings(List<EventGroup> groups, int totalPlayers) {
         List<String> warnings = new ArrayList<>();
         if (groups.size() > 4) {
-            warnings.add("El pod supera la recomendación de 4 grupos.");
+            warnings.add("El pod supera la recomendación de 4 mesas.");
         }
         if (totalPlayers > 16) {
             warnings.add("El pod supera la recomendación de 16 jugadores.");
@@ -200,19 +208,10 @@ public class EventSetupService {
             int maxPlayers = groups.stream().mapToInt(EventGroup::getPlayerCount).max().orElse(0);
             int minPlayers = groups.stream().mapToInt(EventGroup::getPlayerCount).min().orElse(0);
             if (maxPlayers - minPlayers > 1) {
-                warnings.add("La diferencia de jugadores entre grupos del pod es superior a 1.");
+                warnings.add("La diferencia de jugadores entre mesas del pod es superior a 1.");
             }
         }
         return warnings;
     }
 
-    private void registerLog(Event event, EventActionType actionType, String newValue, String notes) {
-        EventLog eventLog = new EventLog();
-        eventLog.setEvent(event);
-        eventLog.setActor(event.getOrganizer());
-        eventLog.setActionType(actionType);
-        eventLog.setNewValue(newValue);
-        eventLog.setNotes(notes);
-        eventLogRepository.save(eventLog);
-    }
 }

@@ -12,7 +12,6 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
-import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
@@ -21,7 +20,6 @@ import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GameFinishCause;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
-import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
@@ -38,20 +36,20 @@ public class GameStateService {
     private final EventRepository eventRepository;
     private final GameStateRepository gameStateRepository;
     private final EventGroupRepository eventGroupRepository;
-    private final EventLogRepository eventLogRepository;
+    private final EventLogService eventLogService;
     private final AccessControlService accessControlService;
     private final RealtimeEventPublisher realtimeEventPublisher;
 
     public GameStateService(EventRepository eventRepository,
                             GameStateRepository gameStateRepository,
                             EventGroupRepository eventGroupRepository,
-                            EventLogRepository eventLogRepository,
+                            EventLogService eventLogService,
                             AccessControlService accessControlService,
                             RealtimeEventPublisher realtimeEventPublisher) {
         this.eventRepository = eventRepository;
         this.gameStateRepository = gameStateRepository;
         this.eventGroupRepository = eventGroupRepository;
-        this.eventLogRepository = eventLogRepository;
+        this.eventLogService = eventLogService;
         this.accessControlService = accessControlService;
         this.realtimeEventPublisher = realtimeEventPublisher;
     }
@@ -63,11 +61,7 @@ public class GameStateService {
         GameState gameState = findGameState(eventId);
         List<String> notifications = new ArrayList<>();
         refreshTimerState(event, gameState, notifications);
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "GET_SNAPSHOT", snapshot, notifications);
-        return snapshot;
+        return persistAndPublishSnapshot(eventId, "GET_SNAPSHOT", event, gameState, notifications);
     }
 
     @Transactional
@@ -93,13 +87,9 @@ public class GameStateService {
             finishGame(event, gameState, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
 
-        registerLog(event, group, EventActionType.VILLAIN_DAMAGE_REPORTED, String.valueOf(before), String.valueOf(newHp),
-                "Daño reportado al villano.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "REPORT_VILLAIN_DAMAGE", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, group, EventActionType.VILLAIN_DAMAGE_REPORTED,
+            String.valueOf(before), String.valueOf(newHp), "Daño reportado al villano.");
+        return persistAndRespond(eventId, "REPORT_VILLAIN_DAMAGE", event, gameState, notifications);
     }
 
     @Transactional
@@ -124,13 +114,9 @@ public class GameStateService {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
 
-        registerLog(event, group, EventActionType.THREAT_REPORTED, String.valueOf(before), String.valueOf(newThreat),
-                "Amenaza reportada por el grupo.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "REPORT_THREAT", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, group, EventActionType.THREAT_REPORTED,
+            String.valueOf(before), String.valueOf(newThreat), "Amenaza reportada por la mesa.");
+        return persistAndRespond(eventId, "REPORT_THREAT", event, gameState, notifications);
     }
 
     @Transactional
@@ -152,13 +138,9 @@ public class GameStateService {
             finishGame(event, gameState, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
 
-        registerLog(event, null, EventActionType.VILLAIN_HP_CORRECTED, String.valueOf(before), String.valueOf(newHp),
-                "Corrección manual de HP del villano.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "MANUAL_VILLAIN_HP_UPDATE", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.VILLAIN_HP_CORRECTED,
+            String.valueOf(before), String.valueOf(newHp), "Corrección manual de HP del villano.");
+        return persistAndRespond(eventId, "MANUAL_VILLAIN_HP_UPDATE", event, gameState, notifications);
     }
 
     @Transactional
@@ -180,13 +162,9 @@ public class GameStateService {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
 
-        registerLog(event, null, EventActionType.THREAT_CORRECTED, String.valueOf(before), String.valueOf(newThreat),
-                "Corrección manual de amenaza.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "MANUAL_THREAT_UPDATE", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.THREAT_CORRECTED,
+            String.valueOf(before), String.valueOf(newThreat), "Corrección manual de amenaza.");
+        return persistAndRespond(eventId, "MANUAL_THREAT_UPDATE", event, gameState, notifications);
     }
 
     @Transactional
@@ -200,13 +178,9 @@ public class GameStateService {
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
 
-        registerLog(event, null, EventActionType.EVENT_STARTED, null,
-                EventStatus.IN_PROGRESS.name(), "Partida iniciada manualmente.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "START_GAME", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.EVENT_STARTED,
+            null, EventStatus.IN_PROGRESS.name(), "Partida iniciada manualmente.");
+        return persistAndRespond(eventId, "START_GAME", event, gameState, notifications);
     }
 
     @Transactional
@@ -231,13 +205,9 @@ public class GameStateService {
         gameState.setTimerStartedAt(Instant.now());
         gameState.setTimerPausedAt(null);
 
-        registerLog(event, null, EventActionType.TIMER_STARTED, null,
-                String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador iniciado.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "TIMER_START", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.TIMER_STARTED,
+            null, String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador iniciado.");
+        return persistAndRespond(eventId, "TIMER_START", event, gameState, notifications);
     }
 
     @Transactional
@@ -254,24 +224,16 @@ public class GameStateService {
 
         refreshTimerState(event, gameState, notifications);
         if (event.getStatus() == EventStatus.FINISHED) {
-            gameStateRepository.save(gameState);
-            eventRepository.save(event);
-            GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-            publishRealtimeUpdate(eventId, "TIMER_PAUSE", snapshot, notifications);
-            return new GameStateOperationResponse(snapshot, notifications);
+            return persistAndRespond(eventId, "TIMER_PAUSE", event, gameState, notifications);
         }
 
         gameState.setTimerStatus(TimerStatus.PAUSED);
         gameState.setTimerPausedAt(Instant.now());
         gameState.setTimerStartedAt(null);
 
-        registerLog(event, null, EventActionType.TIMER_PAUSED, null,
-                String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador pausado.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "TIMER_PAUSE", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.TIMER_PAUSED,
+            null, String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador pausado.");
+        return persistAndRespond(eventId, "TIMER_PAUSE", event, gameState, notifications);
     }
 
     @Transactional
@@ -298,13 +260,9 @@ public class GameStateService {
         gameState.setTimerStartedAt(Instant.now());
         gameState.setTimerPausedAt(null);
 
-        registerLog(event, null, EventActionType.TIMER_RESUMED, null,
-                String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador reanudado.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "TIMER_RESUME", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.TIMER_RESUMED,
+            null, String.valueOf(gameState.getTimerRemainingSeconds()), "Temporizador reanudado.");
+        return persistAndRespond(eventId, "TIMER_RESUME", event, gameState, notifications);
     }
 
     @Transactional
@@ -336,13 +294,9 @@ public class GameStateService {
             finishGame(event, gameState, EventResult.TIMEOUT_DEFEAT, GameFinishCause.TIMER_EXPIRED, notifications);
         }
 
-        registerLog(event, null, EventActionType.TIMER_ADJUSTED, String.valueOf(before), String.valueOf(after),
-                "Ajuste manual del temporizador.");
-        gameStateRepository.save(gameState);
-        eventRepository.save(event);
-        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
-        publishRealtimeUpdate(eventId, "TIMER_ADJUST", snapshot, notifications);
-        return new GameStateOperationResponse(snapshot, notifications);
+        eventLogService.appendOrganizerLog(event, EventActionType.TIMER_ADJUSTED,
+            String.valueOf(before), String.valueOf(after), "Ajuste manual del temporizador.");
+        return persistAndRespond(eventId, "TIMER_ADJUST", event, gameState, notifications);
     }
 
     private Event findEvent(Long eventId) {
@@ -426,6 +380,10 @@ public class GameStateService {
             gameState.setThreatThreeQuarterNotified(true);
             notifications.add("THREAT_75_PERCENT");
         }
+        if (gameState.getSchemeThreatCurrent() >= gameState.getSchemeThreatTarget()
+                && !notifications.contains("THREAT_100_PERCENT")) {
+            notifications.add("THREAT_100_PERCENT");
+        }
     }
 
     private void evaluateTimerMilestones(GameState gameState, List<String> notifications) {
@@ -469,25 +427,8 @@ public class GameStateService {
         gameState.setTimerPausedAt(now);
 
         notifications.add("EVENT_FINISHED_" + result.name());
-        registerLog(event, null, EventActionType.EVENT_FINISHED, null, result.name(),
-                "Partida finalizada por " + cause.name());
-    }
-
-    private void registerLog(Event event,
-                             EventGroup group,
-                             EventActionType actionType,
-                             String previousValue,
-                             String newValue,
-                             String notes) {
-        EventLog eventLog = new EventLog();
-        eventLog.setEvent(event);
-        eventLog.setActor(event.getOrganizer());
-        eventLog.setGroup(group);
-        eventLog.setActionType(actionType);
-        eventLog.setPreviousValue(previousValue);
-        eventLog.setNewValue(newValue);
-        eventLog.setNotes(notes);
-        eventLogRepository.save(eventLog);
+        eventLogService.appendOrganizerLog(event, EventActionType.EVENT_FINISHED,
+            null, result.name(), "Partida finalizada por " + cause.name());
     }
 
     private GameStateSnapshotResponse toSnapshot(Event event, GameState gameState) {
@@ -510,6 +451,8 @@ public class GameStateService {
                 event.getId(),
                 event.getStatus(),
                 event.getResult(),
+            event.getVillainNameSnapshot(),
+            event.getVillainTypeSnapshot(),
                 gameState.getVillainHpCurrent(),
                 gameState.getVillainHpMax(),
                 gameState.getSchemeThreatCurrent(),
@@ -522,6 +465,27 @@ public class GameStateService {
                 gameState.getUpdatedAt(),
                 finalSummary
         );
+    }
+
+    private GameStateSnapshotResponse persistAndPublishSnapshot(Long eventId,
+                                                                String operation,
+                                                                Event event,
+                                                                GameState gameState,
+                                                                List<String> notifications) {
+        gameStateRepository.save(gameState);
+        eventRepository.save(event);
+        GameStateSnapshotResponse snapshot = toSnapshot(event, gameState);
+        publishRealtimeUpdate(eventId, operation, snapshot, notifications);
+        return snapshot;
+    }
+
+    private GameStateOperationResponse persistAndRespond(Long eventId,
+                                                         String operation,
+                                                         Event event,
+                                                         GameState gameState,
+                                                         List<String> notifications) {
+        GameStateSnapshotResponse snapshot = persistAndPublishSnapshot(eventId, operation, event, gameState, notifications);
+        return new GameStateOperationResponse(snapshot, notifications);
     }
 
     private void publishRealtimeUpdate(Long eventId,

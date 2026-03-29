@@ -2,6 +2,8 @@ package com.tfg.gonzalo.backend.model;
 
 import com.tfg.gonzalo.backend.model.enums.EventResult;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
+import com.tfg.gonzalo.backend.model.enums.VillainDefinitionType;
+import com.tfg.gonzalo.backend.model.enums.VillainRuleType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -41,6 +43,31 @@ public class Event extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 20)
     private String eventCode;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "villain_definition_id")
+    private VillainDefinition villainDefinition;
+
+    @Column(length = 120)
+    private String villainNameSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VillainDefinitionType villainTypeSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VillainRuleType villainHpRuleTypeSnapshot;
+
+    @Column
+    private Integer villainHpRuleValueSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VillainRuleType villainThreatRuleTypeSnapshot;
+
+    @Column
+    private Integer villainThreatRuleValueSnapshot;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "organizer_id", nullable = false)
