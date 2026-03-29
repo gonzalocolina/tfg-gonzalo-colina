@@ -7,12 +7,13 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
-import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.GameState;
+import com.tfg.gonzalo.backend.model.VillainDefinition;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
+import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
@@ -28,22 +29,37 @@ public class EventService {
     private static final int DEFAULT_TIME_LIMIT_MINUTES = 180;
     private final AppUserRepository appUserRepository;
     private final EventRepository eventRepository;
+    private final EventGroupRepository eventGroupRepository;
     private final GameStateRepository gameStateRepository;
     private final EventLogRepository eventLogRepository;
+    private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
+    private final VillainService villainService;
+    private final VillainFormulaService villainFormulaService;
+    private final InterPodCardService interPodCardService;
     private final AccessControlService accessControlService;
 
     public EventService(AppUserRepository appUserRepository,
                         EventRepository eventRepository,
+                        EventGroupRepository eventGroupRepository,
                         GameStateRepository gameStateRepository,
                         EventLogRepository eventLogRepository,
+                        EventLogService eventLogService,
                         CodeGeneratorService codeGeneratorService,
+                        VillainService villainService,
+                        VillainFormulaService villainFormulaService,
+                        InterPodCardService interPodCardService,
                         AccessControlService accessControlService) {
         this.appUserRepository = appUserRepository;
         this.eventRepository = eventRepository;
+        this.eventGroupRepository = eventGroupRepository;
         this.gameStateRepository = gameStateRepository;
         this.eventLogRepository = eventLogRepository;
+        this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
+        this.villainService = villainService;
+        this.villainFormulaService = villainFormulaService;
+        this.interPodCardService = interPodCardService;
         this.accessControlService = accessControlService;
     }
 
@@ -52,6 +68,8 @@ public class EventService {
         AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
         AppUser organizer = appUserRepository.findById(principal.userId())
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontró el usuario autenticado."));
+        VillainDefinition selectedVillain = villainService
+            .findSelectableVillainForOrganizer(organizer.getId(), request.villainDefinitionId());
 
         Event event = new Event();
         event.setName(request.name().trim());
@@ -60,21 +78,31 @@ public class EventService {
         event.setStatus(EventStatus.DRAFT);
         event.setEventCode(generateUniqueEventCode());
         event.setOrganizer(organizer);
+        event.setVillainDefinition(selectedVillain);
+        applyVillainSnapshot(event, selectedVillain);
         event = eventRepository.save(event);
 
         GameState gameState = new GameState();
         gameState.setEvent(event);
-        gameState.setVillainHpMax(request.configuredPlayerCount() * 20);
+        gameState.setVillainHpMax(villainFormulaService.computeVillainHp(
+            event.getVillainHpRuleTypeSnapshot(),
+            event.getVillainHpRuleValueSnapshot(),
+            request.configuredPlayerCount()
+        ));
         gameState.setVillainHpCurrent(gameState.getVillainHpMax());
-        gameState.setSchemeThreatTarget(0);
+        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+            event.getVillainThreatRuleTypeSnapshot(),
+            event.getVillainThreatRuleValueSnapshot(),
+            0
+        ));
         gameState.setSchemeThreatCurrent(0);
         gameState.setTimerTotalSeconds(event.getTimeLimitMinutes() * 60);
         gameState.setTimerRemainingSeconds(gameState.getTimerTotalSeconds());
         gameState.setTimerStatus(gameState.getTimerTotalSeconds() > 0 ? TimerStatus.READY : TimerStatus.NOT_CONFIGURED);
         gameState = gameStateRepository.save(gameState);
 
-        registerLog(event, organizer, EventActionType.EVENT_CREATED, null, event.getName(),
-                "Evento creado con estado global inicial.");
+        eventLogService.appendLog(event, organizer, null, EventActionType.EVENT_CREATED,
+            null, event.getName(), "Evento creado con estado global inicial.");
 
         return toResponse(event, gameState);
     }
@@ -94,15 +122,35 @@ public class EventService {
         Event event = findEvent(eventId);
         accessControlService.requireOrganizerForEvent(event);
         ensureEditable(event);
+        Long currentVillainDefinitionId = event.getVillainDefinition() != null
+            ? event.getVillainDefinition().getId()
+            : null;
+        Long villainDefinitionId = request.villainDefinitionId() == null
+            ? currentVillainDefinitionId
+            : request.villainDefinitionId();
+        VillainDefinition selectedVillain = villainService
+            .findSelectableVillainForOrganizer(event.getOrganizer().getId(), villainDefinitionId);
 
         event.setName(request.name().trim());
         event.setConfiguredPlayerCount(request.configuredPlayerCount());
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
+        event.setVillainDefinition(selectedVillain);
+        applyVillainSnapshot(event, selectedVillain);
         event = eventRepository.save(event);
 
         GameState gameState = findGameState(eventId);
-        gameState.setVillainHpMax(request.configuredPlayerCount() * 20);
+        gameState.setVillainHpMax(villainFormulaService.computeVillainHp(
+            event.getVillainHpRuleTypeSnapshot(),
+            event.getVillainHpRuleValueSnapshot(),
+            request.configuredPlayerCount()
+        ));
         gameState.setVillainHpCurrent(Math.min(gameState.getVillainHpCurrent(), gameState.getVillainHpMax()));
+        int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
+        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+            event.getVillainThreatRuleTypeSnapshot(),
+            event.getVillainThreatRuleValueSnapshot(),
+            currentGroupCount
+        ));
         gameState.setTimerTotalSeconds(event.getTimeLimitMinutes() * 60);
         gameState.setTimerRemainingSeconds(Math.min(gameState.getTimerRemainingSeconds(), gameState.getTimerTotalSeconds()));
         if (gameState.getTimerTotalSeconds() <= 0) {
@@ -116,8 +164,8 @@ public class EventService {
         }
         gameStateRepository.save(gameState);
 
-        registerLog(event, event.getOrganizer(), EventActionType.EVENT_UPDATED, null, event.getName(),
-                "Evento actualizado antes del inicio.");
+        eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
+            null, event.getName(), "Evento actualizado antes del inicio.");
 
         return toResponse(event, gameState);
     }
@@ -127,6 +175,7 @@ public class EventService {
         Event event = findEvent(eventId);
         accessControlService.requireOrganizerForEvent(event);
         ensureEditable(event);
+        interPodCardService.deleteCardsForEvent(eventId);
         gameStateRepository.findByEventId(eventId).ifPresent(gameStateRepository::delete);
         eventLogRepository.deleteAll(eventLogRepository.findByEventIdOrderByCreatedAtDesc(eventId));
         eventRepository.delete(event);
@@ -160,6 +209,15 @@ public class EventService {
         return timeLimitMinutes == null ? DEFAULT_TIME_LIMIT_MINUTES : timeLimitMinutes;
     }
 
+    private void applyVillainSnapshot(Event event, VillainDefinition villainDefinition) {
+        event.setVillainNameSnapshot(villainDefinition.getName());
+        event.setVillainTypeSnapshot(villainDefinition.getType());
+        event.setVillainHpRuleTypeSnapshot(villainDefinition.getHpRuleType());
+        event.setVillainHpRuleValueSnapshot(villainDefinition.getHpRuleValue());
+        event.setVillainThreatRuleTypeSnapshot(villainDefinition.getThreatRuleType());
+        event.setVillainThreatRuleValueSnapshot(villainDefinition.getThreatRuleValue());
+    }
+
     private String generateUniqueEventCode() {
         String eventCode = codeGeneratorService.generateEventCode();
         while (eventRepository.existsByEventCode(eventCode)) {
@@ -168,23 +226,11 @@ public class EventService {
         return eventCode;
     }
 
-    private void registerLog(Event event,
-                             AppUser actor,
-                             EventActionType actionType,
-                             String previousValue,
-                             String newValue,
-                             String notes) {
-        EventLog eventLog = new EventLog();
-        eventLog.setEvent(event);
-        eventLog.setActor(actor);
-        eventLog.setActionType(actionType);
-        eventLog.setPreviousValue(previousValue);
-        eventLog.setNewValue(newValue);
-        eventLog.setNotes(notes);
-        eventLogRepository.save(eventLog);
-    }
-
     private EventResponse toResponse(Event event, GameState gameState) {
+        Long villainDefinitionId = event.getVillainDefinition() != null
+                ? event.getVillainDefinition().getId()
+                : null;
+
         return new EventResponse(
                 event.getId(),
                 event.getName(),
@@ -194,6 +240,13 @@ public class EventService {
                 event.getResult(),
                 event.getEventCode(),
                 event.getOrganizer().getUsername(),
+                villainDefinitionId,
+                event.getVillainNameSnapshot(),
+                event.getVillainTypeSnapshot(),
+                event.getVillainHpRuleTypeSnapshot(),
+                event.getVillainHpRuleValueSnapshot(),
+                event.getVillainThreatRuleTypeSnapshot(),
+                event.getVillainThreatRuleValueSnapshot(),
                 gameState != null ? gameState.getVillainHpCurrent() : null,
                 gameState != null ? gameState.getVillainHpMax() : null,
                 gameState != null ? gameState.getSchemeThreatCurrent() : null,

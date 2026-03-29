@@ -7,14 +7,12 @@ import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.CoOrganizerAssignment;
 import com.tfg.gonzalo.backend.model.Event;
-import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
-import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import jakarta.transaction.Transactional;
@@ -33,20 +31,20 @@ public class EventRoleService {
     private final EventRepository eventRepository;
     private final AppUserRepository appUserRepository;
     private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
-    private final EventLogRepository eventLogRepository;
+    private final EventLogService eventLogService;
     private final PasswordEncoder passwordEncoder;
     private final AccessControlService accessControlService;
 
     public EventRoleService(EventRepository eventRepository,
                             AppUserRepository appUserRepository,
                             CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
-                            EventLogRepository eventLogRepository,
+                            EventLogService eventLogService,
                             PasswordEncoder passwordEncoder,
                             AccessControlService accessControlService) {
         this.eventRepository = eventRepository;
         this.appUserRepository = appUserRepository;
         this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
-        this.eventLogRepository = eventLogRepository;
+        this.eventLogService = eventLogService;
         this.passwordEncoder = passwordEncoder;
         this.accessControlService = accessControlService;
     }
@@ -93,8 +91,10 @@ public class EventRoleService {
             }
         }
 
-        registerLog(event, EventActionType.EVENT_UPDATED, user.getUsername(),
-                "Co-organizador asignado con responsabilidades: " + request.responsibilities());
+        eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
+            null,
+            user.getUsername(),
+            "Co-organizador asignado con responsabilidades: " + request.responsibilities());
 
         return toResponse(user, coOrganizerAssignmentRepository.findByEventIdAndUserId(eventId, user.getId()));
     }
@@ -157,13 +157,4 @@ public class EventRoleService {
         );
     }
 
-    private void registerLog(Event event, EventActionType actionType, String newValue, String notes) {
-        EventLog eventLog = new EventLog();
-        eventLog.setEvent(event);
-        eventLog.setActor(event.getOrganizer());
-        eventLog.setActionType(actionType);
-        eventLog.setNewValue(newValue);
-        eventLog.setNotes(notes);
-        eventLogRepository.save(eventLog);
-    }
 }

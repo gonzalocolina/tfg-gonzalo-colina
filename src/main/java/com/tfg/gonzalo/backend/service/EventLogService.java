@@ -2,7 +2,9 @@ package com.tfg.gonzalo.backend.service;
 
 import com.tfg.gonzalo.backend.dto.event.EventLogEntryResponse;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
+import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
+import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
@@ -58,5 +60,40 @@ public class EventLogService {
                 eventLog.getNewValue(),
                 eventLog.getNotes()
         );
+    }
+
+    public void appendLog(Event event,
+                          AppUser actor,
+                          EventGroup group,
+                          EventActionType actionType,
+                          String previousValue,
+                          String newValue,
+                          String notes) {
+        EventLog eventLog = new EventLog();
+        eventLog.setEvent(event);
+        eventLog.setActor(actor);
+        eventLog.setGroup(group);
+        eventLog.setActionType(actionType);
+        eventLog.setPreviousValue(previousValue);
+        eventLog.setNewValue(newValue);
+        eventLog.setNotes(notes);
+        eventLogRepository.save(eventLog);
+    }
+
+    public void appendOrganizerLog(Event event,
+                                   EventGroup group,
+                                   EventActionType actionType,
+                                   String previousValue,
+                                   String newValue,
+                                   String notes) {
+        appendLog(event, event.getOrganizer(), group, actionType, previousValue, newValue, notes);
+    }
+
+    public void appendOrganizerLog(Event event,
+                                   EventActionType actionType,
+                                   String previousValue,
+                                   String newValue,
+                                   String notes) {
+        appendOrganizerLog(event, null, actionType, previousValue, newValue, notes);
     }
 }

@@ -37,3 +37,5 @@ build/
 # Local environment configuration
 .env
 !.env.example
+
+*.db

@@ -1,5 +1,7 @@
 package com.tfg.gonzalo.backend.model;
 
+import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,8 +19,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "inter_pod_alerts")
-public class InterPodAlert extends BaseEntity {
+@Table(name = "inter_pod_cards")
+public class InterPodCard extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "event_id", nullable = false)
@@ -33,9 +35,26 @@ public class InterPodAlert extends BaseEntity {
     private EventGroup sourceGroup;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
-    private InterPodCardType cardType;
+    @Column(nullable = false, length = 40)
+    private InterPodCardType cardName;
 
-    @Column(length = 255)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private InterPodCardCategory cardCategory;
+
+    @Column(nullable = false)
+    private Integer hpMax;
+
+    @Column(nullable = false)
+    private Integer hpCurrent;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private InterPodCardStatus status = InterPodCardStatus.REVELADA;
+
+    @Column(length = 500)
+    private String imagePath;
+
+    @Column(length = 120)
+    private String imageContentType;
 }

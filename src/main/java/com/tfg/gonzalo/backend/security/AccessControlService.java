@@ -118,7 +118,7 @@ public class AccessControlService {
             throw new ForbiddenOperationException("El token no pertenece al evento solicitado.");
         }
         if (principal.groupId() == null || !principal.groupId().equals(group.getId())) {
-            throw new ForbiddenOperationException("El token no pertenece al grupo indicado.");
+            throw new ForbiddenOperationException("El token no pertenece a la mesa indicado.");
         }
         if (!group.getRepresentativeCode().equals(representativeCode)) {
             throw new ForbiddenOperationException("El código enviado no coincide con el representante autenticado.");

@@ -119,7 +119,7 @@ public class TokenService {
         payload.put(EVENT_ID_CLAIM, group.getEvent().getId());
         payload.put("groupId", group.getId());
         payload.put("codeKind", codeKind);
-        payload.put(DISPLAY_NAME_CLAIM, "Grupo " + group.getIdentifier());
+        payload.put(DISPLAY_NAME_CLAIM, "Mesa " + group.getIdentifier());
         payload.put("iat", now.getEpochSecond());
         payload.put("exp", exp.getEpochSecond());
         return createToken(payload);

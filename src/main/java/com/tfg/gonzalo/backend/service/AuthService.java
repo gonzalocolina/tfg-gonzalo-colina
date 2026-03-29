@@ -3,6 +3,7 @@ package com.tfg.gonzalo.backend.service;
 import com.tfg.gonzalo.backend.dto.auth.AdminLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.AuthTokenResponse;
 import com.tfg.gonzalo.backend.dto.auth.CoOrganizerLoginRequest;
+import com.tfg.gonzalo.backend.dto.auth.GroupLoginByCodeRequest;
 import com.tfg.gonzalo.backend.dto.auth.GroupLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.RegisterRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
@@ -54,17 +55,7 @@ public class AuthService {
         user.setRole(GlobalRole.ORGANIZER);
         user = appUserRepository.save(user);
 
-        String token = tokenService.createOrganizerToken(user);
-        return new AuthTokenResponse(
-            BEARER,
-                token,
-                tokenService.getExpirationSeconds(),
-                "ORGANIZER",
-                null,
-                null,
-                user.getUsername(),
-                user.getDisplayName()
-        );
+        return toOrganizerAuthResponse(user, tokenService.createOrganizerToken(user));
     }
 
     public AuthTokenResponse loginAdmin(AdminLoginRequest request) {
@@ -79,17 +70,7 @@ public class AuthService {
             throw new BusinessRuleException("Credenciales inválidas.");
         }
 
-        String token = tokenService.createOrganizerToken(user);
-        return new AuthTokenResponse(
-            BEARER,
-                token,
-                tokenService.getExpirationSeconds(),
-                "ORGANIZER",
-                null,
-                null,
-                user.getUsername(),
-                user.getDisplayName()
-        );
+        return toOrganizerAuthResponse(user, tokenService.createOrganizerToken(user));
     }
 
     private static String normalizeOptional(String value) {
@@ -142,18 +123,43 @@ public class AuthService {
         EventGroup group = eventGroupRepository.findByEventIdAndRepresentativeCode(request.eventId(), code)
                 .orElseGet(() -> eventGroupRepository.findByEventIdAndObserverCode(request.eventId(), code)
                         .orElseThrow(() -> new BusinessRuleException("Código de acceso inválido para el evento.")));
+        return toGroupAuthResponse(group, code);
+    }
 
+    public AuthTokenResponse loginGroupByCode(GroupLoginByCodeRequest request) {
+        String code = request.code().trim();
+        EventGroup group = eventGroupRepository.findByRepresentativeCode(code)
+                .orElseGet(() -> eventGroupRepository.findByObserverCode(code)
+                        .orElseThrow(() -> new BusinessRuleException("Código de acceso inválido.")));
+
+        return toGroupAuthResponse(group, code);
+    }
+
+    private AuthTokenResponse toOrganizerAuthResponse(AppUser user, String token) {
+        return new AuthTokenResponse(
+                BEARER,
+                token,
+                tokenService.getExpirationSeconds(),
+                "ORGANIZER",
+                null,
+                null,
+                user.getUsername(),
+                user.getDisplayName()
+        );
+    }
+
+    private AuthTokenResponse toGroupAuthResponse(EventGroup group, String code) {
         boolean representative = group.getRepresentativeCode().equals(code);
         String token = representative ? tokenService.createRepresentativeToken(group) : tokenService.createObserverToken(group);
         return new AuthTokenResponse(
-            BEARER,
+                BEARER,
                 token,
                 tokenService.getExpirationSeconds(),
                 representative ? "GROUP_REPRESENTATIVE" : "GROUP_OBSERVER",
                 group.getEvent().getId(),
                 group.getId(),
                 null,
-                "Grupo " + group.getIdentifier()
+                "Mesa " + group.getIdentifier()
         );
     }
 }
