@@ -6,9 +6,12 @@ import com.tfg.gonzalo.backend.dto.setup.CreatePodRequest;
 import com.tfg.gonzalo.backend.dto.setup.EventStructureResponse;
 import com.tfg.gonzalo.backend.dto.setup.GroupResponse;
 import com.tfg.gonzalo.backend.dto.setup.PodResponse;
+import com.tfg.gonzalo.backend.dto.setup.UpdateGroupRequest;
+import com.tfg.gonzalo.backend.dto.setup.UpdatePodRequest;
 import com.tfg.gonzalo.backend.service.EventSetupService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +51,27 @@ public class EventSetupController {
                                           @PathVariable Long groupId,
                                           @Valid @RequestBody AssignGroupPodRequest request) {
         return eventSetupService.assignGroupToPod(eventId, groupId, request);
+    }
+
+    @PatchMapping("/pods/{podId}")
+    public PodResponse updatePod(@PathVariable Long eventId,
+                                 @PathVariable Long podId,
+                                 @Valid @RequestBody UpdatePodRequest request) {
+        return eventSetupService.updatePod(eventId, podId, request);
+    }
+
+    @DeleteMapping("/pods/{podId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePod(@PathVariable Long eventId,
+                          @PathVariable Long podId) {
+        eventSetupService.deletePod(eventId, podId);
+    }
+
+    @PatchMapping("/groups/{groupId}")
+    public GroupResponse updateGroup(@PathVariable Long eventId,
+                                     @PathVariable Long groupId,
+                                     @Valid @RequestBody UpdateGroupRequest request) {
+        return eventSetupService.updateGroup(eventId, groupId, request);
     }
 
     @GetMapping("/structure")

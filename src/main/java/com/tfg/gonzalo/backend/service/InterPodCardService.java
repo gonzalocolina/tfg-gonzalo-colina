@@ -9,13 +9,16 @@ import com.tfg.gonzalo.backend.exception.ForbiddenOperationException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
+import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.InterPodCard;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
+import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.repository.InterPodCardRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
@@ -28,8 +31,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class InterPodCardService {
 
+    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
+
     private final EventRepository eventRepository;
     private final EventGroupRepository eventGroupRepository;
+    private final GameStateRepository gameStateRepository;
     private final InterPodCardRepository interPodCardRepository;
     private final EventLogService eventLogService;
     private final AccessControlService accessControlService;
@@ -39,6 +45,7 @@ public class InterPodCardService {
 
     public InterPodCardService(EventRepository eventRepository,
                                EventGroupRepository eventGroupRepository,
+                               GameStateRepository gameStateRepository,
                                InterPodCardRepository interPodCardRepository,
                                EventLogService eventLogService,
                                AccessControlService accessControlService,
@@ -47,6 +54,7 @@ public class InterPodCardService {
                                InterPodCardDefinitionService interPodCardDefinitionService) {
         this.eventRepository = eventRepository;
         this.eventGroupRepository = eventGroupRepository;
+        this.gameStateRepository = gameStateRepository;
         this.interPodCardRepository = interPodCardRepository;
         this.eventLogService = eventLogService;
         this.accessControlService = accessControlService;
@@ -65,6 +73,8 @@ public class InterPodCardService {
         String representativeCode = request.representativeCode().trim();
         EventGroup sourceGroup = findRepresentativeGroup(eventId, representativeCode);
         accessControlService.requireRepresentativeOrOrganizerForGroup(event, sourceGroup, representativeCode);
+        ensureRepresentativeCanAct(eventId);
+        ensureGroupHasAssignedPod(sourceGroup);
         InterPodCardDefinition selectedDefinition = interPodCardDefinitionService.resolveDefinitionForEvent(
             event,
             request.interPodCardDefinitionId(),
@@ -228,6 +238,29 @@ public class InterPodCardService {
         return actingGroup == null ? card.getSourceGroup() : actingGroup;
     }
 
+    private GameState findGameState(Long eventId) {
+        return gameStateRepository.findByEventId(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
+    }
+
+    private void ensureRepresentativeCanAct(Long eventId) {
+        AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
+        if (!principal.isRepresentative()) {
+            return;
+        }
+
+        GameState gameState = findGameState(eventId);
+        if (gameState.getTimerStatus() == TimerStatus.PAUSED) {
+            throw new BusinessRuleException("La partida está pausada. Espera a que el organizador la reanude.");
+        }
+    }
+
+    private void ensureGroupHasAssignedPod(EventGroup group) {
+        if (group.getPod() == null || LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(group.getPod().getName())) {
+            throw new BusinessRuleException("Tu mesa todavía no está asignada a un pod.");
+        }
+    }
+
     private void publishCardRealtime(Long eventId, String operation) {
         realtimeEventPublisher.publishGameStateUpdate(eventId, operation, null, List.of(operation));
     }
@@ -243,12 +276,14 @@ public class InterPodCardService {
             throw new ForbiddenOperationException(
                     "Solo el organizador/co-organizador o representantes del mismo pod pueden modificar esta carta.");
         }
+        ensureRepresentativeCanAct(event.getId());
         if (representativeCode == null || representativeCode.isBlank()) {
             throw new BusinessRuleException("El código de representante es obligatorio para esta operación.");
         }
         String normalizedCode = representativeCode.trim();
 
         EventGroup representativeGroup = findRepresentativeGroup(event.getId(), normalizedCode);
+        ensureGroupHasAssignedPod(representativeGroup);
 
         accessControlService.requireRepresentativeOrOrganizerForGroup(event, representativeGroup, normalizedCode);
 

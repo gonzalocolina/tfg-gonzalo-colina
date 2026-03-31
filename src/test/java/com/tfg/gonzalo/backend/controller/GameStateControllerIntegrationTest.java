@@ -1,5 +1,6 @@
 package com.tfg.gonzalo.backend.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class GameStateControllerIntegrationTest {
 
     private static final Pattern ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
+        private static final Pattern EVENT_CODE_PATTERN = Pattern.compile("\"eventCode\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern REPRESENTATIVE_CODE_PATTERN = Pattern.compile("\"representativeCode\"\\s*:\\s*\"([^\"]+)\"");
         private static final Pattern TOKEN_PATTERN = Pattern.compile("\"accessToken\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -149,6 +151,85 @@ class GameStateControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void startGameRejectsPendingAssignments() throws Exception {
+        String organizerToken = registerOrganizer("evento-pendiente");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Pendiente",
+                                  "configuredPlayerCount": 2,
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String eventBody = createEventResult.getResponse().getContentAsString();
+        long eventId = extractId(eventBody);
+        String eventCode = extractRequiredField(eventBody, EVENT_CODE_PATTERN, "eventCode");
+
+        mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "displayName": "Mesa Pendiente"
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("pendientes de asignación")));
+    }
+
+    @Test
+    void representativeActionsAreBlockedWhilePaused() throws Exception {
+        long eventId = createEvent("evento-pause-lock", 4);
+        String organizerToken = loginAdmin("evento-pause-lock", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, representativeCode);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/pause", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "damage": 5
+                                }
+                                """.formatted(representativeCode)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "threat": 2
+                                }
+                                """.formatted(representativeCode)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+    }
+
     private long createEvent(String username, int players) throws Exception {
         String organizerToken = registerOrganizer(username);
 
@@ -275,4 +356,12 @@ class GameStateControllerIntegrationTest {
         }
         return Long.parseLong(matcher.group(1));
     }
+
+        private String extractRequiredField(String responseBody, Pattern pattern, String fieldName) {
+                Matcher matcher = pattern.matcher(responseBody);
+                if (!matcher.find()) {
+                        throw new IllegalStateException("No se ha encontrado " + fieldName + " en la respuesta JSON.");
+                }
+                return matcher.group(1);
+        }
 }

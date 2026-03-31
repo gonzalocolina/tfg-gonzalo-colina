@@ -1,5 +1,6 @@
 package com.tfg.gonzalo.backend.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -92,9 +93,7 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG",
-            "hpMax": 8,
-            "status": "REVELADA"
+            "cardName": "THE_MANGOG"
           }
           """.formatted(groupA.representativeCode()).getBytes(StandardCharsets.UTF_8)
       );
@@ -156,6 +155,86 @@ class EventRolesAndAlertsIntegrationTest {
           .param("actionType", "INTER_POD_CARD_CREATED"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].actionType").value("INTER_POD_CARD_CREATED"));
+    }
+
+    @Test
+    void representativesCannotOperateInterPodCardsWhileGameIsPaused() throws Exception {
+      long eventId = createEvent("evento-cartas-pausa", 4, 180);
+      String organizerToken = loginAdmin("evento-cartas-pausa", "Password123");
+
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
+      String representativeToken = loginGroup(eventId, group.representativeCode());
+
+      MockMultipartFile createPayload = new MockMultipartFile(
+        "payload",
+        "payload.json",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+          {
+            "representativeCode": "%s",
+            "cardName": "THE_MANGOG"
+          }
+          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+      );
+
+      long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+          .file(createPayload)
+          .header("Authorization", "Bearer " + representativeToken))
+        .andExpect(status().isCreated())
+        .andReturn()
+        .getResponse()
+        .getContentAsString());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/pause", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+          .header("Authorization", "Bearer " + representativeToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""
+            {
+              "representativeCode": "%s",
+              "damage": 2
+            }
+            """.formatted(group.representativeCode())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+
+      mockMvc.perform(patch("/api/events/{eventId}/inter-pod-cards/{cardId}/status", eventId, cardId)
+          .header("Authorization", "Bearer " + representativeToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""
+            {
+              "representativeCode": "%s",
+              "status": "DERROTADA"
+            }
+            """.formatted(group.representativeCode())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+
+      MockMultipartFile pausedCreatePayload = new MockMultipartFile(
+        "payload",
+        "payload.json",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+          {
+            "representativeCode": "%s",
+            "cardName": "THE_MANGOG"
+          }
+          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+      );
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+          .file(pausedCreatePayload)
+          .header("Authorization", "Bearer " + representativeToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("está pausada")));
     }
 
     @Test

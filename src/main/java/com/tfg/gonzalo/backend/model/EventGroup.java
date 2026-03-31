@@ -21,8 +21,8 @@ public class EventGroup extends BaseEntity {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "pod_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pod_id")
     private Pod pod;
 
     @Column(nullable = false, length = 40)

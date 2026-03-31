@@ -33,6 +33,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class GameStateService {
 
+    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
+
     private final EventRepository eventRepository;
     private final GameStateRepository gameStateRepository;
     private final EventGroupRepository eventGroupRepository;
@@ -73,9 +75,11 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureNotFinished(event);
+        ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getVillainHpCurrent();
         int newHp = Math.max(0, before - request.damage());
@@ -101,9 +105,11 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureNotFinished(event);
+        ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
         int newThreat = before + request.threat();
@@ -175,6 +181,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
 
@@ -191,6 +198,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
         if (gameState.getTimerStatus() == TimerStatus.NOT_CONFIGURED) {
             throw new BusinessRuleException("El evento no tiene temporizador configurado.");
         }
@@ -244,6 +252,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
         if (gameState.getTimerStatus() == TimerStatus.NOT_CONFIGURED) {
             throw new BusinessRuleException("El evento no tiene temporizador configurado.");
         }
@@ -317,6 +326,21 @@ public class GameStateService {
     private void ensureNotFinished(Event event) {
         if (event.getStatus() == EventStatus.FINISHED) {
             throw new BusinessRuleException("La partida ya ha terminado y no admite más cambios.");
+        }
+    }
+
+    private void ensureNoPendingAssignments(Long eventId) {
+        boolean hasPendingAssignments = eventGroupRepository.findByEventId(eventId).stream()
+                .anyMatch(group -> group.getPod() == null
+                        || LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(group.getPod().getName()));
+        if (hasPendingAssignments) {
+            throw new BusinessRuleException("No se puede iniciar ni continuar la partida mientras haya mesas pendientes de asignación a un pod.");
+        }
+    }
+
+    private void ensureRepresentativeActionsAllowed(GameState gameState) {
+        if (gameState.getTimerStatus() == TimerStatus.PAUSED) {
+            throw new BusinessRuleException("La partida está pausada. Espera a que el organizador la reanude.");
         }
     }
 

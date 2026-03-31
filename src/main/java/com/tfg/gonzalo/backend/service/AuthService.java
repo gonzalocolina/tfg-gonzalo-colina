@@ -12,7 +12,6 @@ import com.tfg.gonzalo.backend.model.CoOrganizerAssignment;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.GameState;
-import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GlobalRole;
@@ -21,7 +20,6 @@ import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
-import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.TokenService;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,7 +29,6 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private static final String BEARER = "Bearer";
-    private static final String UNASSIGNED_POD_NAME = "Sin asignar";
     private static final String DEFAULT_PLAYER_NAME_PREFIX = "Jugador";
     private static final int MAX_GROUP_IDENTIFIER_LENGTH = 40;
 
@@ -39,7 +36,6 @@ public class AuthService {
     private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
     private final EventGroupRepository eventGroupRepository;
     private final EventRepository eventRepository;
-    private final PodRepository podRepository;
     private final GameStateRepository gameStateRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
@@ -51,7 +47,6 @@ public class AuthService {
                        CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
                        EventGroupRepository eventGroupRepository,
                        EventRepository eventRepository,
-                       PodRepository podRepository,
                        GameStateRepository gameStateRepository,
                        PasswordEncoder passwordEncoder,
                        TokenService tokenService,
@@ -62,7 +57,6 @@ public class AuthService {
         this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.eventRepository = eventRepository;
-        this.podRepository = podRepository;
         this.gameStateRepository = gameStateRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
@@ -211,13 +205,12 @@ public class AuthService {
     }
 
     private EventGroup createGroupForJoiningPlayer(Event event, String requestedDisplayName) {
-        Pod unassignedPod = ensureUnassignedPod(event);
         String baseName = resolveBasePlayerName(event.getId(), requestedDisplayName);
         String uniqueIdentifier = resolveUniqueGroupIdentifier(event.getId(), baseName);
 
         EventGroup group = new EventGroup();
         group.setEvent(event);
-        group.setPod(unassignedPod);
+        group.setPod(null);
         group.setIdentifier(uniqueIdentifier);
         group.setPlayerCount(1);
         group.setRepresentativeCode(generateUniqueGroupCode(true));
@@ -229,17 +222,6 @@ public class AuthService {
                 null, uniqueIdentifier, "Jugador unido al evento mediante código de evento.");
 
         return group;
-    }
-
-    private Pod ensureUnassignedPod(Event event) {
-        return podRepository.findByEventIdAndNameIgnoreCase(event.getId(), UNASSIGNED_POD_NAME)
-                .orElseGet(() -> {
-                    Pod pod = new Pod();
-                    pod.setEvent(event);
-                    pod.setName(UNASSIGNED_POD_NAME);
-                    pod.setSortOrder(-1);
-                    return podRepository.save(pod);
-                });
     }
 
     private String resolveBasePlayerName(Long eventId, String requestedDisplayName) {
