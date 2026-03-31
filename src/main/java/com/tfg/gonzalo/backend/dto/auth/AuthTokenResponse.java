@@ -7,6 +7,7 @@ public record AuthTokenResponse(
         String role,
         Long eventId,
         Long groupId,
+        String groupCode,
         String username,
         String displayName
 ) {

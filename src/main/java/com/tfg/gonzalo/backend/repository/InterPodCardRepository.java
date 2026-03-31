@@ -12,4 +12,6 @@ public interface InterPodCardRepository extends JpaRepository<InterPodCard, Long
     List<InterPodCard> findByEventIdAndPodIdOrderByCreatedAtDesc(Long eventId, Long podId);
 
     Optional<InterPodCard> findByIdAndEventId(Long id, Long eventId);
+
+    boolean existsByInterPodCardDefinitionId(Long interPodCardDefinitionId);
 }

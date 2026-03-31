@@ -2,7 +2,6 @@ package com.tfg.gonzalo.backend.model;
 
 import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -34,9 +33,12 @@ public class InterPodCard extends BaseEntity {
     @JoinColumn(name = "source_group_id", nullable = false)
     private EventGroup sourceGroup;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
-    private InterPodCardType cardName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inter_pod_card_definition_id")
+    private InterPodCardDefinition interPodCardDefinition;
+
+    @Column(nullable = false, length = 120)
+    private String cardName;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

@@ -9,7 +9,11 @@ public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
 
     List<EventGroup> findByEventId(Long eventId);
 
+    Optional<EventGroup> findByIdAndEventId(Long id, Long eventId);
+
     List<EventGroup> findByPodId(Long podId);
+
+    Optional<EventGroup> findByEventIdAndIdentifierIgnoreCase(Long eventId, String identifier);
 
     Optional<EventGroup> findByEventIdAndRepresentativeCode(Long eventId, String representativeCode);
 
@@ -20,4 +24,6 @@ public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
     Optional<EventGroup> findByObserverCode(String observerCode);
 
     boolean existsByEventIdAndIdentifierIgnoreCase(Long eventId, String identifier);
+
+    long countByEventId(Long eventId);
 }
