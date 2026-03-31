@@ -10,11 +10,10 @@ import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.InterPodCard;
+import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardType;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.InterPodCardRepository;
@@ -36,6 +35,7 @@ public class InterPodCardService {
     private final AccessControlService accessControlService;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final InterPodCardImageStorageService imageStorageService;
+    private final InterPodCardDefinitionService interPodCardDefinitionService;
 
     public InterPodCardService(EventRepository eventRepository,
                                EventGroupRepository eventGroupRepository,
@@ -43,7 +43,8 @@ public class InterPodCardService {
                                EventLogService eventLogService,
                                AccessControlService accessControlService,
                                RealtimeEventPublisher realtimeEventPublisher,
-                               InterPodCardImageStorageService imageStorageService) {
+                               InterPodCardImageStorageService imageStorageService,
+                               InterPodCardDefinitionService interPodCardDefinitionService) {
         this.eventRepository = eventRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.interPodCardRepository = interPodCardRepository;
@@ -51,6 +52,7 @@ public class InterPodCardService {
         this.accessControlService = accessControlService;
         this.realtimeEventPublisher = realtimeEventPublisher;
         this.imageStorageService = imageStorageService;
+        this.interPodCardDefinitionService = interPodCardDefinitionService;
     }
 
     @Transactional
@@ -63,16 +65,26 @@ public class InterPodCardService {
         String representativeCode = request.representativeCode().trim();
         EventGroup sourceGroup = findRepresentativeGroup(eventId, representativeCode);
         accessControlService.requireRepresentativeOrOrganizerForGroup(event, sourceGroup, representativeCode);
+        InterPodCardDefinition selectedDefinition = interPodCardDefinitionService.resolveDefinitionForEvent(
+            event,
+            request.interPodCardDefinitionId(),
+            request.cardName()
+        );
+        int hpMax = request.hpMax() == null ? selectedDefinition.getDefaultHpMax() : request.hpMax();
+        InterPodCardStatus initialStatus = request.status() == null
+            ? selectedDefinition.getDefaultStatus()
+            : request.status();
 
         InterPodCard card = new InterPodCard();
         card.setEvent(event);
         card.setPod(sourceGroup.getPod());
         card.setSourceGroup(sourceGroup);
-        card.setCardName(request.cardName());
-        card.setCardCategory(resolveCategory(request.cardName()));
-        card.setHpMax(request.hpMax());
-        card.setHpCurrent(request.hpMax());
-        card.setStatus(request.status() == null ? InterPodCardStatus.REVELADA : request.status());
+        card.setInterPodCardDefinition(selectedDefinition);
+        card.setCardName(selectedDefinition.getName());
+        card.setCardCategory(selectedDefinition.getCardCategory());
+        card.setHpMax(hpMax);
+        card.setHpCurrent(hpMax);
+        card.setStatus(initialStatus);
         card = interPodCardRepository.save(card);
 
         InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(eventId, card.getId(), image);
@@ -83,7 +95,7 @@ public class InterPodCardService {
         }
 
         eventLogService.appendOrganizerLog(event, sourceGroup, EventActionType.INTER_POD_CARD_CREATED,
-            null, card.getCardName().name(), "Carta inter-pod registrada para el pod.");
+            null, card.getCardName(), "Carta inter-pod registrada para el pod.");
 
         publishCardRealtime(eventId, "INTER_POD_CARD_CREATED");
 
@@ -159,7 +171,7 @@ public class InterPodCardService {
         interPodCardRepository.delete(card);
 
         eventLogService.appendOrganizerLog(event, card.getSourceGroup(), EventActionType.INTER_POD_CARD_DELETED,
-            card.getCardName().name(), null, "Carta inter-pod eliminada.");
+            card.getCardName(), null, "Carta inter-pod eliminada.");
 
         publishCardRealtime(eventId, "INTER_POD_CARD_DELETED");
     }
@@ -248,13 +260,6 @@ public class InterPodCardService {
         return representativeGroup;
     }
 
-    private InterPodCardCategory resolveCategory(InterPodCardType cardName) {
-        return switch (cardName) {
-            case THE_MANGOG -> InterPodCardCategory.ESBIRRO;
-            case DOOR_BETWEEN_WORLDS -> InterPodCardCategory.PLAN;
-        };
-    }
-
     private InterPodCardResponse toResponse(InterPodCard card) {
         return new InterPodCardResponse(
                 card.getId(),
@@ -263,6 +268,7 @@ public class InterPodCardService {
                 card.getPod().getName(),
                 card.getSourceGroup().getId(),
                 card.getSourceGroup().getIdentifier(),
+                card.getInterPodCardDefinition() == null ? null : card.getInterPodCardDefinition().getId(),
                 card.getCardName(),
                 card.getCardCategory(),
                 card.getHpMax(),

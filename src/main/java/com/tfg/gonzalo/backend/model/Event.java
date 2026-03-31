@@ -10,8 +10,12 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -72,6 +76,14 @@ public class Event extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "organizer_id", nullable = false)
     private AppUser organizer;
+
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(
+            name = "event_inter_pod_card_definitions",
+            joinColumns = @JoinColumn(name = "event_id"),
+            inverseJoinColumns = @JoinColumn(name = "inter_pod_card_definition_id")
+        )
+        private Set<InterPodCardDefinition> interPodCardDefinitions = new LinkedHashSet<>();
 
     @Column
     private Instant startedAt;

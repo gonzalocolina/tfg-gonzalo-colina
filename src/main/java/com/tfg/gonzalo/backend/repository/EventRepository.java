@@ -15,4 +15,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     java.util.List<Event> findByOrganizerIdOrderByCreatedAtDesc(Long organizerId);
 
     boolean existsByVillainDefinitionId(Long villainDefinitionId);
+
+    boolean existsByInterPodCardDefinitionsId(Long interPodCardDefinitionId);
 }

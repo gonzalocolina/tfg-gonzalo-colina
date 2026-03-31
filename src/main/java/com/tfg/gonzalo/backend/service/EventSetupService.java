@@ -1,5 +1,6 @@
 package com.tfg.gonzalo.backend.service;
 
+import com.tfg.gonzalo.backend.dto.setup.AssignGroupPodRequest;
 import com.tfg.gonzalo.backend.dto.setup.CreateGroupRequest;
 import com.tfg.gonzalo.backend.dto.setup.CreatePodRequest;
 import com.tfg.gonzalo.backend.dto.setup.EventStructureResponse;
@@ -98,6 +99,27 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
             null, group.getIdentifier(), "Mesa creado y amenaza objetivo recalculada.");
+        return mapGroupResponse(group);
+    }
+
+    @Transactional
+    public GroupResponse assignGroupToPod(Long eventId, Long groupId, AssignGroupPodRequest request) {
+        Event event = findEditableEvent(eventId);
+        EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
+        Pod targetPod = findPod(request.podId(), eventId);
+
+        if (group.getPod().getId().equals(targetPod.getId())) {
+            return mapGroupResponse(group);
+        }
+
+        String previousPodName = group.getPod().getName();
+        group.setPod(targetPod);
+        group = eventGroupRepository.save(group);
+
+        eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
+                previousPodName, targetPod.getName(), "Jugador/mesa reasignado de pod.");
+
         return mapGroupResponse(group);
     }
 

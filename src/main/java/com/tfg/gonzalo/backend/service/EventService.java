@@ -3,11 +3,13 @@ package com.tfg.gonzalo.backend.service;
 import com.tfg.gonzalo.backend.dto.event.CreateEventRequest;
 import com.tfg.gonzalo.backend.dto.event.EventResponse;
 import com.tfg.gonzalo.backend.dto.event.UpdateEventRequest;
+import com.tfg.gonzalo.backend.dto.interpod.InterPodCardDefinitionResponse;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.GameState;
+import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.VillainDefinition;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
@@ -19,6 +21,7 @@ import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
+import java.util.LinkedHashSet;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
@@ -35,6 +38,7 @@ public class EventService {
     private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
     private final VillainService villainService;
+    private final InterPodCardDefinitionService interPodCardDefinitionService;
     private final VillainFormulaService villainFormulaService;
     private final InterPodCardService interPodCardService;
     private final AccessControlService accessControlService;
@@ -47,6 +51,7 @@ public class EventService {
                         EventLogService eventLogService,
                         CodeGeneratorService codeGeneratorService,
                         VillainService villainService,
+                        InterPodCardDefinitionService interPodCardDefinitionService,
                         VillainFormulaService villainFormulaService,
                         InterPodCardService interPodCardService,
                         AccessControlService accessControlService) {
@@ -58,6 +63,7 @@ public class EventService {
         this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
         this.villainService = villainService;
+        this.interPodCardDefinitionService = interPodCardDefinitionService;
         this.villainFormulaService = villainFormulaService;
         this.interPodCardService = interPodCardService;
         this.accessControlService = accessControlService;
@@ -70,6 +76,8 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontró el usuario autenticado."));
         VillainDefinition selectedVillain = villainService
             .findSelectableVillainForOrganizer(organizer.getId(), request.villainDefinitionId());
+        List<InterPodCardDefinition> selectedInterPodCardDefinitions = interPodCardDefinitionService
+            .resolveSelectedDefinitionsForOrganizer(organizer.getId(), request.interPodCardDefinitionIds());
 
         Event event = new Event();
         event.setName(request.name().trim());
@@ -79,6 +87,7 @@ public class EventService {
         event.setEventCode(generateUniqueEventCode());
         event.setOrganizer(organizer);
         event.setVillainDefinition(selectedVillain);
+        event.setInterPodCardDefinitions(new LinkedHashSet<>(selectedInterPodCardDefinitions));
         applyVillainSnapshot(event, selectedVillain);
         event = eventRepository.save(event);
 
@@ -230,6 +239,11 @@ public class EventService {
         Long villainDefinitionId = event.getVillainDefinition() != null
                 ? event.getVillainDefinition().getId()
                 : null;
+        List<InterPodCardDefinitionResponse> selectedInterPodCardDefinitions = event.getInterPodCardDefinitions()
+            .stream()
+            .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
+            .map(this::toInterPodCardDefinitionResponse)
+            .toList();
 
         return new EventResponse(
                 event.getId(),
@@ -243,6 +257,7 @@ public class EventService {
                 villainDefinitionId,
                 event.getVillainNameSnapshot(),
                 event.getVillainTypeSnapshot(),
+                selectedInterPodCardDefinitions,
                 event.getVillainHpRuleTypeSnapshot(),
                 event.getVillainHpRuleValueSnapshot(),
                 event.getVillainThreatRuleTypeSnapshot(),
@@ -257,6 +272,21 @@ public class EventService {
                 event.getFinishedAt(),
                 event.getCreatedAt(),
                 event.getUpdatedAt()
+        );
+    }
+
+    private InterPodCardDefinitionResponse toInterPodCardDefinitionResponse(InterPodCardDefinition definition) {
+        return new InterPodCardDefinitionResponse(
+                definition.getId(),
+                definition.getName(),
+                definition.getType(),
+                definition.getCardCategory(),
+                definition.getDefaultHpMax(),
+                definition.getDefaultStatus(),
+                definition.getOwner() == null ? null : definition.getOwner().getId(),
+                definition.getOwner() == null ? null : definition.getOwner().getUsername(),
+                definition.getCreatedAt(),
+                definition.getUpdatedAt()
         );
     }
 }

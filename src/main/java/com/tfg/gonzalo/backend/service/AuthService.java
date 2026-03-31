@@ -9,11 +9,19 @@ import com.tfg.gonzalo.backend.dto.auth.RegisterRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.CoOrganizerAssignment;
+import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
+import com.tfg.gonzalo.backend.model.GameState;
+import com.tfg.gonzalo.backend.model.Pod;
+import com.tfg.gonzalo.backend.model.enums.EventActionType;
+import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
+import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.repository.GameStateRepository;
+import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.TokenService;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,23 +31,44 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private static final String BEARER = "Bearer";
+    private static final String UNASSIGNED_POD_NAME = "Sin asignar";
+    private static final String DEFAULT_PLAYER_NAME_PREFIX = "Jugador";
+    private static final int MAX_GROUP_IDENTIFIER_LENGTH = 40;
 
     private final AppUserRepository appUserRepository;
     private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
     private final EventGroupRepository eventGroupRepository;
+    private final EventRepository eventRepository;
+    private final PodRepository podRepository;
+    private final GameStateRepository gameStateRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final CodeGeneratorService codeGeneratorService;
+    private final EventLogService eventLogService;
+    private final VillainFormulaService villainFormulaService;
 
     public AuthService(AppUserRepository appUserRepository,
                        CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
                        EventGroupRepository eventGroupRepository,
+                       EventRepository eventRepository,
+                       PodRepository podRepository,
+                       GameStateRepository gameStateRepository,
                        PasswordEncoder passwordEncoder,
-                       TokenService tokenService) {
+                       TokenService tokenService,
+                       CodeGeneratorService codeGeneratorService,
+                       EventLogService eventLogService,
+                       VillainFormulaService villainFormulaService) {
         this.appUserRepository = appUserRepository;
         this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
         this.eventGroupRepository = eventGroupRepository;
+        this.eventRepository = eventRepository;
+        this.podRepository = podRepository;
+        this.gameStateRepository = gameStateRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.codeGeneratorService = codeGeneratorService;
+        this.eventLogService = eventLogService;
+        this.villainFormulaService = villainFormulaService;
     }
 
     public AuthTokenResponse register(RegisterRequest request) {
@@ -113,6 +142,7 @@ public class AuthService {
                 "CO_ORGANIZER",
                 request.eventId(),
                 null,
+                null,
                 user.getUsername(),
                 user.getDisplayName() + " (" + responsibilities + ")"
         );
@@ -128,11 +158,22 @@ public class AuthService {
 
     public AuthTokenResponse loginGroupByCode(GroupLoginByCodeRequest request) {
         String code = request.code().trim();
-        EventGroup group = eventGroupRepository.findByRepresentativeCode(code)
-                .orElseGet(() -> eventGroupRepository.findByObserverCode(code)
-                        .orElseThrow(() -> new BusinessRuleException("Código de acceso inválido.")));
+        EventGroup existingGroup = eventGroupRepository.findByRepresentativeCode(code)
+                .orElseGet(() -> eventGroupRepository.findByObserverCode(code).orElse(null));
 
-        return toGroupAuthResponse(group, code);
+        if (existingGroup != null) {
+            return toGroupAuthResponse(existingGroup, code);
+        }
+
+        Event event = eventRepository.findByEventCode(code)
+                .orElseThrow(() -> new BusinessRuleException("Código de acceso inválido."));
+
+        if (event.getStatus() == EventStatus.FINISHED) {
+            throw new BusinessRuleException("El evento ya ha finalizado y no admite nuevas incorporaciones.");
+        }
+
+        EventGroup joinedGroup = createGroupForJoiningPlayer(event, request.displayName());
+        return toGroupAuthResponse(joinedGroup, joinedGroup.getRepresentativeCode(), joinedGroup.getIdentifier());
     }
 
     private AuthTokenResponse toOrganizerAuthResponse(AppUser user, String token) {
@@ -143,12 +184,17 @@ public class AuthService {
                 "ORGANIZER",
                 null,
                 null,
+                null,
                 user.getUsername(),
                 user.getDisplayName()
         );
     }
 
     private AuthTokenResponse toGroupAuthResponse(EventGroup group, String code) {
+        return toGroupAuthResponse(group, code, "Mesa " + group.getIdentifier());
+    }
+
+    private AuthTokenResponse toGroupAuthResponse(EventGroup group, String code, String displayName) {
         boolean representative = group.getRepresentativeCode().equals(code);
         String token = representative ? tokenService.createRepresentativeToken(group) : tokenService.createObserverToken(group);
         return new AuthTokenResponse(
@@ -158,8 +204,101 @@ public class AuthService {
                 representative ? "GROUP_REPRESENTATIVE" : "GROUP_OBSERVER",
                 group.getEvent().getId(),
                 group.getId(),
+                code,
                 null,
-                "Mesa " + group.getIdentifier()
+                displayName
         );
+    }
+
+    private EventGroup createGroupForJoiningPlayer(Event event, String requestedDisplayName) {
+        Pod unassignedPod = ensureUnassignedPod(event);
+        String baseName = resolveBasePlayerName(event.getId(), requestedDisplayName);
+        String uniqueIdentifier = resolveUniqueGroupIdentifier(event.getId(), baseName);
+
+        EventGroup group = new EventGroup();
+        group.setEvent(event);
+        group.setPod(unassignedPod);
+        group.setIdentifier(uniqueIdentifier);
+        group.setPlayerCount(1);
+        group.setRepresentativeCode(generateUniqueGroupCode(true));
+        group.setObserverCode(generateUniqueGroupCode(false));
+        group = eventGroupRepository.save(group);
+
+        recalculateThreatTarget(event);
+        eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_CREATED,
+                null, uniqueIdentifier, "Jugador unido al evento mediante código de evento.");
+
+        return group;
+    }
+
+    private Pod ensureUnassignedPod(Event event) {
+        return podRepository.findByEventIdAndNameIgnoreCase(event.getId(), UNASSIGNED_POD_NAME)
+                .orElseGet(() -> {
+                    Pod pod = new Pod();
+                    pod.setEvent(event);
+                    pod.setName(UNASSIGNED_POD_NAME);
+                    pod.setSortOrder(-1);
+                    return podRepository.save(pod);
+                });
+    }
+
+    private String resolveBasePlayerName(Long eventId, String requestedDisplayName) {
+        if (requestedDisplayName == null || requestedDisplayName.isBlank()) {
+            long nextOrdinal = eventGroupRepository.countByEventId(eventId) + 1;
+            return DEFAULT_PLAYER_NAME_PREFIX + " " + nextOrdinal;
+        }
+        String trimmed = requestedDisplayName.trim();
+        if (trimmed.length() > MAX_GROUP_IDENTIFIER_LENGTH) {
+            return trimmed.substring(0, MAX_GROUP_IDENTIFIER_LENGTH);
+        }
+        return trimmed;
+    }
+
+    private String resolveUniqueGroupIdentifier(Long eventId, String baseName) {
+        String normalizedBase = baseName;
+        if (normalizedBase == null || normalizedBase.isBlank()) {
+            normalizedBase = DEFAULT_PLAYER_NAME_PREFIX;
+        }
+
+        if (normalizedBase.length() > MAX_GROUP_IDENTIFIER_LENGTH) {
+            normalizedBase = normalizedBase.substring(0, MAX_GROUP_IDENTIFIER_LENGTH);
+        }
+
+        String candidate = normalizedBase;
+        int suffix = 2;
+        while (eventGroupRepository.existsByEventIdAndIdentifierIgnoreCase(eventId, candidate)) {
+            String suffixText = " " + suffix;
+            int maxBaseLength = Math.max(1, MAX_GROUP_IDENTIFIER_LENGTH - suffixText.length());
+            String cutBase = normalizedBase.length() > maxBaseLength
+                    ? normalizedBase.substring(0, maxBaseLength)
+                    : normalizedBase;
+            candidate = cutBase + suffixText;
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private String generateUniqueGroupCode(boolean representative) {
+        String generated = codeGeneratorService.generateGroupCode();
+        while (representative
+                ? eventGroupRepository.findByRepresentativeCode(generated).isPresent()
+                : eventGroupRepository.findByObserverCode(generated).isPresent()) {
+            generated = codeGeneratorService.generateGroupCode();
+        }
+        return generated;
+    }
+
+    private void recalculateThreatTarget(Event event) {
+        GameState gameState = gameStateRepository.findByEventId(event.getId()).orElse(null);
+        if (gameState == null) {
+            return;
+        }
+        int currentGroupCount = eventGroupRepository.findByEventId(event.getId()).size();
+        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+                event.getVillainThreatRuleTypeSnapshot(),
+                event.getVillainThreatRuleValueSnapshot(),
+                currentGroupCount
+        ));
+        gameStateRepository.save(gameState);
     }
 }

@@ -2,7 +2,6 @@ package com.tfg.gonzalo.backend.dto.event;
 
 import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardType;
 import java.time.Instant;
 
 public record InterPodCardResponse(
@@ -12,7 +11,8 @@ public record InterPodCardResponse(
         String podName,
         Long sourceGroupId,
         String sourceGroupIdentifier,
-        InterPodCardType cardName,
+        Long interPodCardDefinitionId,
+        String cardName,
         InterPodCardCategory cardCategory,
         Integer hpMax,
         Integer hpCurrent,
