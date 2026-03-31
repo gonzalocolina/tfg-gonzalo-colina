@@ -19,6 +19,7 @@ import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
@@ -55,8 +56,7 @@ public class InterPodCardDefinitionService {
             definitions.addAll(interPodCardDefinitionRepository.findByOwnerIdOrderByNameAsc(principal.userId()));
         }
 
-        return definitions.stream()
-                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER))
+        return deduplicateDefinitions(definitions).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -67,8 +67,7 @@ public class InterPodCardDefinitionService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
         accessControlService.requireReadAccessToEvent(event);
 
-        return event.getInterPodCardDefinitions().stream()
-                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER))
+        return deduplicateDefinitions(event.getInterPodCardDefinitions().stream().toList()).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -147,7 +146,8 @@ public class InterPodCardDefinitionService {
             : requestedDefinitionIds.stream().filter(Objects::nonNull).distinct().toList();
 
         if (normalizedIds.isEmpty()) {
-            return interPodCardDefinitionRepository.findByTypeOrderByNameAsc(InterPodCardDefinitionType.PREDEFINED);
+            return deduplicateDefinitions(
+                    interPodCardDefinitionRepository.findByTypeOrderByNameAsc(InterPodCardDefinitionType.PREDEFINED));
         }
 
         List<InterPodCardDefinition> selected = new ArrayList<>();
@@ -242,6 +242,22 @@ public class InterPodCardDefinitionService {
                 definition.getCreatedAt(),
                 definition.getUpdatedAt()
         );
+    }
+
+    private List<InterPodCardDefinition> deduplicateDefinitions(List<InterPodCardDefinition> definitions) {
+        LinkedHashMap<String, InterPodCardDefinition> uniqueDefinitions = new LinkedHashMap<>();
+
+        definitions.stream()
+                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(InterPodCardDefinition::getId))
+                .forEach(definition -> uniqueDefinitions.putIfAbsent(buildDefinitionKey(definition), definition));
+
+        return new ArrayList<>(uniqueDefinitions.values());
+    }
+
+    private String buildDefinitionKey(InterPodCardDefinition definition) {
+        Long ownerId = definition.getOwner() == null ? null : definition.getOwner().getId();
+        return definition.getType() + ":" + ownerId + ":" + normalizeCardName(definition.getName());
     }
 
     private String normalizeCardName(String rawName) {

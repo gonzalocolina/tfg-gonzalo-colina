@@ -1,5 +1,7 @@
 package com.tfg.gonzalo.backend.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -86,9 +88,12 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentGroupCount").value(1))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(3))
+                .andExpect(jsonPath("$.unassignedGroupCount").value(0))
+                .andExpect(jsonPath("$.unassignedPlayerCount").value(0))
                 .andExpect(jsonPath("$.schemeThreatTarget").value(2))
                 .andExpect(jsonPath("$.pods[0].name").value("Pod A"))
-                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("A1"));
+                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("A1"))
+                .andExpect(jsonPath("$.unassignedGroups").isEmpty());
     }
 
     @Test
@@ -150,9 +155,11 @@ class EventSetupControllerIntegrationTest {
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentGroupCount").value(1))
-                .andExpect(jsonPath("$.assignedPlayerCount").value(1))
-                .andExpect(jsonPath("$.pods[0].name").value("Sin asignar"))
-                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("Jugador Uno"));
+                .andExpect(jsonPath("$.assignedPlayerCount").value(0))
+                .andExpect(jsonPath("$.unassignedGroupCount").value(1))
+                .andExpect(jsonPath("$.unassignedPlayerCount").value(1))
+                .andExpect(jsonPath("$.pods[0].name").value("Pod Norte"))
+                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Jugador Uno"));
 
         mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}/pod", eventId, groupId)
                         .header("Authorization", "Bearer " + organizerToken)
@@ -169,8 +176,92 @@ class EventSetupControllerIntegrationTest {
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pods[1].name").value("Pod Norte"))
-                .andExpect(jsonPath("$.pods[1].groups[0].identifier").value("Jugador Uno"));
+                .andExpect(jsonPath("$.assignedPlayerCount").value(1))
+                .andExpect(jsonPath("$.unassignedGroupCount").value(0))
+                .andExpect(jsonPath("$.pods[0].name").value("Pod Norte"))
+                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("Jugador Uno"));
+    }
+
+    @Test
+    void organizerCanRenamePodsAndTablesAndDeletePodsReturningTablesToPending() throws Exception {
+        String organizerToken = registerOrganizer("setuprename", "Setup Rename", "setuprename@example.com", "Password123");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Rename",
+                                  "configuredPlayerCount": 4,
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long eventId = extractId(createEventResult.getResponse().getContentAsString());
+
+        long podId = extractId(mockMvc.perform(post("/api/events/{eventId}/pods", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pod Inicial",
+                                  "sortOrder": 0
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        long groupId = extractId(mockMvc.perform(post("/api/events/{eventId}/pods/{podId}/groups", eventId, podId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "Mesa A",
+                                  "playerCount": 4
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        mockMvc.perform(patch("/api/events/{eventId}/pods/{podId}", eventId, podId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pod Renombrado"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Pod Renombrado"));
+
+        mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}", eventId, groupId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "Mesa Omega"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.identifier").value("Mesa Omega"));
+
+        mockMvc.perform(delete("/api/events/{eventId}/pods/{podId}", eventId, podId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignedPlayerCount").value(0))
+                .andExpect(jsonPath("$.unassignedGroupCount").value(1))
+                .andExpect(jsonPath("$.pods").isEmpty())
+                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Mesa Omega"));
     }
 
         private String registerOrganizer(String username, String displayName, String email, String password) throws Exception {

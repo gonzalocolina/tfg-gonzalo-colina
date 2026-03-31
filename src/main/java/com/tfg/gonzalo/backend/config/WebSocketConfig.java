@@ -12,13 +12,16 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private static final String[] DEFAULT_ALLOWED_ORIGINS = new String[] {"http://*:*", "https://*:*"};
+
     private final String[] allowedOrigins;
 
     public WebSocketConfig(@Value("${app.realtime.allowed-origins}") String allowedOrigins) {
-        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+        String[] parsedOrigins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .toArray(String[]::new);
+        this.allowedOrigins = parsedOrigins.length == 0 ? DEFAULT_ALLOWED_ORIGINS : parsedOrigins;
     }
 
     @Override

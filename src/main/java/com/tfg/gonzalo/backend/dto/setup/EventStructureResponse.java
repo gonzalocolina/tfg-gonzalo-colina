@@ -8,7 +8,11 @@ public record EventStructureResponse(
         Integer configuredPlayerCount,
         Integer currentGroupCount,
         Integer assignedPlayerCount,
+        Integer unassignedGroupCount,
+        Integer unassignedPlayerCount,
         Integer schemeThreatTarget,
-        List<PodResponse> pods
+        String suggestedPodName,
+        List<PodResponse> pods,
+        List<GroupResponse> unassignedGroups
 ) {
 }

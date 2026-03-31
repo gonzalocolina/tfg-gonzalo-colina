@@ -6,6 +6,8 @@ import com.tfg.gonzalo.backend.dto.setup.CreatePodRequest;
 import com.tfg.gonzalo.backend.dto.setup.EventStructureResponse;
 import com.tfg.gonzalo.backend.dto.setup.GroupResponse;
 import com.tfg.gonzalo.backend.dto.setup.PodResponse;
+import com.tfg.gonzalo.backend.dto.setup.UpdateGroupRequest;
+import com.tfg.gonzalo.backend.dto.setup.UpdatePodRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
@@ -23,10 +25,16 @@ import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EventSetupService {
+
+    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
+    private static final String DEFAULT_POD_NAME_PREFIX = "Pod";
+    private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^pod\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
 
     private final EventRepository eventRepository;
     private final PodRepository podRepository;
@@ -58,15 +66,16 @@ public class EventSetupService {
     @Transactional
     public PodResponse createPod(Long eventId, CreatePodRequest request) {
         Event event = findEditableEvent(eventId);
+        List<Pod> currentPods = listRealPods(eventId);
 
         Pod pod = new Pod();
         pod.setEvent(event);
-        pod.setName(request.name().trim());
-        pod.setSortOrder(request.sortOrder() == null ? 0 : request.sortOrder());
+        pod.setName(resolvePodName(currentPods, request.name()));
+        pod.setSortOrder(request.sortOrder() == null ? resolveNextSortOrder(currentPods) : request.sortOrder());
         pod = podRepository.save(pod);
 
         eventLogService.appendOrganizerLog(event, EventActionType.POD_CREATED,
-            null, pod.getName(), "Pod creado para el evento.");
+                null, pod.getName(), "Pod creado para el evento.");
         return mapPodResponse(pod, List.of());
     }
 
@@ -91,14 +100,14 @@ public class EventSetupService {
         GameState gameState = findGameState(eventId);
         int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
         gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
-            event.getVillainThreatRuleTypeSnapshot(),
-            event.getVillainThreatRuleValueSnapshot(),
-            currentGroupCount
+                event.getVillainThreatRuleTypeSnapshot(),
+                event.getVillainThreatRuleValueSnapshot(),
+                currentGroupCount
         ));
         gameStateRepository.save(gameState);
 
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
-            null, group.getIdentifier(), "Mesa creado y amenaza objetivo recalculada.");
+                null, group.getIdentifier(), "Mesa creada y amenaza objetivo recalculada.");
         return mapGroupResponse(group);
     }
 
@@ -109,11 +118,11 @@ public class EventSetupService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
         Pod targetPod = findPod(request.podId(), eventId);
 
-        if (group.getPod().getId().equals(targetPod.getId())) {
+        if (hasAssignedPod(group) && group.getPod().getId().equals(targetPod.getId())) {
             return mapGroupResponse(group);
         }
 
-        String previousPodName = group.getPod().getName();
+        String previousPodName = resolveCurrentPodName(group);
         group.setPod(targetPod);
         group = eventGroupRepository.save(group);
 
@@ -123,30 +132,100 @@ public class EventSetupService {
         return mapGroupResponse(group);
     }
 
+    @Transactional
+    public PodResponse updatePod(Long eventId, Long podId, UpdatePodRequest request) {
+        Event event = findEditableEvent(eventId);
+        Pod pod = findPod(podId, eventId);
+
+        String previousName = pod.getName();
+        String nextName = request.name().trim();
+        validatePodName(nextName);
+        pod.setName(nextName);
+        pod = podRepository.save(pod);
+
+        eventLogService.appendOrganizerLog(event, EventActionType.POD_UPDATED,
+                previousName, nextName, "Nombre del pod actualizado.");
+        return mapPodResponse(pod, List.of());
+    }
+
+    @Transactional
+    public void deletePod(Long eventId, Long podId) {
+        Event event = findEditableEvent(eventId);
+        Pod pod = findPod(podId, eventId);
+
+        List<EventGroup> groups = eventGroupRepository.findByPodId(podId);
+        for (EventGroup group : groups) {
+            group.setPod(null);
+        }
+        if (!groups.isEmpty()) {
+            eventGroupRepository.saveAll(groups);
+        }
+
+        podRepository.delete(pod);
+
+        eventLogService.appendOrganizerLog(event, EventActionType.POD_UPDATED,
+                pod.getName(), null, "Pod eliminado; sus mesas quedan pendientes de asignación.");
+    }
+
+    @Transactional
+    public GroupResponse updateGroup(Long eventId, Long groupId, UpdateGroupRequest request) {
+        Event event = findEditableEvent(eventId);
+        EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
+
+        String nextIdentifier = request.identifier().trim();
+        if (!group.getIdentifier().equalsIgnoreCase(nextIdentifier)
+                && eventGroupRepository.existsByEventIdAndIdentifierIgnoreCase(eventId, nextIdentifier)) {
+            throw new BusinessRuleException("Ya existe una mesa con ese identificador dentro del evento.");
+        }
+
+        String previousIdentifier = group.getIdentifier();
+        group.setIdentifier(nextIdentifier);
+        group = eventGroupRepository.save(group);
+
+        eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
+                previousIdentifier, nextIdentifier, "Nombre de la mesa actualizado.");
+        return mapGroupResponse(group);
+    }
+
+    @Transactional
     public EventStructureResponse getEventStructure(Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
         accessControlService.requireReadAccessToEvent(event);
         GameState gameState = findGameState(eventId);
-        List<Pod> pods = podRepository.findByEventIdOrderBySortOrderAsc(eventId);
+        List<Pod> pods = listRealPods(eventId);
         List<EventGroup> groups = eventGroupRepository.findByEventId(eventId);
+        List<EventGroup> assignedGroups = groups.stream()
+                .filter(this::hasAssignedPod)
+                .toList();
+        List<EventGroup> unassignedGroups = groups.stream()
+                .filter(group -> !hasAssignedPod(group))
+                .sorted(Comparator.comparing(EventGroup::getIdentifier, String.CASE_INSENSITIVE_ORDER))
+                .toList();
 
         List<PodResponse> podResponses = pods.stream()
-                .map(pod -> mapPodResponse(pod, groups.stream()
+                .map(pod -> mapPodResponse(pod, assignedGroups.stream()
                         .filter(group -> group.getPod().getId().equals(pod.getId()))
                         .sorted(Comparator.comparing(EventGroup::getIdentifier, String.CASE_INSENSITIVE_ORDER))
                         .toList()))
                 .toList();
 
-        int assignedPlayerCount = groups.stream().mapToInt(EventGroup::getPlayerCount).sum();
+        int assignedPlayerCount = assignedGroups.stream().mapToInt(EventGroup::getPlayerCount).sum();
+        int unassignedPlayerCount = unassignedGroups.stream().mapToInt(EventGroup::getPlayerCount).sum();
+
         return new EventStructureResponse(
                 event.getId(),
                 event.getName(),
                 event.getConfiguredPlayerCount(),
                 groups.size(),
                 assignedPlayerCount,
+                unassignedGroups.size(),
+                unassignedPlayerCount,
                 gameState.getSchemeThreatTarget(),
-                podResponses
+                resolveSuggestedPodName(pods),
+                podResponses,
+                unassignedGroups.stream().map(this::mapGroupResponse).toList()
         );
     }
 
@@ -163,7 +242,7 @@ public class EventSetupService {
     private Pod findPod(Long podId, Long eventId) {
         Pod pod = podRepository.findById(podId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el pod solicitado."));
-        if (!pod.getEvent().getId().equals(eventId)) {
+        if (!pod.getEvent().getId().equals(eventId) || !isRealPod(pod)) {
             throw new BusinessRuleException("El pod no pertenece al evento indicado.");
         }
         return pod;
@@ -172,6 +251,66 @@ public class EventSetupService {
     private GameState findGameState(Long eventId) {
         return gameStateRepository.findByEventId(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
+    }
+
+    private List<Pod> listRealPods(Long eventId) {
+        return podRepository.findByEventIdOrderBySortOrderAsc(eventId).stream()
+                .filter(this::isRealPod)
+                .toList();
+    }
+
+    private boolean isRealPod(Pod pod) {
+        return pod != null && !LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(pod.getName());
+    }
+
+    private boolean hasAssignedPod(EventGroup group) {
+        return group.getPod() != null && isRealPod(group.getPod());
+    }
+
+    private String resolveCurrentPodName(EventGroup group) {
+        return hasAssignedPod(group) ? group.getPod().getName() : null;
+    }
+
+    private int resolveNextSortOrder(List<Pod> currentPods) {
+        return currentPods.stream()
+                .map(Pod::getSortOrder)
+                .max(Integer::compareTo)
+                .orElse(-1) + 1;
+    }
+
+    private String resolvePodName(List<Pod> currentPods, String requestedName) {
+        if (requestedName == null || requestedName.isBlank()) {
+            return resolveSuggestedPodName(currentPods);
+        }
+
+        String normalizedName = requestedName.trim();
+        validatePodName(normalizedName);
+        return normalizedName;
+    }
+
+    private void validatePodName(String podName) {
+        if (LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(podName)) {
+            throw new BusinessRuleException("El nombre 'Sin asignar' está reservado para mesas pendientes de asignación.");
+        }
+    }
+
+    private String resolveSuggestedPodName(List<Pod> currentPods) {
+        int nextOrdinal = 1;
+        while (containsDefaultPodName(currentPods, nextOrdinal)) {
+            nextOrdinal++;
+        }
+        return DEFAULT_POD_NAME_PREFIX + " " + nextOrdinal;
+    }
+
+    private boolean containsDefaultPodName(List<Pod> currentPods, int ordinal) {
+        return currentPods.stream()
+                .map(Pod::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .map(String::trim)
+                .map(DEFAULT_POD_NAME_PATTERN::matcher)
+                .filter(Matcher::matches)
+                .map(matcher -> Integer.parseInt(matcher.group(1)))
+                .anyMatch(value -> value == ordinal);
     }
 
     private String generateUniqueGroupCode(boolean representative) {
@@ -187,8 +326,9 @@ public class EventSetupService {
     private PodResponse mapPodResponse(Pod pod, List<EventGroup> groups) {
         List<EventGroup> podGroups = groups.isEmpty()
                 ? eventGroupRepository.findByPodId(pod.getId()).stream()
-                    .sorted(Comparator.comparing(EventGroup::getIdentifier, String.CASE_INSENSITIVE_ORDER))
-                    .toList()
+                .filter(this::hasAssignedPod)
+                .sorted(Comparator.comparing(EventGroup::getIdentifier, String.CASE_INSENSITIVE_ORDER))
+                .toList()
                 : groups;
         int totalPlayers = podGroups.stream().mapToInt(EventGroup::getPlayerCount).sum();
         List<String> warnings = buildWarnings(podGroups, totalPlayers);
@@ -210,7 +350,7 @@ public class EventSetupService {
     private GroupResponse mapGroupResponse(EventGroup group) {
         return new GroupResponse(
                 group.getId(),
-                group.getPod().getId(),
+                hasAssignedPod(group) ? group.getPod().getId() : null,
                 group.getIdentifier(),
                 group.getPlayerCount(),
                 group.getRepresentativeCode(),
@@ -235,5 +375,4 @@ public class EventSetupService {
         }
         return warnings;
     }
-
 }
