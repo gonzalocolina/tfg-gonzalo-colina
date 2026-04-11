@@ -12,6 +12,7 @@ public record InterPodCardDefinitionResponse(
         InterPodCardCategory cardCategory,
         Integer defaultHpMax,
         InterPodCardStatus defaultStatus,
+        String imageUrl,
         Long ownerId,
         String ownerUsername,
         Instant createdAt,

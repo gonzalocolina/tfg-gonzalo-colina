@@ -3,19 +3,25 @@ package com.tfg.gonzalo.backend.controller;
 import com.tfg.gonzalo.backend.dto.interpod.CreateInterPodCardDefinitionRequest;
 import com.tfg.gonzalo.backend.dto.interpod.InterPodCardDefinitionResponse;
 import com.tfg.gonzalo.backend.dto.interpod.UpdateInterPodCardDefinitionRequest;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import com.tfg.gonzalo.backend.service.InterPodCardDefinitionService;
-import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
@@ -37,23 +43,45 @@ public class InterPodCardDefinitionController {
         return interPodCardDefinitionService.listSelectedDefinitionsForEvent(eventId);
     }
 
-    @PostMapping("/inter-pod-card-definitions")
+    @PostMapping(value = "/inter-pod-card-definitions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public InterPodCardDefinitionResponse createDefinition(
-            @Valid @RequestBody CreateInterPodCardDefinitionRequest request) {
-        return interPodCardDefinitionService.createDefinition(request);
+            @RequestParam("name") String name,
+            @RequestParam("cardCategory") InterPodCardCategory cardCategory,
+            @RequestParam("defaultHpMax") Integer defaultHpMax,
+            @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        var request = new CreateInterPodCardDefinitionRequest(name, cardCategory, defaultHpMax, defaultStatus);
+        return interPodCardDefinitionService.createDefinition(request, image);
     }
 
-    @PutMapping("/inter-pod-card-definitions/{definitionId}")
+    @PutMapping(value = "/inter-pod-card-definitions/{definitionId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public InterPodCardDefinitionResponse updateDefinition(
             @PathVariable Long definitionId,
-            @Valid @RequestBody UpdateInterPodCardDefinitionRequest request) {
-        return interPodCardDefinitionService.updateDefinition(definitionId, request);
+            @RequestParam("name") String name,
+            @RequestParam("cardCategory") InterPodCardCategory cardCategory,
+            @RequestParam("defaultHpMax") Integer defaultHpMax,
+            @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        var request = new UpdateInterPodCardDefinitionRequest(name, cardCategory, defaultHpMax, defaultStatus);
+        return interPodCardDefinitionService.updateDefinition(definitionId, request, image);
     }
 
     @DeleteMapping("/inter-pod-card-definitions/{definitionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDefinition(@PathVariable Long definitionId) {
         interPodCardDefinitionService.deleteDefinition(definitionId);
+    }
+
+    @GetMapping("/inter-pod-card-definitions/{definitionId}/image")
+    public ResponseEntity<Resource> getImage(@PathVariable Long definitionId) {
+        InterPodCardDefinitionService.DefinitionImagePayload payload =
+                interPodCardDefinitionService.getImage(definitionId);
+        MediaType contentType = payload.contentType() == null
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(payload.contentType());
+        return ResponseEntity.ok()
+                .contentType(contentType)
+                .body(payload.resource());
     }
 }
