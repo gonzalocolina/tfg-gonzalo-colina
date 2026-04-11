@@ -166,7 +166,7 @@ public class AuthService {
             throw new BusinessRuleException("El evento ya ha finalizado y no admite nuevas incorporaciones.");
         }
 
-        EventGroup joinedGroup = createGroupForJoiningPlayer(event, request.displayName());
+        EventGroup joinedGroup = createGroupForJoiningPlayer(event, request.displayName(), request.playerCount());
         return toGroupAuthResponse(joinedGroup, joinedGroup.getRepresentativeCode(), joinedGroup.getIdentifier());
     }
 
@@ -204,7 +204,7 @@ public class AuthService {
         );
     }
 
-    private EventGroup createGroupForJoiningPlayer(Event event, String requestedDisplayName) {
+    private EventGroup createGroupForJoiningPlayer(Event event, String requestedDisplayName, Integer playerCount) {
         String baseName = resolveBasePlayerName(event.getId(), requestedDisplayName);
         String uniqueIdentifier = resolveUniqueGroupIdentifier(event.getId(), baseName);
 
@@ -212,7 +212,7 @@ public class AuthService {
         group.setEvent(event);
         group.setPod(null);
         group.setIdentifier(uniqueIdentifier);
-        group.setPlayerCount(1);
+        group.setPlayerCount(playerCount != null && playerCount >= 1 ? playerCount : 1);
         group.setRepresentativeCode(generateUniqueGroupCode(true));
         group.setObserverCode(generateUniqueGroupCode(false));
         group = eventGroupRepository.save(group);

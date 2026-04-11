@@ -40,6 +40,12 @@ public class InterPodCardDefinition extends BaseEntity {
     @Column(nullable = false, length = 20)
     private InterPodCardStatus defaultStatus = InterPodCardStatus.REVELADA;
 
+    @Column(length = 500)
+    private String imagePath;
+
+    @Column(length = 120)
+    private String imageContentType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     private AppUser owner;

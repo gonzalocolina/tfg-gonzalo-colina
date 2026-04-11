@@ -22,8 +22,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class InterPodCardDefinitionService {
@@ -33,17 +35,20 @@ public class InterPodCardDefinitionService {
     private final EventRepository eventRepository;
     private final InterPodCardRepository interPodCardRepository;
     private final AccessControlService accessControlService;
+    private final InterPodCardImageStorageService imageStorageService;
 
     public InterPodCardDefinitionService(InterPodCardDefinitionRepository interPodCardDefinitionRepository,
                                          AppUserRepository appUserRepository,
                                          EventRepository eventRepository,
                                          InterPodCardRepository interPodCardRepository,
-                                         AccessControlService accessControlService) {
+                                         AccessControlService accessControlService,
+                                         InterPodCardImageStorageService imageStorageService) {
         this.interPodCardDefinitionRepository = interPodCardDefinitionRepository;
         this.appUserRepository = appUserRepository;
         this.eventRepository = eventRepository;
         this.interPodCardRepository = interPodCardRepository;
         this.accessControlService = accessControlService;
+        this.imageStorageService = imageStorageService;
     }
 
     @Transactional(readOnly = true)
@@ -73,7 +78,8 @@ public class InterPodCardDefinitionService {
     }
 
     @Transactional
-    public InterPodCardDefinitionResponse createDefinition(CreateInterPodCardDefinitionRequest request) {
+    public InterPodCardDefinitionResponse createDefinition(CreateInterPodCardDefinitionRequest request,
+                                                           MultipartFile image) {
         AppUser organizer = requireOrganizerUser();
 
         String name = request.name().trim();
@@ -90,12 +96,21 @@ public class InterPodCardDefinitionService {
         definition.setOwner(organizer);
 
         definition = interPodCardDefinitionRepository.save(definition);
+
+        InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(0L, definition.getId(), image);
+        if (storedImage != null) {
+            definition.setImagePath(storedImage.relativePath());
+            definition.setImageContentType(storedImage.contentType());
+            definition = interPodCardDefinitionRepository.save(definition);
+        }
+
         return toResponse(definition);
     }
 
     @Transactional
     public InterPodCardDefinitionResponse updateDefinition(Long definitionId,
-                                                           UpdateInterPodCardDefinitionRequest request) {
+                                                           UpdateInterPodCardDefinitionRequest request,
+                                                           MultipartFile image) {
         AppUser organizer = requireOrganizerUser();
 
         InterPodCardDefinition definition = interPodCardDefinitionRepository
@@ -112,6 +127,15 @@ public class InterPodCardDefinitionService {
         definition.setDefaultStatus(request.defaultStatus() == null
                 ? InterPodCardStatus.REVELADA
                 : request.defaultStatus());
+
+        if (image != null && !image.isEmpty()) {
+            imageStorageService.delete(definition.getImagePath());
+            InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(0L, definition.getId(), image);
+            if (storedImage != null) {
+                definition.setImagePath(storedImage.relativePath());
+                definition.setImageContentType(storedImage.contentType());
+            }
+        }
 
         definition = interPodCardDefinitionRepository.save(definition);
         return toResponse(definition);
@@ -135,7 +159,19 @@ public class InterPodCardDefinitionService {
                     "No se puede eliminar una carta inter-pod que ya tiene instancias creadas.");
         }
 
+        imageStorageService.delete(definition.getImagePath());
         interPodCardDefinitionRepository.delete(definition);
+    }
+
+    @Transactional(readOnly = true)
+    public DefinitionImagePayload getImage(Long definitionId) {
+        InterPodCardDefinition definition = interPodCardDefinitionRepository.findById(definitionId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe la carta inter-pod solicitada."));
+        Resource resource = imageStorageService.loadAsResource(definition.getImagePath());
+        return new DefinitionImagePayload(resource, definition.getImageContentType());
+    }
+
+    public record DefinitionImagePayload(Resource resource, String contentType) {
     }
 
     @Transactional(readOnly = true)
@@ -237,6 +273,8 @@ public class InterPodCardDefinitionService {
                 definition.getCardCategory(),
                 definition.getDefaultHpMax(),
                 definition.getDefaultStatus(),
+                definition.getImagePath() == null ? null
+                        : "/api/inter-pod-card-definitions/%d/image".formatted(definition.getId()),
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),
                 definition.getCreatedAt(),

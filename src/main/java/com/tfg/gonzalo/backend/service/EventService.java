@@ -276,6 +276,9 @@ public class EventService {
     }
 
     private InterPodCardDefinitionResponse toInterPodCardDefinitionResponse(InterPodCardDefinition definition) {
+        String imageUrl = definition.getImagePath() != null
+                ? "/api/interpod-card-definitions/" + definition.getId() + "/image"
+                : null;
         return new InterPodCardDefinitionResponse(
                 definition.getId(),
                 definition.getName(),
@@ -283,6 +286,7 @@ public class EventService {
                 definition.getCardCategory(),
                 definition.getDefaultHpMax(),
                 definition.getDefaultStatus(),
+                imageUrl,
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),
                 definition.getCreatedAt(),

@@ -296,6 +296,13 @@ public class InterPodCardService {
     }
 
     private InterPodCardResponse toResponse(InterPodCard card) {
+        String imageUrl = null;
+        if (card.getImagePath() != null) {
+            imageUrl = "/api/events/%d/inter-pod-cards/%d/image".formatted(card.getEvent().getId(), card.getId());
+        } else if (card.getInterPodCardDefinition() != null && card.getInterPodCardDefinition().getImagePath() != null) {
+            imageUrl = "/api/inter-pod-card-definitions/%d/image".formatted(card.getInterPodCardDefinition().getId());
+        }
+
         return new InterPodCardResponse(
                 card.getId(),
                 card.getEvent().getId(),
@@ -309,8 +316,7 @@ public class InterPodCardService {
                 card.getHpMax(),
                 card.getHpCurrent(),
                 card.getStatus(),
-                card.getImagePath() == null ? null
-                        : "/api/events/%d/inter-pod-cards/%d/image".formatted(card.getEvent().getId(), card.getId()),
+                imageUrl,
                 card.getCreatedAt(),
                 card.getUpdatedAt()
         );

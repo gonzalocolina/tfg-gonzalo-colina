@@ -113,7 +113,7 @@ public class EventSetupService {
 
     @Transactional
     public GroupResponse assignGroupToPod(Long eventId, Long groupId, AssignGroupPodRequest request) {
-        Event event = findEditableEvent(eventId);
+        Event event = findAssignableEvent(eventId);
         EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
         Pod targetPod = findPod(request.podId(), eventId);
@@ -235,6 +235,16 @@ public class EventSetupService {
         accessControlService.requireOrganizerForEvent(event);
         if (event.getStatus() == EventStatus.IN_PROGRESS || event.getStatus() == EventStatus.FINISHED) {
             throw new BusinessRuleException("El evento ya no admite cambios de configuración.");
+        }
+        return event;
+    }
+
+    private Event findAssignableEvent(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+        accessControlService.requireOrganizerForEvent(event);
+        if (event.getStatus() == EventStatus.FINISHED) {
+            throw new BusinessRuleException("El evento ya ha finalizado y no admite cambios.");
         }
         return event;
     }
