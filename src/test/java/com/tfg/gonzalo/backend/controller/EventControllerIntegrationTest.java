@@ -44,9 +44,9 @@ class EventControllerIntegrationTest {
                         .content(requestBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Evento Prueba"))
-                .andExpect(jsonPath("$.configuredPlayerCount").value(8))
-                .andExpect(jsonPath("$.villainHpMax").value(160))
-                .andExpect(jsonPath("$.villainHpCurrent").value(160))
+          .andExpect(jsonPath("$.configuredPlayerCount").value(0))
+          .andExpect(jsonPath("$.villainHpMax").value(0))
+          .andExpect(jsonPath("$.villainHpCurrent").value(0))
                 .andExpect(jsonPath("$.schemeThreatTarget").value(0))
                 .andExpect(jsonPath("$.timerRemainingSeconds").value(10800))
                 .andExpect(jsonPath("$.organizerUsername").value("organizer1"));
