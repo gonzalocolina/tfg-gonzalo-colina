@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class EventSetupService {
 
+    private static final String EVENT_NOT_FOUND_MESSAGE = "No existe el evento solicitado.";
     private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
     private static final String DEFAULT_POD_NAME_PREFIX = "Pod";
     private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^pod\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
@@ -43,6 +44,7 @@ public class EventSetupService {
     private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
     private final VillainFormulaService villainFormulaService;
+    private final EventPlayerMetricsService eventPlayerMetricsService;
     private final AccessControlService accessControlService;
 
     public EventSetupService(EventRepository eventRepository,
@@ -52,6 +54,7 @@ public class EventSetupService {
                              EventLogService eventLogService,
                              CodeGeneratorService codeGeneratorService,
                              VillainFormulaService villainFormulaService,
+                             EventPlayerMetricsService eventPlayerMetricsService,
                              AccessControlService accessControlService) {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
@@ -60,6 +63,7 @@ public class EventSetupService {
         this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
         this.villainFormulaService = villainFormulaService;
+        this.eventPlayerMetricsService = eventPlayerMetricsService;
         this.accessControlService = accessControlService;
     }
 
@@ -105,6 +109,7 @@ public class EventSetupService {
                 currentGroupCount
         ));
         gameStateRepository.save(gameState);
+        eventPlayerMetricsService.synchronizePlayerMetrics(event);
 
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
                 null, group.getIdentifier(), "Mesa creada y amenaza objetivo recalculada.");
@@ -116,18 +121,25 @@ public class EventSetupService {
         Event event = findAssignableEvent(eventId);
         EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
-        Pod targetPod = findPod(request.podId(), eventId);
+        Pod targetPod = request.podId() == null ? null : findPod(request.podId(), eventId);
 
-        if (hasAssignedPod(group) && group.getPod().getId().equals(targetPod.getId())) {
+        if (request.podId() == null && !hasAssignedPod(group)) {
+            return mapGroupResponse(group);
+        }
+
+        if (targetPod != null && hasAssignedPod(group) && group.getPod().getId().equals(targetPod.getId())) {
             return mapGroupResponse(group);
         }
 
         String previousPodName = resolveCurrentPodName(group);
         group.setPod(targetPod);
         group = eventGroupRepository.save(group);
+        String nextPodName = resolveCurrentPodName(group);
 
         eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
-                previousPodName, targetPod.getName(), "Jugador/mesa reasignado de pod.");
+            previousPodName, nextPodName, request.podId() == null
+                ? "Jugador/mesa devuelto a la lista de pendientes de asignación."
+                : "Jugador/mesa reasignado de pod.");
 
         return mapGroupResponse(group);
     }
@@ -174,25 +186,35 @@ public class EventSetupService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
 
         String nextIdentifier = request.identifier().trim();
+        Integer nextPlayerCount = request.playerCount() == null ? group.getPlayerCount() : request.playerCount();
         if (!group.getIdentifier().equalsIgnoreCase(nextIdentifier)
                 && eventGroupRepository.existsByEventIdAndIdentifierIgnoreCase(eventId, nextIdentifier)) {
             throw new BusinessRuleException("Ya existe una mesa con ese identificador dentro del evento.");
         }
 
-        String previousIdentifier = group.getIdentifier();
+        if (group.getIdentifier().equalsIgnoreCase(nextIdentifier)
+            && group.getPlayerCount().equals(nextPlayerCount)) {
+            return mapGroupResponse(group);
+        }
+
+        String previousSummary = group.getIdentifier() + " (" + group.getPlayerCount() + " jugadores)";
         group.setIdentifier(nextIdentifier);
+        group.setPlayerCount(nextPlayerCount);
         group = eventGroupRepository.save(group);
+        eventPlayerMetricsService.synchronizePlayerMetrics(event);
+        String nextSummary = group.getIdentifier() + " (" + group.getPlayerCount() + " jugadores)";
 
         eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
-                previousIdentifier, nextIdentifier, "Nombre de la mesa actualizado.");
+            previousSummary, nextSummary, "Datos de la mesa actualizados.");
         return mapGroupResponse(group);
     }
 
     @Transactional
     public EventStructureResponse getEventStructure(Long eventId) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+            .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
         accessControlService.requireReadAccessToEvent(event);
+        eventPlayerMetricsService.synchronizePlayerMetrics(event);
         GameState gameState = findGameState(eventId);
         List<Pod> pods = listRealPods(eventId);
         List<EventGroup> groups = eventGroupRepository.findByEventId(eventId);
@@ -231,7 +253,7 @@ public class EventSetupService {
 
     private Event findEditableEvent(Long eventId) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+                .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
         accessControlService.requireOrganizerForEvent(event);
         if (event.getStatus() == EventStatus.IN_PROGRESS || event.getStatus() == EventStatus.FINISHED) {
             throw new BusinessRuleException("El evento ya no admite cambios de configuración.");
@@ -241,7 +263,7 @@ public class EventSetupService {
 
     private Event findAssignableEvent(Long eventId) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+                .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
         accessControlService.requireOrganizerForEvent(event);
         if (event.getStatus() == EventStatus.FINISHED) {
             throw new BusinessRuleException("El evento ya ha finalizado y no admite cambios.");

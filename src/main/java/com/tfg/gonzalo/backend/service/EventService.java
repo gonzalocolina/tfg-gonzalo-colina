@@ -41,6 +41,7 @@ public class EventService {
     private final InterPodCardDefinitionService interPodCardDefinitionService;
     private final VillainFormulaService villainFormulaService;
     private final InterPodCardService interPodCardService;
+    private final EventPlayerMetricsService eventPlayerMetricsService;
     private final AccessControlService accessControlService;
 
     public EventService(AppUserRepository appUserRepository,
@@ -54,6 +55,7 @@ public class EventService {
                         InterPodCardDefinitionService interPodCardDefinitionService,
                         VillainFormulaService villainFormulaService,
                         InterPodCardService interPodCardService,
+                        EventPlayerMetricsService eventPlayerMetricsService,
                         AccessControlService accessControlService) {
         this.appUserRepository = appUserRepository;
         this.eventRepository = eventRepository;
@@ -66,6 +68,7 @@ public class EventService {
         this.interPodCardDefinitionService = interPodCardDefinitionService;
         this.villainFormulaService = villainFormulaService;
         this.interPodCardService = interPodCardService;
+        this.eventPlayerMetricsService = eventPlayerMetricsService;
         this.accessControlService = accessControlService;
     }
 
@@ -81,7 +84,7 @@ public class EventService {
 
         Event event = new Event();
         event.setName(request.name().trim());
-        event.setConfiguredPlayerCount(request.configuredPlayerCount());
+        event.setConfiguredPlayerCount(0);
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
         event.setStatus(EventStatus.DRAFT);
         event.setEventCode(generateUniqueEventCode());
@@ -96,7 +99,7 @@ public class EventService {
         gameState.setVillainHpMax(villainFormulaService.computeVillainHp(
             event.getVillainHpRuleTypeSnapshot(),
             event.getVillainHpRuleValueSnapshot(),
-            request.configuredPlayerCount()
+            event.getConfiguredPlayerCount()
         ));
         gameState.setVillainHpCurrent(gameState.getVillainHpMax());
         gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
@@ -116,11 +119,12 @@ public class EventService {
         return toResponse(event, gameState);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<EventResponse> getMyEvents() {
         AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
         List<Event> events = eventRepository.findByOrganizerIdOrderByCreatedAtDesc(principal.userId());
         return events.stream().map(event -> {
+            eventPlayerMetricsService.synchronizePlayerMetrics(event);
             GameState gameState = gameStateRepository.findByEventId(event.getId()).orElse(null);
             return toResponse(event, gameState);
         }).toList();
@@ -141,19 +145,12 @@ public class EventService {
             .findSelectableVillainForOrganizer(event.getOrganizer().getId(), villainDefinitionId);
 
         event.setName(request.name().trim());
-        event.setConfiguredPlayerCount(request.configuredPlayerCount());
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
         event.setVillainDefinition(selectedVillain);
         applyVillainSnapshot(event, selectedVillain);
         event = eventRepository.save(event);
 
         GameState gameState = findGameState(eventId);
-        gameState.setVillainHpMax(villainFormulaService.computeVillainHp(
-            event.getVillainHpRuleTypeSnapshot(),
-            event.getVillainHpRuleValueSnapshot(),
-            request.configuredPlayerCount()
-        ));
-        gameState.setVillainHpCurrent(Math.min(gameState.getVillainHpCurrent(), gameState.getVillainHpMax()));
         int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
         gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
             event.getVillainThreatRuleTypeSnapshot(),
@@ -172,6 +169,8 @@ public class EventService {
             gameState.setTimerRemainingSeconds(gameState.getTimerTotalSeconds());
         }
         gameStateRepository.save(gameState);
+        eventPlayerMetricsService.synchronizePlayerMetrics(event);
+        gameState = findGameState(eventId);
 
         eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
             null, event.getName(), "Evento actualizado antes del inicio.");
@@ -190,10 +189,11 @@ public class EventService {
         eventRepository.delete(event);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public EventResponse getEvent(Long eventId) {
         Event event = findEvent(eventId);
         accessControlService.requireReadAccessToEvent(event);
+        eventPlayerMetricsService.synchronizePlayerMetrics(event);
         GameState gameState = findGameState(eventId);
         return toResponse(event, gameState);
     }

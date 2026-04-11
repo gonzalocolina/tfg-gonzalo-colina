@@ -4,6 +4,8 @@ import com.tfg.gonzalo.backend.model.EventGroup;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
 
@@ -30,4 +32,7 @@ public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
     long countByEventId(Long eventId);
 
     long countByEventIdAndPodIsNull(Long eventId);
+
+    @Query("select coalesce(sum(group.playerCount), 0) from EventGroup group where group.event.id = :eventId")
+    Integer sumPlayerCountByEventId(@Param("eventId") Long eventId);
 }

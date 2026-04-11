@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 
 public record UpdateEventRequest(
         @NotBlank @Size(max = 120) String name,
-        @Min(1) Integer configuredPlayerCount,
+        Integer configuredPlayerCount,
         @Min(0) @Max(600) Integer timeLimitMinutes,
         Long villainDefinitionId
 ) {
