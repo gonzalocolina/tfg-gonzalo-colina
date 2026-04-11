@@ -277,7 +277,7 @@ public class EventService {
 
     private InterPodCardDefinitionResponse toInterPodCardDefinitionResponse(InterPodCardDefinition definition) {
         String imageUrl = definition.getImagePath() != null
-                ? "/api/interpod-card-definitions/" + definition.getId() + "/image"
+            ? "/api/inter-pod-card-definitions/" + definition.getId() + "/image"
                 : null;
         return new InterPodCardDefinitionResponse(
                 definition.getId(),
