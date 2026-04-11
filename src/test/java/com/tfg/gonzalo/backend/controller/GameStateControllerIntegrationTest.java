@@ -36,6 +36,11 @@ class GameStateControllerIntegrationTest {
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
 
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
         mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
                         .header("Authorization", "Bearer " + representativeToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,6 +90,11 @@ class GameStateControllerIntegrationTest {
         long podId = createPod(eventId, "Pod B", organizerToken);
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "B1", 3, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/threat", eventId)
                         .header("Authorization", "Bearer " + representativeToken)
@@ -228,6 +238,44 @@ class GameStateControllerIntegrationTest {
                                 """.formatted(representativeCode)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+    }
+
+    @Test
+    void representativeActionsAreBlockedWhileTimerIsReady() throws Exception {
+        long eventId = createEvent("evento-ready-lock", 4);
+        String organizerToken = loginAdmin("evento-ready-lock", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, representativeCode);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("READY"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "damage": 5
+                                }
+                                """.formatted(representativeCode)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "threat": 2
+                                }
+                                """.formatted(representativeCode)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
     }
 
     private long createEvent(String username, int players) throws Exception {

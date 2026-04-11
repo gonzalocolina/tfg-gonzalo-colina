@@ -342,6 +342,9 @@ public class GameStateService {
         if (gameState.getTimerStatus() == TimerStatus.PAUSED) {
             throw new BusinessRuleException("La partida está pausada. Espera a que el organizador la reanude.");
         }
+        if (gameState.getTimerStatus() == TimerStatus.READY) {
+            throw new BusinessRuleException("No puedes realizar acciones hasta que el organizador inicie el contador.");
+        }
     }
 
     private void markEventAsStarted(Event event) {

@@ -39,6 +39,9 @@ class EventRolesAndAlertsIntegrationTest {
         long eventId = createEvent("evento-coorg", 4, 180);
         String organizerToken = loginAdmin("evento-coorg", "Password123");
 
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
+
         mockMvc.perform(post("/api/events/{eventId}/roles/co-organizers", eventId)
                         .header("Authorization", "Bearer " + organizerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,6 +88,11 @@ class EventRolesAndAlertsIntegrationTest {
 
       String representativeAToken = loginGroup(eventId, groupA.representativeCode());
       String representativeBToken = loginGroup(eventId, groupB.representativeCode());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
 
       MockMultipartFile createPayload = new MockMultipartFile(
         "payload",
@@ -166,6 +174,11 @@ class EventRolesAndAlertsIntegrationTest {
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
       String representativeToken = loginGroup(eventId, group.representativeCode());
 
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
       MockMultipartFile createPayload = new MockMultipartFile(
         "payload",
         "payload.json",
@@ -185,10 +198,6 @@ class EventRolesAndAlertsIntegrationTest {
         .andReturn()
         .getResponse()
         .getContentAsString());
-
-      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
-                        .header("Authorization", "Bearer " + organizerToken))
-                .andExpect(status().isOk());
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/pause", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -235,6 +244,83 @@ class EventRolesAndAlertsIntegrationTest {
           .header("Authorization", "Bearer " + representativeToken))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("está pausada")));
+    }
+
+    @Test
+    void representativesCannotOperateInterPodCardsWhileTimerIsReady() throws Exception {
+      long eventId = createEvent("evento-cartas-ready", 4, 180);
+      String organizerToken = loginAdmin("evento-cartas-ready", "Password123");
+
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
+      String representativeToken = loginGroup(eventId, group.representativeCode());
+
+      MockMultipartFile organizerCreatePayload = new MockMultipartFile(
+        "payload",
+        "payload.json",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+          {
+            "representativeCode": "%s",
+            "cardName": "THE_MANGOG"
+          }
+          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+      );
+
+      long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+          .file(organizerCreatePayload)
+          .header("Authorization", "Bearer " + organizerToken))
+        .andExpect(status().isCreated())
+        .andReturn()
+        .getResponse()
+        .getContentAsString());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("READY"));
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+          .header("Authorization", "Bearer " + representativeToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""
+            {
+              "representativeCode": "%s",
+              "damage": 2
+            }
+            """.formatted(group.representativeCode())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
+
+      mockMvc.perform(patch("/api/events/{eventId}/inter-pod-cards/{cardId}/status", eventId, cardId)
+          .header("Authorization", "Bearer " + representativeToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""
+            {
+              "representativeCode": "%s",
+              "status": "DERROTADA"
+            }
+            """.formatted(group.representativeCode())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
+
+      MockMultipartFile readyCreatePayload = new MockMultipartFile(
+        "payload",
+        "payload.json",
+        MediaType.APPLICATION_JSON_VALUE,
+        """
+          {
+            "representativeCode": "%s",
+            "cardName": "THE_MANGOG"
+          }
+          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+      );
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+          .file(readyCreatePayload)
+          .header("Authorization", "Bearer " + representativeToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
     }
 
     @Test
