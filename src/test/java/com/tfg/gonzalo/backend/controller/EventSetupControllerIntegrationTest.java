@@ -1,6 +1,5 @@
 package com.tfg.gonzalo.backend.controller;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -86,6 +85,7 @@ class EventSetupControllerIntegrationTest {
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuredPlayerCount").value(3))
                 .andExpect(jsonPath("$.currentGroupCount").value(1))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(3))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(0))
@@ -154,6 +154,7 @@ class EventSetupControllerIntegrationTest {
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuredPlayerCount").value(1))
                 .andExpect(jsonPath("$.currentGroupCount").value(1))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(0))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(1))
@@ -176,6 +177,7 @@ class EventSetupControllerIntegrationTest {
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuredPlayerCount").value(1))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(1))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(0))
                 .andExpect(jsonPath("$.pods[0].name").value("Pod Norte"))
@@ -245,11 +247,26 @@ class EventSetupControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "identifier": "Mesa Omega"
+                                  "identifier": "Mesa Omega",
+                                  "playerCount": 2
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.identifier").value("Mesa Omega"));
+                .andExpect(jsonPath("$.identifier").value("Mesa Omega"))
+                .andExpect(jsonPath("$.playerCount").value(2));
+
+        mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}/pod", eventId, groupId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "podId": null
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.podId").doesNotExist())
+                .andExpect(jsonPath("$.identifier").value("Mesa Omega"))
+                .andExpect(jsonPath("$.playerCount").value(2));
 
         mockMvc.perform(delete("/api/events/{eventId}/pods/{podId}", eventId, podId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -258,10 +275,12 @@ class EventSetupControllerIntegrationTest {
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuredPlayerCount").value(2))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(0))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(1))
                 .andExpect(jsonPath("$.pods").isEmpty())
-                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Mesa Omega"));
+                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Mesa Omega"))
+                .andExpect(jsonPath("$.unassignedGroups[0].playerCount").value(2));
     }
 
         private String registerOrganizer(String username, String displayName, String email, String password) throws Exception {
