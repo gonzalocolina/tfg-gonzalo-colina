@@ -193,6 +193,21 @@ function prettyCardName(name) {
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
 }
 
+function resolveInterPodCardStatus(card) {
+  if (!card) return '—'
+
+  const hpCurrent = Number(card.hpCurrent)
+  if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {
+    return 'DERROTADA'
+  }
+
+  if (card.status === 'OCULTA') {
+    return 'OCULTA'
+  }
+
+  return 'REVELADA'
+}
+
 function handleImageLoadError(event) {
   event.target.style.display = 'none'
 }
@@ -369,7 +384,7 @@ onUnmounted(() => {
               <div class="interpod-inline-info">
                 <strong>{{ prettyCardName(card.cardName) }}</strong>
                 <span class="text-muted" style="font-size: 0.8rem">
-                  {{ card.status === 'ACTIVE' ? 'Activa' : card.status }}
+                  {{ prettyCardName(resolveInterPodCardStatus(card)) }}
                   <template v-if="card.hpMax"> · HP {{ card.hpCurrent }}/{{ card.hpMax }}</template>
                 </span>
                 <span class="interpod-inline-link text-muted">Pulsa para ver su detalle</span>

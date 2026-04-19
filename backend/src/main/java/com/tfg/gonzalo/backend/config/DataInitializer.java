@@ -66,8 +66,8 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             String resolvedAdminPassword = resolveSeedAdminPassword();
-            if (appUserRepository.existsByUsername(DEFAULT_ADMIN_USERNAME)) {
-                AppUser existing = appUserRepository.findByUsername(DEFAULT_ADMIN_USERNAME)
+            if (appUserRepository.existsByUsernameIgnoreCase(DEFAULT_ADMIN_USERNAME)) {
+                AppUser existing = appUserRepository.findByUsernameIgnoreCase(DEFAULT_ADMIN_USERNAME)
                         .orElseThrow(() -> new IllegalStateException("Usuario administrador no encontrado."));
                 existing.setPasswordHash(passwordEncoder.encode(resolvedAdminPassword));
                 appUserRepository.save(existing);

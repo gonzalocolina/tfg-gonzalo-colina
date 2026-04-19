@@ -7,22 +7,29 @@ import com.tfg.gonzalo.backend.dto.interpod.InterPodCardDefinitionResponse;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
+import com.tfg.gonzalo.backend.model.CoOrganizerAssignment;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.VillainDefinition;
+import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
+import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
+import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +38,8 @@ public class EventService {
 
     private static final int DEFAULT_TIME_LIMIT_MINUTES = 180;
     private final AppUserRepository appUserRepository;
+    private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
+    private final CoOrganizerInvitationRepository coOrganizerInvitationRepository;
     private final EventRepository eventRepository;
     private final EventGroupRepository eventGroupRepository;
     private final GameStateRepository gameStateRepository;
@@ -45,6 +54,8 @@ public class EventService {
     private final AccessControlService accessControlService;
 
     public EventService(AppUserRepository appUserRepository,
+                        CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
+                        CoOrganizerInvitationRepository coOrganizerInvitationRepository,
                         EventRepository eventRepository,
                         EventGroupRepository eventGroupRepository,
                         GameStateRepository gameStateRepository,
@@ -58,6 +69,8 @@ public class EventService {
                         EventPlayerMetricsService eventPlayerMetricsService,
                         AccessControlService accessControlService) {
         this.appUserRepository = appUserRepository;
+                this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
+                this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
         this.eventRepository = eventRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.gameStateRepository = gameStateRepository;
@@ -116,17 +129,31 @@ public class EventService {
         eventLogService.appendLog(event, organizer, null, EventActionType.EVENT_CREATED,
             null, event.getName(), "Evento creado con estado global inicial.");
 
-        return toResponse(event, gameState);
+        return toResponse(event, gameState, principal);
     }
 
     @Transactional
     public List<EventResponse> getMyEvents() {
         AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
-        List<Event> events = eventRepository.findByOrganizerIdOrderByCreatedAtDesc(principal.userId());
+        if (principal.userId() == null) {
+            return List.of();
+        }
+
+        List<Event> events = java.util.stream.Stream.concat(
+                        eventRepository.findByOrganizerIdOrderByCreatedAtDesc(principal.userId()).stream(),
+                        coOrganizerAssignmentRepository.findByUserId(principal.userId()).stream()
+                                .map(CoOrganizerAssignment::getEvent)
+                )
+            .collect(Collectors.toMap(Event::getId, event -> event, (left, rightEvent) -> left))
+                .values()
+                .stream()
+                .sorted(Comparator.comparing(Event::getCreatedAt).reversed())
+                .toList();
+
         return events.stream().map(event -> {
             eventPlayerMetricsService.synchronizePlayerMetrics(event);
             GameState gameState = gameStateRepository.findByEventId(event.getId()).orElse(null);
-            return toResponse(event, gameState);
+            return toResponse(event, gameState, principal);
         }).toList();
     }
 
@@ -175,7 +202,7 @@ public class EventService {
         eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
             null, event.getName(), "Evento actualizado antes del inicio.");
 
-        return toResponse(event, gameState);
+        return toResponse(event, gameState, accessControlService.requireAuthenticatedPrincipal());
     }
 
     @Transactional
@@ -183,6 +210,8 @@ public class EventService {
         Event event = findEvent(eventId);
         accessControlService.requireOrganizerForEvent(event);
         ensureEditable(event);
+        coOrganizerInvitationRepository.deleteByEventId(eventId);
+        coOrganizerAssignmentRepository.deleteByEventId(eventId);
         interPodCardService.deleteCardsForEvent(eventId);
         gameStateRepository.findByEventId(eventId).ifPresent(gameStateRepository::delete);
         eventLogRepository.deleteAll(eventLogRepository.findByEventIdOrderByCreatedAtDesc(eventId));
@@ -195,7 +224,7 @@ public class EventService {
         accessControlService.requireReadAccessToEvent(event);
         eventPlayerMetricsService.synchronizePlayerMetrics(event);
         GameState gameState = findGameState(eventId);
-        return toResponse(event, gameState);
+        return toResponse(event, gameState, accessControlService.requireAuthenticatedPrincipal());
     }
 
     private Event findEvent(Long eventId) {
@@ -235,7 +264,7 @@ public class EventService {
         return eventCode;
     }
 
-    private EventResponse toResponse(Event event, GameState gameState) {
+    private EventResponse toResponse(Event event, GameState gameState, AuthPrincipal principal) {
         Long villainDefinitionId = event.getVillainDefinition() != null
                 ? event.getVillainDefinition().getId()
                 : null;
@@ -244,6 +273,11 @@ public class EventService {
             .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
             .map(this::toInterPodCardDefinitionResponse)
             .toList();
+
+        boolean currentUserIsOwner = principal != null
+            && principal.userId() != null
+            && principal.userId().equals(event.getOrganizer().getId());
+        Set<CoOrganizerResponsibility> currentUserResponsibilities = resolveCurrentUserResponsibilities(event, principal);
 
         return new EventResponse(
                 event.getId(),
@@ -268,11 +302,23 @@ public class EventService {
                 gameState != null ? gameState.getSchemeThreatTarget() : null,
                 gameState != null ? gameState.getTimerRemainingSeconds() : null,
                 gameState != null ? gameState.getTimerStatus() : null,
+                currentUserIsOwner,
+                currentUserResponsibilities,
                 event.getStartedAt(),
                 event.getFinishedAt(),
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
+    }
+
+    private Set<CoOrganizerResponsibility> resolveCurrentUserResponsibilities(Event event, AuthPrincipal principal) {
+        if (principal == null || principal.userId() == null || principal.userId().equals(event.getOrganizer().getId())) {
+            return Set.of();
+        }
+        return coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), principal.userId()).stream()
+                .map(CoOrganizerAssignment::getResponsibility)
+                .sorted()
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private InterPodCardDefinitionResponse toInterPodCardDefinitionResponse(InterPodCardDefinition definition) {

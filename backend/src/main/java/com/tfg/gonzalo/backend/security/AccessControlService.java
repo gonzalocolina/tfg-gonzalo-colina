@@ -38,24 +38,9 @@ public class AccessControlService {
 
     public void requireReadAccessToEvent(Event event) {
         AuthPrincipal principal = requireAuthenticatedPrincipal();
-        if (principal.isOrganizer()) {
-            if (principal.userId() != null && principal.userId().equals(event.getOrganizer().getId())) {
-                return;
-            }
-            throw new ForbiddenOperationException("No eres el organizador propietario de este evento.");
-        }
-
-        if (principal.isCoOrganizer()) {
-            if (principal.eventId() == null || !principal.eventId().equals(event.getId())) {
-                throw new ForbiddenOperationException("El co-organizador no pertenece al evento solicitado.");
-            }
-            if (principal.userId() == null || coOrganizerAssignmentRepository
-                    .findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty()) {
-                throw new ForbiddenOperationException("El co-organizador no tiene asignaciones activas en este evento.");
-            }
+        if (hasOwnerAccess(event, principal) || hasCoOrganizerAccess(event, principal)) {
             return;
         }
-
         if (principal.eventId() == null || !principal.eventId().equals(event.getId())) {
             throw new ForbiddenOperationException("El token no pertenece al evento solicitado.");
         }
@@ -63,43 +48,56 @@ public class AccessControlService {
 
     public void requireOrganizerOrCoOrganizerForEvent(Event event) {
         AuthPrincipal principal = requireAuthenticatedPrincipal();
-        if (principal.isOrganizer()) {
-            if (principal.userId() != null && principal.userId().equals(event.getOrganizer().getId())) {
-                return;
-            }
-            throw new ForbiddenOperationException("No eres el organizador propietario de este evento.");
-        }
-
-        if (principal.isCoOrganizer()) {
-            if (principal.eventId() == null || !principal.eventId().equals(event.getId())) {
-                throw new ForbiddenOperationException("El co-organizador no pertenece al evento solicitado.");
-            }
-            if (principal.userId() != null && !coOrganizerAssignmentRepository
-                    .findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty()) {
-                return;
-            }
+        if (hasOwnerAccess(event, principal) || hasCoOrganizerAccess(event, principal)) {
+            return;
         }
         throw new ForbiddenOperationException("Solo organizador o co-organizador pueden realizar esta operación.");
     }
 
     public void requireGlobalResponsibility(Event event, CoOrganizerResponsibility responsibility) {
         AuthPrincipal principal = requireAuthenticatedPrincipal();
-        if (principal.isOrganizer()) {
-            requireOrganizerForEvent(event);
+        if (hasOwnerAccess(event, principal)) {
             return;
         }
-        if (!principal.isCoOrganizer()) {
-            throw new ForbiddenOperationException("Solo organizador o co-organizador pueden realizar esta operación.");
-        }
-        if (principal.eventId() == null || !principal.eventId().equals(event.getId())) {
-            throw new ForbiddenOperationException("El co-organizador no pertenece al evento solicitado.");
-        }
-        if (principal.userId() == null || coOrganizerAssignmentRepository
-                .findByEventIdAndResponsibility(event.getId(), responsibility)
-                .filter(assignment -> assignment.getUser().getId().equals(principal.userId()))
-                .isEmpty()) {
+        if (!hasResponsibilityAccess(event, principal, responsibility)) {
             throw new ForbiddenOperationException("El co-organizador no tiene permiso para esta responsabilidad.");
         }
+    }
+
+    private boolean hasOwnerAccess(Event event, AuthPrincipal principal) {
+        return principal.isOrganizer()
+                && principal.userId() != null
+                && principal.userId().equals(event.getOrganizer().getId());
+    }
+
+    private boolean hasCoOrganizerAccess(Event event, AuthPrincipal principal) {
+        if (principal.userId() == null) {
+            return false;
+        }
+        if (principal.isOrganizer()) {
+            return !coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty();
+        }
+        if (principal.isCoOrganizer()) {
+            return principal.eventId() != null
+                    && principal.eventId().equals(event.getId())
+                    && !coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty();
+        }
+        return false;
+    }
+
+    private boolean hasResponsibilityAccess(Event event,
+                                            AuthPrincipal principal,
+                                            CoOrganizerResponsibility responsibility) {
+        if (principal.userId() == null) {
+            return false;
+        }
+        if (principal.isCoOrganizer()
+                && (principal.eventId() == null || !principal.eventId().equals(event.getId()))) {
+            return false;
+        }
+        return coOrganizerAssignmentRepository.findByEventIdAndResponsibility(event.getId(), responsibility)
+                .filter(assignment -> assignment.getUser().getId().equals(principal.userId()))
+                .isPresent();
     }
 
     public void requireRepresentativeOrOrganizerForGroup(Event event, EventGroup group, String representativeCode) {

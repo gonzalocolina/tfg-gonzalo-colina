@@ -20,6 +20,7 @@ import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
+import java.util.Locale;
 import com.tfg.gonzalo.backend.security.TokenService;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -69,14 +70,21 @@ public class AuthService {
     }
 
     public AuthTokenResponse register(RegisterRequest request) {
-        if (appUserRepository.existsByUsername(request.username().trim())) {
+        String normalizedUsername = normalizeUsername(request.username());
+        String normalizedEmail = normalizeOptionalEmail(request.email());
+
+        if (appUserRepository.existsByUsernameIgnoreCase(normalizedUsername)) {
             throw new BusinessRuleException("Ya existe un usuario con ese nombre de usuario.");
         }
 
+        if (normalizedEmail != null && appUserRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+            throw new BusinessRuleException("Ya existe una cuenta con ese email.");
+        }
+
         AppUser user = new AppUser();
-        user.setUsername(request.username().trim());
+        user.setUsername(normalizedUsername);
         user.setDisplayName(request.displayName().trim());
-        user.setEmail(normalizeOptional(request.email()));
+        user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(GlobalRole.ORGANIZER);
         user = appUserRepository.save(user);
@@ -85,7 +93,7 @@ public class AuthService {
     }
 
     public AuthTokenResponse loginAdmin(AdminLoginRequest request) {
-        AppUser user = appUserRepository.findByUsername(request.username().trim())
+        AppUser user = appUserRepository.findByUsernameIgnoreCase(normalizeUsername(request.username()))
                 .orElseThrow(() -> new BusinessRuleException("Credenciales inválidas."));
 
         if (!user.isEnabled() || user.getRole() != GlobalRole.ORGANIZER) {
@@ -99,15 +107,19 @@ public class AuthService {
         return toOrganizerAuthResponse(user, tokenService.createOrganizerToken(user));
     }
 
-    private static String normalizeOptional(String value) {
+    private static String normalizeUsername(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private static String normalizeOptionalEmail(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
-        return value.trim();
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     public AuthTokenResponse loginCoOrganizer(CoOrganizerLoginRequest request) {
-        AppUser user = appUserRepository.findByUsername(request.username().trim())
+        AppUser user = appUserRepository.findByUsernameIgnoreCase(normalizeUsername(request.username()))
                 .orElseThrow(() -> new BusinessRuleException("Credenciales inválidas."));
 
         if (!user.isEnabled() || user.getRole() != GlobalRole.CO_ORGANIZER) {

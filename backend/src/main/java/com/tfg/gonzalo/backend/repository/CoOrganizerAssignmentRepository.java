@@ -12,6 +12,8 @@ public interface CoOrganizerAssignmentRepository extends JpaRepository<CoOrganiz
 
     List<CoOrganizerAssignment> findByEventId(Long eventId);
 
+    List<CoOrganizerAssignment> findByUserId(Long userId);
+
     List<CoOrganizerAssignment> findByEventIdAndUserId(Long eventId, Long userId);
 
     boolean existsByEventIdAndUserIdAndResponsibility(Long eventId, Long userId,
@@ -19,4 +21,6 @@ public interface CoOrganizerAssignmentRepository extends JpaRepository<CoOrganiz
 
     Optional<CoOrganizerAssignment> findByEventIdAndResponsibility(Long eventId,
                                                                    CoOrganizerResponsibility responsibility);
+
+    void deleteByEventId(Long eventId);
 }

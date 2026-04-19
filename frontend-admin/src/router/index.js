@@ -6,6 +6,7 @@ import MyEventsView from '@/views/MyEventsView.vue'
 import CreateEventView from '@/views/CreateEventView.vue'
 import EventDashboardView from '@/views/EventDashboardView.vue'
 import EventSetupView from '@/views/EventSetupView.vue'
+import MyInvitationsView from '@/views/MyInvitationsView.vue'
 import RolesView from '@/views/RolesView.vue'
 import GameView from '@/views/GameView.vue'
 import EventLogView from '@/views/EventLogView.vue'
@@ -19,6 +20,7 @@ const router = createRouter({
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/register', name: 'register', component: RegisterView, meta: { public: true } },
     { path: '/my-events', name: 'my-events', component: MyEventsView },
+    { path: '/invitations', name: 'invitations', component: MyInvitationsView },
     { path: '/create-event', name: 'create-event', component: CreateEventView },
     { path: '/event/:eventId', name: 'dashboard', component: EventDashboardView },
     { path: '/event/:eventId/setup', name: 'setup', component: EventSetupView },

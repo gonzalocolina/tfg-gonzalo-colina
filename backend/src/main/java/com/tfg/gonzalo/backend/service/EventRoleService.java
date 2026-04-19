@@ -15,18 +15,19 @@ import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
-import jakarta.transaction.Transactional;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EventRoleService {
 
-    private static final int MAX_CO_ORGANIZERS = 3;
+    static final int MAX_CO_ORGANIZERS = 3;
 
     private final EventRepository eventRepository;
     private final AppUserRepository appUserRepository;
@@ -52,44 +53,17 @@ public class EventRoleService {
     @Transactional
     public CoOrganizerResponse assignCoOrganizer(Long eventId, AssignCoOrganizerRequest request) {
         Event event = findEditableEvent(eventId);
-        if (coOrganizerAssignmentRepository.countByEventId(eventId) >= MAX_CO_ORGANIZERS &&
-                coOrganizerAssignmentRepository.findByEventId(eventId).stream()
-                        .map(assignment -> assignment.getUser().getId())
-                        .distinct()
-                        .count() >= MAX_CO_ORGANIZERS) {
-            throw new BusinessRuleException("No se pueden asignar más de 3 co-organizadores por evento.");
-        }
+        String normalizedUsername = normalizeUsername(request.username());
 
-        AppUser user = appUserRepository.findByUsername(request.username().trim())
+        AppUser user = appUserRepository.findByUsernameIgnoreCase(normalizedUsername)
                 .orElseGet(() -> createCoOrganizerUser(request));
 
         if (user.getRole() != GlobalRole.CO_ORGANIZER) {
             throw new BusinessRuleException("El usuario ya existe con un rol incompatible.");
         }
 
-        List<CoOrganizerAssignment> existingAssignments = coOrganizerAssignmentRepository
-                .findByEventIdAndUserId(eventId, user.getId());
-        Set<CoOrganizerResponsibility> existingResponsibilities = existingAssignments.stream()
-                .map(CoOrganizerAssignment::getResponsibility)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        for (CoOrganizerResponsibility responsibility : request.responsibilities()) {
-            coOrganizerAssignmentRepository.findByEventIdAndResponsibility(eventId, responsibility)
-                    .ifPresent(assignment -> {
-                        if (!assignment.getUser().getId().equals(user.getId())) {
-                            throw new BusinessRuleException("La responsabilidad " + responsibility +
-                                    " ya está asignada a otro co-organizador.");
-                        }
-                    });
-
-            if (!existingResponsibilities.contains(responsibility)) {
-                CoOrganizerAssignment assignment = new CoOrganizerAssignment();
-                assignment.setEvent(event);
-                assignment.setUser(user);
-                assignment.setResponsibility(responsibility);
-                coOrganizerAssignmentRepository.save(assignment);
-            }
-        }
+        ensureCoOrganizerSlotAvailable(eventId, user.getId());
+        assignResponsibilities(event, user, request.responsibilities());
 
         eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
             null,
@@ -112,6 +86,47 @@ public class EventRoleService {
                 .toList();
     }
 
+    void assignResponsibilities(Event event, AppUser user, Set<CoOrganizerResponsibility> responsibilities) {
+        Long eventId = event.getId();
+        List<CoOrganizerAssignment> existingAssignments = coOrganizerAssignmentRepository
+                .findByEventIdAndUserId(eventId, user.getId());
+        Set<CoOrganizerResponsibility> existingResponsibilities = existingAssignments.stream()
+                .map(CoOrganizerAssignment::getResponsibility)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        for (CoOrganizerResponsibility responsibility : responsibilities) {
+            coOrganizerAssignmentRepository.findByEventIdAndResponsibility(eventId, responsibility)
+                    .ifPresent(assignment -> {
+                        if (!assignment.getUser().getId().equals(user.getId())) {
+                            throw new BusinessRuleException("La responsabilidad " + responsibility +
+                                    " ya está asignada a otro co-organizador.");
+                        }
+                    });
+
+            if (!existingResponsibilities.contains(responsibility)) {
+                CoOrganizerAssignment assignment = new CoOrganizerAssignment();
+                assignment.setEvent(event);
+                assignment.setUser(user);
+                assignment.setResponsibility(responsibility);
+                coOrganizerAssignmentRepository.save(assignment);
+            }
+        }
+    }
+
+    long countActiveCoOrganizers(Long eventId) {
+        return coOrganizerAssignmentRepository.findByEventId(eventId).stream()
+                .map(assignment -> assignment.getUser().getId())
+                .distinct()
+                .count();
+    }
+
+    void ensureCoOrganizerSlotAvailable(Long eventId, Long userId) {
+        if (coOrganizerAssignmentRepository.findByEventIdAndUserId(eventId, userId).isEmpty()
+                && countActiveCoOrganizers(eventId) >= MAX_CO_ORGANIZERS) {
+            throw new BusinessRuleException("No se pueden asignar más de 3 co-organizadores por evento.");
+        }
+    }
+
     private Event findEvent(Long eventId) {
         return eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
@@ -120,28 +135,37 @@ public class EventRoleService {
     private Event findEditableEvent(Long eventId) {
         Event event = findEvent(eventId);
         accessControlService.requireOrganizerForEvent(event);
-        if (event.getStatus() == EventStatus.IN_PROGRESS || event.getStatus() == EventStatus.FINISHED) {
-            throw new BusinessRuleException("El evento ya no admite cambios de roles.");
+        if (event.getStatus() == EventStatus.FINISHED) {
+            throw new BusinessRuleException("El evento ya ha finalizado y no admite cambios de roles.");
         }
         return event;
     }
 
     private AppUser createCoOrganizerUser(AssignCoOrganizerRequest request) {
+        String normalizedEmail = normalizeOptionalEmail(request.email());
+        if (normalizedEmail != null && appUserRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+            throw new BusinessRuleException("Ya existe una cuenta con ese email.");
+        }
+
         AppUser user = new AppUser();
-        user.setUsername(request.username().trim());
+        user.setUsername(normalizeUsername(request.username()));
         user.setDisplayName(request.displayName().trim());
-        user.setEmail(normalizeOptional(request.email()));
+        user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(GlobalRole.CO_ORGANIZER);
         user.setEnabled(true);
         return appUserRepository.save(user);
     }
 
-    private String normalizeOptional(String value) {
+    private String normalizeUsername(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private String normalizeOptionalEmail(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
-        return value.trim();
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private CoOrganizerResponse toResponse(AppUser user, List<CoOrganizerAssignment> assignments) {

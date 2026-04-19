@@ -1,7 +1,9 @@
 package com.tfg.gonzalo.backend.exception;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -54,6 +56,12 @@ public class RestExceptionHandler {
                 List.of());
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        String message = resolveDataIntegrityMessage(exception);
+        return buildResponse(HttpStatus.BAD_REQUEST, message, List.of());
+    }
+
     private ResponseEntity<ApiErrorResponse> buildResponse(HttpStatus status,
                                                            String message,
                                                            List<String> details) {
@@ -69,5 +77,24 @@ public class RestExceptionHandler {
 
     private static String formatFieldError(FieldError error) {
         return error.getField() + ": " + error.getDefaultMessage();
+    }
+
+    private static String resolveDataIntegrityMessage(DataIntegrityViolationException exception) {
+        String rawMessage = exception.getMostSpecificCause() != null
+                ? exception.getMostSpecificCause().getMessage()
+                : exception.getMessage();
+        if (rawMessage == null) {
+            return "Los datos enviados ya existen o entran en conflicto con otro registro.";
+        }
+
+        String normalized = rawMessage.toUpperCase(Locale.ROOT);
+        if (normalized.contains("APP_USERS") && normalized.contains("EMAIL")) {
+            return "Ya existe una cuenta con ese email.";
+        }
+        if (normalized.contains("APP_USERS") && normalized.contains("USERNAME")) {
+            return "Ya existe un usuario con ese nombre de usuario.";
+        }
+
+        return "Los datos enviados ya existen o entran en conflicto con otro registro.";
     }
 }
