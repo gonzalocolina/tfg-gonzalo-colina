@@ -4,6 +4,10 @@ const http = axios.create({
   baseURL: '/api',
 })
 
+function isAuthRequest(url) {
+  return typeof url === 'string' && url.startsWith('/auth/')
+}
+
 http.interceptors.request.use((config) => {
   config.headers = config.headers || {}
 
@@ -15,7 +19,7 @@ http.interceptors.request.use((config) => {
   }
 
   const raw = sessionStorage.getItem('auth-player')
-  if (raw) {
+  if (raw && !isAuthRequest(config.url)) {
     try {
       const { accessToken } = JSON.parse(raw)
       if (accessToken) {
@@ -33,7 +37,9 @@ http.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       sessionStorage.removeItem('auth-player')
-      globalThis.location?.replace('/join')
+      if (!isAuthRequest(err.config?.url)) {
+        globalThis.location?.replace('/join')
+      }
     }
     return Promise.reject(err)
   },

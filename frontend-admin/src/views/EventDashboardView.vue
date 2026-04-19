@@ -21,6 +21,8 @@ const editForm = ref({
 const villains = ref([])
 const loadingVillains = ref(false)
 const saving = ref(false)
+const isOwner = computed(() => event.value?.currentUserIsOwner === true)
+const delegatedResponsibilities = computed(() => event.value?.currentUserResponsibilities || [])
 
 async function load() {
   loading.value = true
@@ -113,9 +115,22 @@ onMounted(loadVillains)
       <div class="card">
         <div class="card-header">
           <h2>{{ event.name }}</h2>
-          <span class="badge" :class="statusBadgeClass(event.status)">
-            {{ event.status }}
-          </span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end">
+            <span class="badge" :class="isOwner ? 'badge-ready' : 'badge-in-progress'">
+              {{ isOwner ? 'Organizador principal' : 'Co-organizador' }}
+            </span>
+            <span class="badge" :class="statusBadgeClass(event.status)">
+              {{ event.status }}
+            </span>
+          </div>
+        </div>
+
+        <div v-if="!isOwner" class="card" style="padding: 14px; margin-bottom: 14px; border-left: 4px solid var(--c-primary)">
+          <p style="margin: 0; font-weight: 600">Acceso delegado</p>
+          <p class="text-muted" style="margin-top: 6px; font-size: 0.9rem">
+            Estás viendo este evento como co-organizador.
+            Responsabilidades activas: {{ delegatedResponsibilities.length ? delegatedResponsibilities.join(', ') : 'sin permisos globales específicos' }}.
+          </p>
         </div>
 
         <div v-if="!editing" class="summary-grid">
@@ -224,7 +239,7 @@ onMounted(loadVillains)
       </div>
 
       <!-- Actions -->
-      <div v-if="event.status === 'DRAFT'" class="flex gap-1 mt-2">
+      <div v-if="isOwner && event.status === 'DRAFT'" class="flex gap-1 mt-2">
         <button class="btn btn-secondary" @click="startEdit">Editar evento</button>
         <router-link :to="{ name: 'event-villains', params: { eventId } }" class="btn btn-secondary">
           Gestionar villanos
@@ -247,7 +262,7 @@ onMounted(loadVillains)
         </router-link>
       </div>
 
-      <div v-if="event.status === 'READY'" class="flex gap-1 mt-2">
+      <div v-if="isOwner && event.status === 'READY'" class="flex gap-1 mt-2">
         <router-link
           :to="{ name: 'game', params: { eventId } }"
           class="btn btn-primary"
@@ -260,14 +275,26 @@ onMounted(loadVillains)
         >
           Ver estructura
         </router-link>
+        <router-link
+          :to="{ name: 'logs', params: { eventId } }"
+          class="btn btn-secondary"
+        >
+          Ver registro de eventos
+        </router-link>
       </div>
 
-      <div v-if="event.status === 'IN_PROGRESS'" class="flex gap-1 mt-2">
+      <div v-if="isOwner && event.status === 'IN_PROGRESS'" class="flex gap-1 mt-2">
         <router-link
           :to="{ name: 'game', params: { eventId } }"
           class="btn btn-primary"
         >
           Panel de partida
+        </router-link>
+        <router-link
+          :to="{ name: 'logs', params: { eventId } }"
+          class="btn btn-secondary"
+        >
+          Ver registro de eventos
         </router-link>
       </div>
 
@@ -277,6 +304,21 @@ onMounted(loadVillains)
           class="btn btn-secondary"
         >
           Ver resumen final
+        </router-link>
+        <router-link
+          :to="{ name: 'logs', params: { eventId } }"
+          class="btn btn-secondary"
+        >
+          Ver registro de eventos
+        </router-link>
+      </div>
+
+      <div v-if="!isOwner && event.status !== 'FINISHED'" class="flex gap-1 mt-2">
+        <router-link
+          :to="{ name: 'game', params: { eventId } }"
+          class="btn btn-primary"
+        >
+          Ir al panel del evento
         </router-link>
         <router-link
           :to="{ name: 'logs', params: { eventId } }"

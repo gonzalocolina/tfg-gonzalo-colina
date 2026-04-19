@@ -26,6 +26,18 @@ function goToEvent(eventId) {
   router.push({ name: 'dashboard', params: { eventId } })
 }
 
+function accessLabel(event) {
+  return event.currentUserIsOwner ? 'Organizador principal' : 'Co-organizador'
+}
+
+function accessBadgeClass(event) {
+  return event.currentUserIsOwner ? 'badge-ready' : 'badge-in-progress'
+}
+
+function formatResponsibilities(responsibilities = []) {
+  return responsibilities.length ? responsibilities.join(', ') : 'Sin responsabilidades delegadas'
+}
+
 function statusBadgeClass(status) {
   return {
     DRAFT: 'badge-draft',
@@ -54,6 +66,7 @@ onMounted(load)
     <div class="my-events-header">
       <h1>Mis Eventos</h1>
       <div class="header-actions">
+        <router-link to="/invitations" class="btn btn-secondary">Mis invitaciones</router-link>
         <router-link to="/villains" class="btn btn-secondary">Gestionar villanos</router-link>
         <router-link to="/inter-pod-cards" class="btn btn-secondary">Gestionar cartas inter-pod</router-link>
         <router-link to="/create-event" class="btn btn-primary">+ Crear nuevo evento</router-link>
@@ -67,6 +80,7 @@ onMounted(load)
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       </div>
       <p>No tienes eventos todavía.</p>
+      <router-link to="/invitations" class="btn btn-secondary">Revisar invitaciones</router-link>
       <router-link to="/villains" class="btn btn-secondary">Configurar villanos</router-link>
       <router-link to="/inter-pod-cards" class="btn btn-secondary">Configurar cartas inter-pod</router-link>
       <router-link to="/create-event" class="btn btn-primary">Crear tu primer evento</router-link>
@@ -80,10 +94,17 @@ onMounted(load)
         @click="goToEvent(event.id)"
       >
         <div class="event-card-header">
-          <h3>{{ event.name }}</h3>
-          <span class="badge" :class="statusBadgeClass(event.status)">
-            {{ statusLabel(event.status) }}
-          </span>
+          <div class="event-card-header__main">
+            <h3>{{ event.name }}</h3>
+            <div class="event-card-badges">
+              <span class="badge" :class="accessBadgeClass(event)">
+                {{ accessLabel(event) }}
+              </span>
+              <span class="badge" :class="statusBadgeClass(event.status)">
+                {{ statusLabel(event.status) }}
+              </span>
+            </div>
+          </div>
         </div>
         <div class="event-card-body">
           <div class="event-stat">
@@ -98,6 +119,10 @@ onMounted(load)
             <span class="stat-label">Código</span>
             <span class="stat-value">{{ event.eventCode }}</span>
           </div>
+        </div>
+        <div v-if="!event.currentUserIsOwner" class="shared-responsibilities">
+          <span class="stat-label">Responsabilidades delegadas</span>
+          <span class="stat-value">{{ formatResponsibilities(event.currentUserResponsibilities) }}</span>
         </div>
         <div class="event-card-footer">
           <small class="text-muted">
@@ -174,10 +199,14 @@ onMounted(load)
 }
 
 .event-card-header {
+  margin-bottom: 16px;
+}
+
+.event-card-header__main {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: 12px;
 }
 
 .event-card-header h3 {
@@ -187,10 +216,18 @@ onMounted(load)
   margin-right: 8px;
 }
 
+.event-card-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .event-card-body {
   display: flex;
   gap: 16px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .event-stat {
@@ -209,6 +246,10 @@ onMounted(load)
 .stat-value {
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.shared-responsibilities {
+  margin-bottom: 12px;
 }
 
 .event-card-footer {

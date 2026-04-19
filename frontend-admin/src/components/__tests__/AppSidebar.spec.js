@@ -9,8 +9,16 @@ const { getGameState } = vi.hoisted(() => ({
   getGameState: vi.fn(),
 }))
 
+const { getEvent } = vi.hoisted(() => ({
+  getEvent: vi.fn(),
+}))
+
 vi.mock('@/api/gameState', () => ({
   getGameState,
+}))
+
+vi.mock('@/api/events', () => ({
+  getEvent,
 }))
 
 function buildSnapshot(status = 'DRAFT') {
@@ -40,6 +48,7 @@ function createTestRouter() {
     routes: [
       { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
       { path: '/my-events', name: 'my-events', component: { template: '<div>My events</div>' } },
+      { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
       { path: '/event/:eventId', name: 'dashboard', component: { template: '<div>Dashboard</div>' } },
       { path: '/event/:eventId/setup', name: 'setup', component: { template: '<div>Setup</div>' } },
       { path: '/event/:eventId/villains', name: 'event-villains', component: { template: '<div>Event villains</div>' } },
@@ -90,12 +99,19 @@ describe('AppSidebar', () => {
     sessionStorage.clear()
     vi.clearAllMocks()
     getGameState.mockResolvedValue({ data: buildSnapshot() })
+    getEvent.mockResolvedValue({
+      data: {
+        id: 42,
+        currentUserIsOwner: true,
+      },
+    })
   })
 
   it('keeps the event navigation visible on the event villains route', async () => {
     const { wrapper } = await mountSidebar('/event/42/villains')
 
     expect(getGameState).toHaveBeenCalledWith('42')
+    expect(getEvent).toHaveBeenCalledWith('42')
     expect(wrapper.text()).toContain('Dashboard')
     expect(wrapper.text()).toContain('Pods y Mesas')
     expect(wrapper.text()).toContain('Co-organizadores')

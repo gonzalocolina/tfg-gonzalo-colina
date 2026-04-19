@@ -1,6 +1,7 @@
 package com.tfg.gonzalo.backend.dto.event;
 
 import com.tfg.gonzalo.backend.dto.interpod.InterPodCardDefinitionResponse;
+import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventResult;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
@@ -8,6 +9,7 @@ import com.tfg.gonzalo.backend.model.enums.VillainDefinitionType;
 import com.tfg.gonzalo.backend.model.enums.VillainRuleType;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 public record EventResponse(
         Long id,
@@ -32,6 +34,8 @@ public record EventResponse(
         Integer schemeThreatTarget,
         Integer timerRemainingSeconds,
         TimerStatus timerStatus,
+        boolean currentUserIsOwner,
+        Set<CoOrganizerResponsibility> currentUserResponsibilities,
         Instant startedAt,
         Instant finishedAt,
         Instant createdAt,

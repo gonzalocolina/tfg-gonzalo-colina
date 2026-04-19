@@ -8,7 +8,6 @@ const {
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
-  updateInterPodCardStatus,
   getEventInterPodCardDefinitions,
   syncImageUrls,
   protectedImagesById,
@@ -16,7 +15,6 @@ const {
   createInterPodCard: vi.fn(),
   getInterPodCards: vi.fn(),
   reportInterPodCardDamage: vi.fn(),
-  updateInterPodCardStatus: vi.fn(),
   getEventInterPodCardDefinitions: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
@@ -26,7 +24,6 @@ vi.mock('@/api/interPod', () => ({
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
-  updateInterPodCardStatus,
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
@@ -94,7 +91,6 @@ describe('InterPodAlertDialog', () => {
     createInterPodCard.mockReset()
     getInterPodCards.mockReset()
     reportInterPodCardDamage.mockReset()
-    updateInterPodCardStatus.mockReset()
     getEventInterPodCardDefinitions.mockReset()
     syncImageUrls.mockReset()
     Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
@@ -206,6 +202,39 @@ describe('InterPodAlertDialog', () => {
     wrapper.unmount()
   })
 
+  it('closes the fullscreen image when the browser back event is triggered', async () => {
+    protectedImagesById['42'] = 'blob:dialog-card-42'
+    getInterPodCards.mockResolvedValue({
+      data: [
+        {
+          id: 42,
+          cardName: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
+          hpCurrent: 7,
+          hpMax: 8,
+          status: 'REVELADA',
+          sourceGroupIdentifier: 'Mesa Beta',
+          createdAt: '2026-03-31T12:00:00Z',
+          imageUrl: '/api/events/1/inter-pod-cards/42/image',
+        },
+      ],
+    })
+
+    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+    await flushPromises()
+
+    await wrapper.get('.interpod-card-thumb-button').trigger('click')
+    expect(wrapper.find('.image-preview-overlay').exists()).toBe(true)
+
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    await flushPromises()
+
+    expect(wrapper.find('.image-preview-overlay').exists()).toBe(false)
+    expect(wrapper.emitted('close')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
   it('highlights the requested card when opened from the summary view', async () => {
     getInterPodCards.mockResolvedValue({
       data: [
@@ -240,6 +269,33 @@ describe('InterPodAlertDialog', () => {
     const highlightedCard = wrapper.find('.interpod-card-item--highlighted')
     expect(highlightedCard.exists()).toBe(true)
     expect(highlightedCard.text()).toContain('The Mangog')
+
+    wrapper.unmount()
+  })
+
+  it('does not render manual status controls for player cards', async () => {
+    getInterPodCards.mockResolvedValue({
+      data: [
+        {
+          id: 42,
+          cardName: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
+          hpCurrent: 7,
+          hpMax: 8,
+          status: 'REVELADA',
+          sourceGroupIdentifier: 'Mesa Beta',
+          createdAt: '2026-03-31T12:00:00Z',
+          imageUrl: null,
+        },
+      ],
+    })
+
+    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+    await flushPromises()
+
+    expect(wrapper.findAll('select').length).toBe(1)
+    expect(wrapper.text()).not.toContain('Estado actualizado')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Estado')).toBe(false)
 
     wrapper.unmount()
   })

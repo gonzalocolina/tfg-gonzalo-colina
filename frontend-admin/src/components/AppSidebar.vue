@@ -1,6 +1,7 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getEvent } from '@/api/events'
 import { useAuthStore } from '@/stores/auth'
 import { useGameStateStore } from '@/stores/gameState'
 
@@ -8,10 +9,12 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const gs = useGameStateStore()
+const currentEvent = ref(null)
 
 const eventId = computed(() => route.params.eventId)
+const currentEventIsOwner = computed(() => currentEvent.value?.currentUserIsOwner === true)
 const villainsRoute = computed(() => {
-  if (eventId.value) {
+  if (eventId.value && currentEventIsOwner.value) {
     return {
       name: 'event-villains',
       params: { eventId: eventId.value },
@@ -22,7 +25,7 @@ const villainsRoute = computed(() => {
 })
 
 const interPodCardsRoute = computed(() => {
-  if (eventId.value) {
+  if (eventId.value && currentEventIsOwner.value) {
     return {
       name: 'event-inter-pod-cards',
       params: { eventId: eventId.value },
@@ -36,10 +39,19 @@ const interPodCardsRoute = computed(() => {
 // para que el sidebar pueda mostrar el enlace "Partida" correctamente
 watch(
   eventId,
-  (newId) => {
+  async (newId) => {
     if (newId) {
       gs.fetchGameState(newId).catch(() => {})
+      try {
+        const { data } = await getEvent(newId)
+        currentEvent.value = data
+      } catch {
+        currentEvent.value = null
+      }
+      return
     }
+
+    currentEvent.value = null
   },
   { immediate: true },
 )
@@ -63,6 +75,7 @@ const ICONS = {
 
 const navItems = computed(() => {
   const items = [
+    { label: 'Mis invitaciones', icon: 'users', to: { name: 'invitations' } },
     { label: 'Villanos', icon: 'mask', to: villainsRoute.value },
     { label: 'Cartas Inter-Pod', icon: 'tag', to: interPodCardsRoute.value },
   ]
@@ -73,9 +86,14 @@ const navItems = computed(() => {
 
   items.unshift(
     { label: 'Dashboard', icon: 'dashboard', to: { name: 'dashboard', params: { eventId: eventId.value } } },
-    { label: 'Pods y Mesas', icon: 'tag', to: { name: 'setup', params: { eventId: eventId.value } } },
-    { label: 'Co-organizadores', icon: 'users', to: { name: 'roles', params: { eventId: eventId.value } } },
   )
+
+  if (currentEventIsOwner.value) {
+    items.splice(1, 0,
+      { label: 'Pods y Mesas', icon: 'tag', to: { name: 'setup', params: { eventId: eventId.value } } },
+      { label: 'Co-organizadores', icon: 'users', to: { name: 'roles', params: { eventId: eventId.value } } },
+    )
+  }
 
   // Only show game panel if event is draft, ready, in progress, or finished
   const status = gs.eventStatus

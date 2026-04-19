@@ -8,7 +8,6 @@ import {
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
-  updateInterPodCardStatus,
 } from '@/api/interPod'
 import { getEventInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 
@@ -31,7 +30,6 @@ const creating = ref(false)
 const cards = ref([])
 const loadingCards = ref(true)
 const damageByCard = ref({})
-const statusByCard = ref({})
 const mutatingCardId = ref(null)
 const cardElements = ref({})
 const highlightedCardId = ref(null)
@@ -41,7 +39,6 @@ const previewScale = ref(1)
 const previewOffset = ref({ x: 0, y: 0 })
 const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth-player')
 
-const CARD_STATUSES = ['OCULTA', 'REVELADA', 'DERROTADA']
 const MAX_PREVIEW_SCALE = 4
 
 let highlightResetTimeout = null
@@ -49,6 +46,8 @@ let cardsRefreshInterval = null
 let pinchStartDistance = 0
 let pinchStartScale = 1
 let panStart = { x: 0, y: 0 }
+let previewHistoryActive = false
+let ignoreNextPreviewPopState = false
 
 const previewTransformStyle = computed(() => ({
   transform: `translate(${previewOffset.value.x}px, ${previewOffset.value.y}px) scale(${previewScale.value})`,
@@ -84,7 +83,6 @@ const actionsDisabled = computed(() => Boolean(actionsDisabledReason.value))
 async function loadCards({ silent = false } = {}) {
   if (!props.podId) {
     cards.value = []
-    statusByCard.value = {}
     loadingCards.value = false
     await syncImageUrls([])
     return
@@ -97,11 +95,6 @@ async function loadCards({ silent = false } = {}) {
   try {
     const { data } = await getInterPodCards(auth.eventId, Number(props.podId))
     cards.value = data || []
-    const nextStatus = {}
-    for (const card of cards.value) {
-      nextStatus[card.id] = card.status
-    }
-    statusByCard.value = nextStatus
     await syncImageUrls(buildCardImageEntries(cards.value))
     await focusPendingCard()
   } catch {
@@ -121,6 +114,21 @@ function prettyCardName(name) {
     .replaceAll('_', ' ')
     .toLowerCase()
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
+}
+
+function resolveInterPodCardStatus(card) {
+  if (!card) return '—'
+
+  const hpCurrent = Number(card.hpCurrent)
+  if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {
+    return 'DERROTADA'
+  }
+
+  if (card.status === 'OCULTA') {
+    return 'OCULTA'
+  }
+
+  return 'REVELADA'
 }
 
 async function loadSelectedDefinitions() {
@@ -200,32 +208,6 @@ async function handleDamage(card) {
     await loadCards()
   } catch (err) {
     notif.error(mapMutationError(err, 'Error al reportar daño'))
-  } finally {
-    mutatingCardId.value = null
-  }
-}
-
-async function handleStatus(card) {
-  if (actionsDisabled.value) {
-    notif.error(actionsDisabledReason.value)
-    return
-  }
-  const nextStatus = statusByCard.value[card.id]
-  if (!nextStatus) {
-    notif.error('Selecciona un estado válido.')
-    return
-  }
-
-  mutatingCardId.value = card.id
-  try {
-    await updateInterPodCardStatus(auth.eventId, card.id, {
-      representativeCode: auth.code,
-      status: nextStatus,
-    })
-    notif.success('Estado actualizado')
-    await loadCards()
-  } catch (err) {
-    notif.error(mapMutationError(err, 'Error al actualizar estado'))
   } finally {
     mutatingCardId.value = null
   }
@@ -321,11 +303,25 @@ function openImagePreview(card) {
     name: prettyCardName(card.cardName),
   }
   resetPreviewTransform()
+
+  if (!previewHistoryActive && globalThis.window !== undefined) {
+    globalThis.window.history.pushState({ __interPodPreview: true }, '', globalThis.window.location.href)
+    previewHistoryActive = true
+  }
 }
 
-function closeImagePreview() {
+function closeImagePreview({ restoreHistory = true } = {}) {
   previewCard.value = null
   resetPreviewTransform()
+
+  if (restoreHistory && previewHistoryActive && globalThis.window !== undefined) {
+    previewHistoryActive = false
+    ignoreNextPreviewPopState = true
+    globalThis.window.history.back()
+    return
+  }
+
+  previewHistoryActive = false
 }
 
 function clampPreviewScale(scale) {
@@ -405,6 +401,19 @@ function handlePreviewWheel(event) {
   }
 }
 
+function handlePreviewPopState() {
+  if (ignoreNextPreviewPopState) {
+    ignoreNextPreviewPopState = false
+    return
+  }
+
+  if (!previewCard.value && !previewHistoryActive) {
+    return
+  }
+
+  closeImagePreview({ restoreHistory: false })
+}
+
 function startCardsPolling() {
   stopCardsPolling()
   cardsRefreshInterval = setInterval(() => {
@@ -428,7 +437,6 @@ watch(
     }
 
     cards.value = []
-    statusByCard.value = {}
     loadingCards.value = false
   },
   { immediate: true },
@@ -452,6 +460,10 @@ watch(cards, () => {
 })
 
 onMounted(async () => {
+  if (globalThis.window !== undefined) {
+    globalThis.window.addEventListener('popstate', handlePreviewPopState)
+  }
+
   await loadSelectedDefinitions()
   startCardsPolling()
 })
@@ -460,6 +472,9 @@ onUnmounted(() => {
   stopCardsPolling()
   if (highlightResetTimeout) {
     clearTimeout(highlightResetTimeout)
+  }
+  if (globalThis.window !== undefined) {
+    globalThis.window.removeEventListener('popstate', handlePreviewPopState)
   }
 })
 </script>
@@ -498,7 +513,7 @@ onUnmounted(() => {
       </p>
 
       <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px">
-        Solo tienes que indicar que te ha aparecido la carta. El administrador define la imagen, el HP máximo y el estado inicial.
+        Solo tienes que indicar que te ha aparecido la carta. Su estado se muestra automáticamente: al revelarse aparece como revelada y, si su HP llega a 0, pasa a derrotada.
       </p>
 
       <button
@@ -550,7 +565,7 @@ onUnmounted(() => {
               <span class="text-muted" style="font-size: 0.8rem">{{ a.cardCategory }} · Mesa: {{ a.sourceGroupIdentifier }}</span>
               <div style="font-size: 0.95rem; margin-top: 2px">
                 <strong>HP {{ a.hpCurrent }} / {{ a.hpMax }}</strong>
-                <span class="text-muted" style="margin-left: 8px">{{ a.status || '—' }}</span>
+                <span class="text-muted" style="margin-left: 8px">{{ prettyCardName(resolveInterPodCardStatus(a)) }}</span>
               </div>
               <span class="text-muted" style="font-size: 0.72rem">{{ formatTime(a.createdAt) }}</span>
             </div>
@@ -567,13 +582,6 @@ onUnmounted(() => {
             />
             <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleDamage(a)">
               Daño
-            </button>
-
-            <select v-model="statusByCard[a.id]" class="form-control" style="width: 130px" :disabled="actionsDisabled">
-              <option v-for="s in CARD_STATUSES" :key="s" :value="s">{{ s }}</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleStatus(a)">
-              Estado
             </button>
           </div>
         </div>
