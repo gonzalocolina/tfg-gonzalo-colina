@@ -151,6 +151,15 @@ a:hover {
 .btn-secondary:hover:not(:disabled) {
   background: var(--c-border);
 }
+.btn-logout {
+  background: transparent;
+  color: var(--c-danger);
+  border: 1px solid var(--c-danger);
+}
+.btn-logout:hover:not(:disabled) {
+  background: var(--c-danger);
+  color: #fff;
+}
 .btn-sm {
   padding: 5px 12px;
   font-size: 0.82rem;

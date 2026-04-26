@@ -131,7 +131,7 @@ function handleLogout() {
     </div>
 
     <div class="sidebar-user">
-      <div class="user-name">{{ auth.username }}</div>
+      <div class="user-name">{{ auth.displayName || auth.username }}</div>
       <div class="user-role badge" :class="auth.isOrganizer ? 'badge-ready' : 'badge-in-progress'">
         {{ auth.role }}
       </div>
