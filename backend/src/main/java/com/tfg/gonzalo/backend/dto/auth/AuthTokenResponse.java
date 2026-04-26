@@ -9,6 +9,6 @@ public record AuthTokenResponse(
         Long groupId,
         String groupCode,
         String username,
-        String displayName
+        String groupLabel
 ) {
 }

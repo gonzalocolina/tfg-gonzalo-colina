@@ -72,7 +72,7 @@ async function loadLogs() {
 }
 
 function formatTime(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleTimeString('es-ES', {
     hour: '2-digit',
     minute: '2-digit',
@@ -133,14 +133,14 @@ onMounted(() => {
           <tbody>
             <tr v-for="log in logs" :key="log.id">
               <td style="white-space: nowrap">{{ formatTime(log.timestamp) }}</td>
-              <td>{{ log.actor || '—' }}</td>
-              <td>{{ log.groupIdentifier || '—' }}</td>
+              <td>{{ log.actor || '-' }}</td>
+              <td>{{ log.groupIdentifier || '-' }}</td>
               <td>
                 <span class="badge badge-ready">{{ log.actionType }}</span>
               </td>
-              <td>{{ log.previousValue || '—' }}</td>
-              <td>{{ log.newValue || '—' }}</td>
-              <td>{{ log.notes || '—' }}</td>
+              <td>{{ log.previousValue || '-' }}</td>
+              <td>{{ log.newValue || '-' }}</td>
+              <td>{{ log.notes || '-' }}</td>
             </tr>
           </tbody>
         </table>

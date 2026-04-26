@@ -175,7 +175,7 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <h1 class="page-title">Configuración — Pods y Mesas</h1>
+    <h1 class="page-title">Configuración - Pods y Mesas</h1>
 
     <div v-if="loading" class="text-muted">Cargando…</div>
 

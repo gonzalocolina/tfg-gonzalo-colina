@@ -6,9 +6,10 @@ import { useAuthStore } from '@/stores/auth'
 vi.mock('@/api/auth', () => ({
   adminLogin: vi.fn(),
   coOrganizerLogin: vi.fn(),
+  register: vi.fn(),
 }))
 
-import { adminLogin, coOrganizerLogin } from '@/api/auth'
+import { adminLogin, coOrganizerLogin, register } from '@/api/auth'
 
 describe('Auth Store', () => {
   beforeEach(() => {
@@ -34,7 +35,6 @@ describe('Auth Store', () => {
         eventId: 5,
         groupId: null,
         username: 'admin',
-        displayName: 'Admin User',
       }),
     )
     // Need a fresh pinia to pick up the stored session
@@ -55,7 +55,6 @@ describe('Auth Store', () => {
         eventId: 10,
         groupId: null,
         username: 'admin',
-        displayName: 'Admin',
       },
     }
     adminLogin.mockResolvedValue(mockResponse)
@@ -96,7 +95,6 @@ describe('Auth Store', () => {
         eventId: 7,
         groupId: null,
         username: 'coorg1',
-        displayName: 'Co Org',
       },
     }
     coOrganizerLogin.mockResolvedValue(mockResponse)
@@ -117,7 +115,6 @@ describe('Auth Store', () => {
         eventId: 1,
         groupId: null,
         username: 'admin',
-        displayName: 'Admin',
       },
     }
     adminLogin.mockResolvedValue(mockResponse)
@@ -132,5 +129,26 @@ describe('Auth Store', () => {
     expect(auth.role).toBe('')
     expect(auth.eventId).toBeNull()
     expect(sessionStorage.getItem('auth')).toBeNull()
+  })
+
+  it('registerAndLogin calls the register API and persists the session', async () => {
+    const mockResponse = {
+      data: {
+        accessToken: 'register-token',
+        role: 'ORGANIZER',
+        eventId: null,
+        groupId: null,
+        username: 'new-admin',
+      },
+    }
+    register.mockResolvedValue(mockResponse)
+
+    const auth = useAuthStore()
+    const result = await auth.registerAndLogin('new-admin', 'new@example.com', 'Password123')
+
+    expect(register).toHaveBeenCalledWith('new-admin', 'new@example.com', 'Password123')
+    expect(auth.username).toBe('new-admin')
+    expect(auth.isAuthenticated).toBe(true)
+    expect(result).toEqual(mockResponse.data)
   })
 })

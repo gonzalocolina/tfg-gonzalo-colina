@@ -11,8 +11,7 @@ public record AuthPrincipal(
         String role,
         Long eventId,
         Long groupId,
-        String codeKind,
-        String displayName
+    String codeKind
 ) {
 
     public Collection<GrantedAuthority> authorities() {

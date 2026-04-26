@@ -109,7 +109,7 @@ async function loadCards({ silent = false } = {}) {
 }
 
 function prettyCardName(name) {
-  if (!name) return '—'
+  if (!name) return '-'
   return name
     .replaceAll('_', ' ')
     .toLowerCase()
@@ -117,7 +117,7 @@ function prettyCardName(name) {
 }
 
 function resolveInterPodCardStatus(card) {
-  if (!card) return '—'
+  if (!card) return '-'
 
   const hpCurrent = Number(card.hpCurrent)
   if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {
@@ -214,7 +214,7 @@ async function handleDamage(card) {
 }
 
 function formatTime(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleTimeString('es-ES', {
     hour: '2-digit',
     minute: '2-digit',

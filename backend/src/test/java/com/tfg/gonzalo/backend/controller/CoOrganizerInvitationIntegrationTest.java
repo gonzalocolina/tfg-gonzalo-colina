@@ -30,8 +30,8 @@ class CoOrganizerInvitationIntegrationTest {
 
     @Test
     void organizerCanInviteExistingAdminAndInviteeCanAcceptAndAccessSharedEvent() throws Exception {
-        String organizerToken = registerOrganizer("owner-cu13", "Owner CU13", "owner-cu13@example.com");
-        String inviteeToken = registerOrganizer("shared-cu12", "Shared CU12", "shared-cu12@example.com");
+                String organizerToken = registerOrganizer("owner-cu13", "owner-cu13@example.com");
+                String inviteeToken = registerOrganizer("shared-cu12", "shared-cu12@example.com");
         long eventId = createEvent("Evento Invitaciones", organizerToken);
 
         MvcResult inviteResult = mockMvc.perform(post("/api/events/{eventId}/roles/co-organizer-invitations", eventId)
@@ -95,8 +95,8 @@ class CoOrganizerInvitationIntegrationTest {
 
     @Test
     void inviteeCanRejectInvitationAndItDisappearsFromInbox() throws Exception {
-        String organizerToken = registerOrganizer("owner-reject", "Owner Reject", "owner-reject@example.com");
-        String inviteeToken = registerOrganizer("reject-user", "Reject User", "reject-user@example.com");
+                String organizerToken = registerOrganizer("owner-reject", "owner-reject@example.com");
+                String inviteeToken = registerOrganizer("reject-user", "reject-user@example.com");
         long eventId = createEvent("Evento Rechazo", organizerToken);
 
         long invitationId = inviteUser(eventId, organizerToken, "reject-user");
@@ -114,8 +114,8 @@ class CoOrganizerInvitationIntegrationTest {
 
     @Test
     void organizerCanRevokePendingInvitation() throws Exception {
-        String organizerToken = registerOrganizer("owner-revoke", "Owner Revoke", "owner-revoke@example.com");
-        String inviteeToken = registerOrganizer("revoke-user", "Revoke User", "revoke-user@example.com");
+                String organizerToken = registerOrganizer("owner-revoke", "owner-revoke@example.com");
+                String inviteeToken = registerOrganizer("revoke-user", "revoke-user@example.com");
         long eventId = createEvent("Evento Revocacion", organizerToken);
 
         long invitationId = inviteUser(eventId, organizerToken, "revoke-user");
@@ -132,11 +132,11 @@ class CoOrganizerInvitationIntegrationTest {
 
     @Test
     void organizerCannotInviteUnknownUsersDuplicatesOrExceedAvailableSlots() throws Exception {
-        String organizerToken = registerOrganizer("owner-validaciones", "Owner Validaciones", "owner-validaciones@example.com");
-        registerOrganizer("slot-a", "Slot A", "slot-a@example.com");
-        registerOrganizer("slot-b", "Slot B", "slot-b@example.com");
-        registerOrganizer("slot-c", "Slot C", "slot-c@example.com");
-        registerOrganizer("slot-d", "Slot D", "slot-d@example.com");
+                String organizerToken = registerOrganizer("owner-validaciones", "owner-validaciones@example.com");
+                registerOrganizer("slot-a", "slot-a@example.com");
+                registerOrganizer("slot-b", "slot-b@example.com");
+                registerOrganizer("slot-c", "slot-c@example.com");
+                registerOrganizer("slot-d", "slot-d@example.com");
         long eventId = createEvent("Evento Validaciones", organizerToken);
 
         mockMvc.perform(post("/api/events/{eventId}/roles/co-organizer-invitations", eventId)
@@ -214,17 +214,16 @@ class CoOrganizerInvitationIntegrationTest {
         return extractId(result.getResponse().getContentAsString());
     }
 
-    private String registerOrganizer(String username, String displayName, String email) throws Exception {
+                private String registerOrganizer(String username, String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "username": "%s",
-                                  "displayName": "%s",
                                   "email": "%s",
                                   "password": "Password123"
                                 }
-                                """.formatted(username, displayName, email)))
+                                                                                                                                """.formatted(username, email)))
                 .andExpect(status().isCreated())
                 .andReturn();
 

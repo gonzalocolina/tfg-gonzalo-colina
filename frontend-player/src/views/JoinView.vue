@@ -30,7 +30,7 @@ async function handleJoin() {
 <template>
   <div class="join-page">
     <div class="join-card">
-      <h1 class="join-title">God of Lies</h1>
+      <h1 class="join-title">Marvel Champions</h1>
       <p class="join-subtitle">Unirse a la partida</p>
 
       <form @submit.prevent="handleJoin">

@@ -187,7 +187,7 @@ class GameStateControllerIntegrationTest {
                         .content("""
                                 {
                                   "code": "%s",
-                                  "displayName": "Mesa Pendiente"
+                                                                                                                                        "groupLabel": "Mesa Pendiente"
                                 }
                                 """.formatted(eventCode)))
                 .andExpect(status().isOk());
@@ -303,7 +303,6 @@ class GameStateControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "%s",
-                                  "displayName": "Organizador",
                                   "email": "%s@example.com",
                                   "password": "Password123"
                                 }

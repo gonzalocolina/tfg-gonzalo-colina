@@ -53,7 +53,7 @@ public class EventLogService {
         return new EventLogEntryResponse(
                 eventLog.getId(),
                 eventLog.getCreatedAt(),
-                eventLog.getActor() == null ? null : eventLog.getActor().getDisplayName(),
+            eventLog.getActor() == null ? null : eventLog.getActor().getUsername(),
                 eventLog.getGroup() == null ? null : eventLog.getGroup().getIdentifier(),
                 eventLog.getActionType(),
                 eventLog.getPreviousValue(),

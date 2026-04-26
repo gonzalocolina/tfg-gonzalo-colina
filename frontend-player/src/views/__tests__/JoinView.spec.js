@@ -31,7 +31,7 @@ describe('JoinView', () => {
       },
     })
 
-    expect(wrapper.find('h1').text()).toContain('God of Lies')
+    expect(wrapper.find('h1').text()).toContain('Marvel Champions')
     expect(wrapper.find('input#code').exists()).toBe(true)
     expect(wrapper.find('input#group-identifier').exists()).toBe(true)
     expect(wrapper.find('button').text()).toContain('Entrar')

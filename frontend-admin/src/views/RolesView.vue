@@ -33,11 +33,11 @@ const RESPONSIBILITIES = ['VILLAIN_HP', 'THREAT', 'TIMER']
 const availableSlots = computed(() => Math.max(0, 3 - coOrganizers.value.length - pendingInvitations.value.length))
 
 function formatResponsibilities(responsibilities = []) {
-  return responsibilities.length ? responsibilities.join(', ') : '—'
+  return responsibilities.length ? responsibilities.join(', ') : '-'
 }
 
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Date(value).toLocaleString()
 }
 
@@ -121,7 +121,7 @@ onMounted(load)
 
 <template>
   <div>
-    <h1 class="page-title">Roles — Co-organizadores</h1>
+    <h1 class="page-title">Roles - Co-organizadores</h1>
 
     <p v-if="event" class="text-muted" style="margin-bottom: 16px">
       Evento: {{ event.name }} · Plazas disponibles: {{ availableSlots }} / 3
@@ -143,7 +143,6 @@ onMounted(load)
         <thead>
           <tr>
             <th>Usuario</th>
-            <th>Nombre</th>
             <th>Email</th>
             <th>Responsabilidades</th>
           </tr>
@@ -151,8 +150,7 @@ onMounted(load)
         <tbody>
           <tr v-for="co in coOrganizers" :key="co.userId">
             <td>{{ co.username }}</td>
-            <td>{{ co.displayName }}</td>
-            <td>{{ co.email || '—' }}</td>
+            <td>{{ co.email || '-' }}</td>
             <td>
               <span
                 v-for="responsibility in co.responsibilities"
@@ -184,7 +182,6 @@ onMounted(load)
         <thead>
           <tr>
             <th>Usuario</th>
-            <th>Nombre</th>
             <th>Email</th>
             <th>Responsabilidades</th>
             <th>Creada</th>
@@ -194,8 +191,7 @@ onMounted(load)
         <tbody>
           <tr v-for="invitation in pendingInvitations" :key="invitation.id">
             <td>{{ invitation.inviteeUsername }}</td>
-            <td>{{ invitation.inviteeDisplayName }}</td>
-            <td>{{ invitation.inviteeEmail || '—' }}</td>
+            <td>{{ invitation.inviteeEmail || '-' }}</td>
             <td>{{ formatResponsibilities(invitation.responsibilities) }}</td>
             <td>{{ formatDate(invitation.createdAt) }}</td>
             <td>

@@ -24,8 +24,8 @@ export function useWebSocket(eventId) {
     TIMER_15_MINUTES: 'Quedan 15 minutos',
     TIMER_5_MINUTES: '¡Solo quedan 5 minutos!',
     EVENT_FINISHED_PLAYERS_VICTORY: '¡Victoria! ¡El villano ha sido derrotado!',
-    EVENT_FINISHED_THREAT_DEFEAT: 'Derrota — La amenaza ha alcanzado el límite',
-    EVENT_FINISHED_TIMEOUT_DEFEAT: 'Derrota — Se agotó el tiempo',
+    EVENT_FINISHED_THREAT_DEFEAT: 'Derrota - La amenaza ha alcanzado el límite',
+    EVENT_FINISHED_TIMEOUT_DEFEAT: 'Derrota - Se agotó el tiempo',
   }
 
   function connect() {

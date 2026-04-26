@@ -28,7 +28,7 @@ class EventControllerIntegrationTest {
 
     @Test
     void createEventInitializesOrganizerAndGameState() throws Exception {
-        String organizerToken = registerOrganizer("organizer1", "Organizador Principal", "orga@example.com", "Password123");
+      String organizerToken = registerOrganizer("organizer1", "orga@example.com", "Password123");
 
         String requestBody = """
                 {
@@ -54,7 +54,7 @@ class EventControllerIntegrationTest {
 
     @Test
     void createEventReturnsSelectedInterPodDefinitionImageUrlWithHyphenatedRoute() throws Exception {
-        String organizerToken = registerOrganizer("organizer2", "Organizador Secundario", "orga2@example.com", "Password123");
+      String organizerToken = registerOrganizer("organizer2", "orga2@example.com", "Password123");
 
         MockMultipartFile image = new MockMultipartFile(
                 "image",
@@ -94,17 +94,16 @@ class EventControllerIntegrationTest {
                         .value("/api/inter-pod-card-definitions/" + definitionId + "/image"));
     }
 
-    private String registerOrganizer(String username, String displayName, String email, String password) throws Exception {
+    private String registerOrganizer(String username, String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "username": "%s",
-                                  "displayName": "%s",
                                   "email": "%s",
                                   "password": "%s"
                                 }
-                                """.formatted(username, displayName, email, password)))
+                                """.formatted(username, email, password)))
                 .andExpect(status().isCreated())
                 .andReturn();
 

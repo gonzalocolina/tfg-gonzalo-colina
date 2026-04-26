@@ -20,7 +20,7 @@ function handleLogout() {
 <template>
   <header class="player-header">
     <div class="player-header__info">
-      <div class="player-header__group">{{ groupLabel || auth.displayName || 'Mesa sin identificar' }}</div>
+      <div class="player-header__group">{{ groupLabel || auth.groupLabel || 'Mesa sin identificar' }}</div>
       <div class="player-header__event">{{ eventName }}</div>
     </div>
 

@@ -62,7 +62,7 @@ const currentPod = computed(
 const currentPodId = computed(() => currentPod.value?.id || null)
 const currentPodName = computed(() => currentPod.value?.name || '')
 const eventName = computed(() => eventStructure.value?.eventName || '')
-const currentGroupLabel = computed(() => normalizeGroupLabel(currentGroup.value?.identifier || auth.displayName))
+const currentGroupLabel = computed(() => normalizeGroupLabel(currentGroup.value?.identifier || auth.groupLabel))
 const hasAssignedPod = computed(() => Boolean(currentPod.value))
 const currentGroupPendingAssignment = computed(() => Boolean(currentGroup.value && !currentGroup.value.podId))
 const playerActionNotice = computed(() => {
@@ -186,7 +186,7 @@ async function loadInterPodCards({ silent = false } = {}) {
 }
 
 function prettyCardName(name) {
-  if (!name) return '—'
+  if (!name) return '-'
   return name
     .replaceAll('_', ' ')
     .toLowerCase()
@@ -194,7 +194,7 @@ function prettyCardName(name) {
 }
 
 function resolveInterPodCardStatus(card) {
-  if (!card) return '—'
+  if (!card) return '-'
 
   const hpCurrent = Number(card.hpCurrent)
   if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {

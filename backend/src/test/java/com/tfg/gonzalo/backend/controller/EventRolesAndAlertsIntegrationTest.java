@@ -48,7 +48,6 @@ class EventRolesAndAlertsIntegrationTest {
                         .content("""
                                 {
                                   "username": "coorg1",
-                                  "displayName": "Co Organizador",
                                   "email": "coorg1@example.com",
                                   "password": "Password123",
                                   "responsibilities": ["VILLAIN_HP", "THREAT"]
@@ -364,7 +363,6 @@ class EventRolesAndAlertsIntegrationTest {
                         .content("""
                                 {
                                   "username": "%s",
-                                  "displayName": "Organizador",
                                   "email": "%s@example.com",
                                   "password": "Password123"
                                 }

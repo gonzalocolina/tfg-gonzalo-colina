@@ -25,8 +25,8 @@ export const NOTIFICATION_LABELS = {
   INTER_POD_CARD_STATUS_UPDATED: 'Se ha actualizado el estado de una carta inter-pod de tu pod.',
   INTER_POD_CARD_DELETED: 'Se ha eliminado una carta inter-pod de tu pod.',
   EVENT_FINISHED_PLAYERS_VICTORY: '¡Victoria! ¡El villano ha sido derrotado!',
-  EVENT_FINISHED_THREAT_DEFEAT: 'Derrota — La amenaza ha alcanzado el límite',
-  EVENT_FINISHED_TIMEOUT_DEFEAT: 'Derrota — Se agotó el tiempo',
+  EVENT_FINISHED_THREAT_DEFEAT: 'Derrota - La amenaza ha alcanzado el límite',
+  EVENT_FINISHED_TIMEOUT_DEFEAT: 'Derrota - Se agotó el tiempo',
 }
 
 export function mapNotificationLabel(notification) {

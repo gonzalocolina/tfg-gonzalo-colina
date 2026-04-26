@@ -26,7 +26,6 @@ class AuthControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "owner-one",
-                                  "displayName": "Owner One",
                                   "email": "owner@example.com",
                                   "password": "Password123"
                                 }
@@ -38,7 +37,6 @@ class AuthControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "owner-two",
-                                  "displayName": "Owner Two",
                                   "email": "owner@example.com",
                                   "password": "Password123"
                                 }
@@ -54,7 +52,6 @@ class AuthControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "CaseSensitiveUser",
-                                  "displayName": "Case Sensitive User",
                                   "email": "case-user@example.com",
                                   "password": "Password123"
                                 }
@@ -80,7 +77,6 @@ class AuthControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "owner-three",
-                                  "displayName": "Owner Three",
                                   "email": "owner-three@example.com",
                                   "password": "Password123"
                                 }
@@ -92,7 +88,6 @@ class AuthControllerIntegrationTest {
                         .content("""
                                 {
                                   "username": "owner-three",
-                                  "displayName": "Owner Three Again",
                                   "email": "another@example.com",
                                   "password": "Password123"
                                 }

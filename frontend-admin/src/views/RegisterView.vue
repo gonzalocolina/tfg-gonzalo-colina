@@ -10,7 +10,6 @@ const notif = useNotificationsStore()
 
 const form = ref({
   username: '',
-  displayName: '',
   email: '',
   password: '',
 })
@@ -23,7 +22,6 @@ async function handleRegister() {
   try {
     await auth.registerAndLogin(
       form.value.username,
-      form.value.displayName,
       form.value.email,
       form.value.password,
     )
@@ -45,29 +43,17 @@ async function handleRegister() {
     <div class="form-card" style="max-width: 480px">
       <h1>Crear cuenta</h1>
       <form @submit.prevent="handleRegister">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="username">Usuario</label>
-            <input
-              id="username"
-              v-model="form.username"
-              type="text"
-              class="form-control"
-              required
-              maxlength="60"
-              autocomplete="username"
-            />
-          </div>
-          <div class="form-group">
-            <label for="displayName">Nombre a mostrar</label>
-            <input
-              id="displayName"
-              v-model="form.displayName"
-              class="form-control"
-              required
-              maxlength="120"
-            />
-          </div>
+        <div class="form-group">
+          <label for="username">Usuario</label>
+          <input
+            id="username"
+            v-model="form.username"
+            type="text"
+            class="form-control"
+            required
+            maxlength="60"
+            autocomplete="username"
+          />
         </div>
         <div class="form-group">
           <label for="email">Email (opcional)</label>

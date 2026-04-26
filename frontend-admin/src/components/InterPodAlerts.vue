@@ -54,7 +54,7 @@ async function load() {
 }
 
 function prettyCardName(name) {
-  if (!name) return '—'
+  if (!name) return '-'
   return name
     .replaceAll('_', ' ')
     .toLowerCase()
@@ -123,7 +123,7 @@ async function handleDeleteCard(card) {
 }
 
 function formatTime(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleTimeString('es-ES', {
     hour: '2-digit',
     minute: '2-digit',
@@ -193,7 +193,7 @@ onMounted(() => {
                   @error="handleImageLoadError"
                 />
               </a>
-              <span v-else class="text-muted">—</span>
+              <span v-else class="text-muted">-</span>
             </td>
             <td v-if="!disabled">
               <div class="flex gap-1" style="align-items: center; flex-wrap: wrap">

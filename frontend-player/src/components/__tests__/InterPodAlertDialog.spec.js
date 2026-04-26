@@ -48,7 +48,7 @@ function seedAuthSession() {
       role: 'GROUP_REPRESENTATIVE',
       eventId: 1,
       groupId: 20,
-      displayName: 'Mesa Beta',
+      groupLabel: 'Mesa Beta',
       code: 'REP001',
     }),
   )
@@ -226,7 +226,7 @@ describe('InterPodAlertDialog', () => {
     await wrapper.get('.interpod-card-thumb-button').trigger('click')
     expect(wrapper.find('.image-preview-overlay').exists()).toBe(true)
 
-    window.dispatchEvent(new PopStateEvent('popstate'))
+    globalThis.dispatchEvent(new PopStateEvent('popstate'))
     await flushPromises()
 
     expect(wrapper.find('.image-preview-overlay').exists()).toBe(false)
