@@ -3,9 +3,16 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getMyEvents } from '@/api/events'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const notif = useNotificationsStore()
+const auth = useAuthStore()
+
+function logout() {
+  auth.logout()
+  router.push({ name: 'login' })
+}
 
 const events = ref([])
 const loading = ref(true)
@@ -70,6 +77,7 @@ onMounted(load)
         <router-link to="/villains" class="btn btn-secondary">Gestionar villanos</router-link>
         <router-link to="/inter-pod-cards" class="btn btn-secondary">Gestionar cartas inter-pod</router-link>
         <router-link to="/create-event" class="btn btn-primary">+ Crear nuevo evento</router-link>
+        <button class="btn btn-logout" @click="logout">Cerrar sesión</button>
       </div>
     </div>
 
