@@ -81,9 +81,9 @@ onMounted(load)
       </div>
       <p>No tienes eventos todavía.</p>
       <router-link to="/invitations" class="btn btn-secondary">Revisar invitaciones</router-link>
-      <router-link to="/villains" class="btn btn-secondary">Configurar villanos</router-link>
-      <router-link to="/inter-pod-cards" class="btn btn-secondary">Configurar cartas inter-pod</router-link>
-      <router-link to="/create-event" class="btn btn-primary">Crear tu primer evento</router-link>
+      <router-link to="/villains" class="btn btn-secondary" style="margin-left: 8px">Configurar villanos</router-link>
+      <router-link to="/inter-pod-cards" class="btn btn-secondary" style="margin-left: 8px">Configurar cartas inter-pod</router-link>
+      <router-link to="/create-event" class="btn btn-primary" style="margin-left: 8px;">Crear tu primer evento</router-link>
     </div>
 
     <div v-else class="events-grid">
@@ -136,7 +136,7 @@ onMounted(load)
 
 <style scoped>
 .my-events-page {
-  max-width: 900px;
+  min-width: 900px;
   margin: 0 auto;
   padding: 40px 24px;
 }
@@ -180,7 +180,7 @@ onMounted(load)
 
 .events-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 20px;
 }
 

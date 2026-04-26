@@ -100,7 +100,7 @@ onMounted(load)
           <div>
             <h3>{{ invitation.eventName }}</h3>
             <p class="text-muted">
-              Organiza {{ invitation.organizerDisplayName || invitation.organizerUsername }} ·
+              Organiza {{ invitation.organizerUsername }} ·
               Estado actual: {{ formatStatus(invitation.eventStatus) }}
             </p>
           </div>

@@ -111,7 +111,7 @@ function seedAuthSession(role = 'GROUP_REPRESENTATIVE') {
       role,
       eventId: 1,
       groupId: 20,
-      displayName: 'Mesa Beta',
+      groupLabel: 'Mesa Beta',
       code: 'REP001',
     }),
   )

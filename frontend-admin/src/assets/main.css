@@ -1,4 +1,4 @@
-/* ── God of Lies — Admin  ─────────────────────────────── */
+/* ── Marvel Champions - Admin  ─────────────────────────────── */
 
 /* Dark mode (default) */
 :root {
@@ -134,6 +134,7 @@ a:hover {
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--c-primary-hover);
+  color: #fff;
 }
 .btn-danger {
   background: var(--c-danger);

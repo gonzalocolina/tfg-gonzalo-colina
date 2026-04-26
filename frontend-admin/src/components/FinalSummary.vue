@@ -8,8 +8,8 @@ const props = defineProps({
 const resultLabel = computed(() => {
   const map = {
     PLAYERS_VICTORY: '¡Victoria de los jugadores!',
-    THREAT_DEFEAT: 'Derrota — Amenaza máxima alcanzada',
-    TIMEOUT_DEFEAT: 'Derrota — Tiempo agotado',
+    THREAT_DEFEAT: 'Derrota - Amenaza máxima alcanzada',
+    TIMEOUT_DEFEAT: 'Derrota - Tiempo agotado',
     CANCELLED: 'Evento cancelado',
   }
   return map[props.summary.result] || props.summary.result
@@ -26,7 +26,7 @@ const causeLabel = computed(() => {
 })
 
 function formatDuration(seconds) {
-  if (!seconds) return '—'
+  if (!seconds) return '-'
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   const s = seconds % 60

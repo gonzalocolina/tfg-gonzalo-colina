@@ -6,7 +6,6 @@ import java.util.Set;
 public record CoOrganizerResponse(
         Long userId,
         String username,
-        String displayName,
         String email,
         Set<CoOrganizerResponsibility> responsibilities
 ) {

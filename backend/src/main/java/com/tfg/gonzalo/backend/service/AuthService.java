@@ -8,7 +8,6 @@ import com.tfg.gonzalo.backend.dto.auth.GroupLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.RegisterRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.model.AppUser;
-import com.tfg.gonzalo.backend.model.CoOrganizerAssignment;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.GameState;
@@ -22,7 +21,6 @@ import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import java.util.Locale;
 import com.tfg.gonzalo.backend.security.TokenService;
-import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -83,7 +81,6 @@ public class AuthService {
 
         AppUser user = new AppUser();
         user.setUsername(normalizedUsername);
-        user.setDisplayName(request.displayName().trim());
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(GlobalRole.ORGANIZER);
@@ -137,15 +134,9 @@ public class AuthService {
             throw new BusinessRuleException("El co-organizador no está asignado al evento indicado.");
         }
 
-        String responsibilities = assignments.stream()
-                .map(CoOrganizerAssignment::getResponsibility)
-                .map(Enum::name)
-                .sorted()
-                .collect(Collectors.joining(","));
-
         String token = tokenService.createCoOrganizerToken(user, request.eventId());
         return new AuthTokenResponse(
-            BEARER,
+                BEARER,
                 token,
                 tokenService.getExpirationSeconds(),
                 "CO_ORGANIZER",
@@ -153,7 +144,7 @@ public class AuthService {
                 null,
                 null,
                 user.getUsername(),
-                user.getDisplayName() + " (" + responsibilities + ")"
+                null
         );
     }
 
@@ -181,7 +172,7 @@ public class AuthService {
             throw new BusinessRuleException("El evento ya ha finalizado y no admite nuevas incorporaciones.");
         }
 
-        EventGroup joinedGroup = createGroupForJoiningPlayer(event, request.displayName(), request.playerCount());
+        EventGroup joinedGroup = createGroupForJoiningPlayer(event, request.groupLabel(), request.playerCount());
         return toGroupAuthResponse(joinedGroup, joinedGroup.getRepresentativeCode(), joinedGroup.getIdentifier());
     }
 
@@ -195,7 +186,7 @@ public class AuthService {
                 null,
                 null,
                 user.getUsername(),
-                user.getDisplayName()
+                null
         );
     }
 
@@ -203,7 +194,7 @@ public class AuthService {
         return toGroupAuthResponse(group, code, "Mesa " + group.getIdentifier());
     }
 
-    private AuthTokenResponse toGroupAuthResponse(EventGroup group, String code, String displayName) {
+    private AuthTokenResponse toGroupAuthResponse(EventGroup group, String code, String groupLabel) {
         boolean representative = group.getRepresentativeCode().equals(code);
         String token = representative ? tokenService.createRepresentativeToken(group) : tokenService.createObserverToken(group);
         return new AuthTokenResponse(
@@ -215,12 +206,12 @@ public class AuthService {
                 group.getId(),
                 code,
                 null,
-                displayName
+                groupLabel
         );
     }
 
-    private EventGroup createGroupForJoiningPlayer(Event event, String requestedDisplayName, Integer playerCount) {
-        String baseName = resolveBasePlayerName(event.getId(), requestedDisplayName);
+    private EventGroup createGroupForJoiningPlayer(Event event, String requestedGroupLabel, Integer playerCount) {
+        String baseName = resolveBasePlayerName(event.getId(), requestedGroupLabel);
         String uniqueIdentifier = resolveUniqueGroupIdentifier(event.getId(), baseName);
 
         EventGroup group = new EventGroup();
@@ -240,12 +231,12 @@ public class AuthService {
         return group;
     }
 
-    private String resolveBasePlayerName(Long eventId, String requestedDisplayName) {
-        if (requestedDisplayName == null || requestedDisplayName.isBlank()) {
+    private String resolveBasePlayerName(Long eventId, String requestedGroupLabel) {
+        if (requestedGroupLabel == null || requestedGroupLabel.isBlank()) {
             long nextOrdinal = eventGroupRepository.countByEventId(eventId) + 1;
             return DEFAULT_PLAYER_NAME_PREFIX + " " + nextOrdinal;
         }
-        String trimmed = requestedDisplayName.trim();
+        String trimmed = requestedGroupLabel.trim();
         if (trimmed.length() > MAX_GROUP_IDENTIFIER_LENGTH) {
             return trimmed.substring(0, MAX_GROUP_IDENTIFIER_LENGTH);
         }

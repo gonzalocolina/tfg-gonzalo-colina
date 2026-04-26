@@ -31,7 +31,7 @@ class EventSetupControllerIntegrationTest {
 
     @Test
     void createPodAndGroupUpdatesStructureAndThreatTarget() throws Exception {
-        String organizerToken = registerOrganizer("setupadmin", "Setup Admin", "setup@example.com", "Password123");
+                String organizerToken = registerOrganizer("setupadmin", "setup@example.com", "Password123");
 
         String eventRequest = """
                 {
@@ -98,7 +98,7 @@ class EventSetupControllerIntegrationTest {
 
     @Test
     void playerCanJoinByEventCodeAndOrganizerCanAssignPod() throws Exception {
-        String organizerToken = registerOrganizer("setupjoin", "Setup Join", "setupjoin@example.com", "Password123");
+                String organizerToken = registerOrganizer("setupjoin", "setupjoin@example.com", "Password123");
 
         String eventRequest = """
                 {
@@ -140,12 +140,12 @@ class EventSetupControllerIntegrationTest {
                         .content("""
                                 {
                                   "code": "%s",
-                                  "displayName": "Jugador Uno"
+                                                                                                                                        "groupLabel": "Jugador Uno"
                                 }
                                 """.formatted(eventCode)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("GROUP_REPRESENTATIVE"))
-                .andExpect(jsonPath("$.displayName").value("Jugador Uno"))
+                                                                .andExpect(jsonPath("$.groupLabel").value("Jugador Uno"))
                 .andReturn();
 
         String joinBody = joinResult.getResponse().getContentAsString();
@@ -186,7 +186,7 @@ class EventSetupControllerIntegrationTest {
 
     @Test
     void organizerCanRenamePodsAndTablesAndDeletePodsReturningTablesToPending() throws Exception {
-        String organizerToken = registerOrganizer("setuprename", "Setup Rename", "setuprename@example.com", "Password123");
+                String organizerToken = registerOrganizer("setuprename", "setuprename@example.com", "Password123");
 
         MvcResult createEventResult = mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + organizerToken)
@@ -283,17 +283,16 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.unassignedGroups[0].playerCount").value(2));
     }
 
-        private String registerOrganizer(String username, String displayName, String email, String password) throws Exception {
+                                private String registerOrganizer(String username, String email, String password) throws Exception {
                 MvcResult result = mockMvc.perform(post("/api/auth/register")
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content("""
                                                                 {
                                                                   "username": "%s",
-                                                                  "displayName": "%s",
                                                                   "email": "%s",
                                                                   "password": "%s"
                                                                 }
-                                                                """.formatted(username, displayName, email, password)))
+                                                                                                                                                                                                                                                                """.formatted(username, email, password)))
                                 .andExpect(status().isCreated())
                                 .andReturn();
 

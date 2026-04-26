@@ -27,7 +27,7 @@ describe('auth store', () => {
         role: 'GROUP_REPRESENTATIVE',
         eventId: 1,
         groupId: 2,
-        displayName: 'Mesa A',
+        groupLabel: 'Mesa A',
         code: 'REP001',
       }),
     )
@@ -47,7 +47,7 @@ describe('auth store', () => {
         role: 'GROUP_OBSERVER',
         eventId: 1,
         groupId: 2,
-        displayName: 'Mesa B',
+        groupLabel: 'Mesa B',
         code: 'OBS001',
       }),
     )
@@ -70,7 +70,7 @@ describe('auth store', () => {
         role: 'GROUP_OBSERVER',
         eventId: 1,
         groupId: 3,
-        displayName: 'Mesa C',
+        groupLabel: 'Mesa C',
         code: 'OBS002',
       }),
     )

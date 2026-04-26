@@ -1,5 +1,5 @@
 # ============================================================
-# start-dev.ps1 — Lanza el entorno de desarrollo local
+# start-dev.ps1 - Lanza el entorno de desarrollo local
 #   - Backend: Spring Boot en http://localhost:8080
 #   - Frontend Admin: Vite dev server en http://localhost:5173
 #   - Frontend Player: Vite dev server en http://localhost:5174

@@ -149,7 +149,6 @@ public class EventRoleService {
 
         AppUser user = new AppUser();
         user.setUsername(normalizeUsername(request.username()));
-        user.setDisplayName(request.displayName().trim());
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(GlobalRole.CO_ORGANIZER);
@@ -175,7 +174,6 @@ public class EventRoleService {
         return new CoOrganizerResponse(
                 user.getId(),
                 user.getUsername(),
-                user.getDisplayName(),
                 user.getEmail(),
                 responsibilities
         );

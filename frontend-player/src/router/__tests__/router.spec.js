@@ -15,7 +15,7 @@ describe('router guards', () => {
   })
 
   it('redirects to /join when accessing /game without auth', async () => {
-    // Need a fresh router import per test — dynamically re-import
+    // Need a fresh router import per test - dynamically re-import
     vi.resetModules()
     const { default: router } = await import('../index')
     const { createPinia } = await import('pinia')

@@ -93,7 +93,7 @@ function statusBadgeClass(status) {
 }
 
 function prettyCardName(name) {
-  if (!name) return '—'
+  if (!name) return '-'
   return name
     .replaceAll('_', ' ')
     .toLowerCase()

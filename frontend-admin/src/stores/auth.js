@@ -11,7 +11,6 @@ export const useAuthStore = defineStore('auth', () => {
   const eventId = ref(initial.eventId || null)
   const groupId = ref(initial.groupId || null)
   const username = ref(initial.username || '')
-  const displayName = ref(initial.displayName || '')
 
   const isAuthenticated = computed(() => !!accessToken.value)
   const isOrganizer = computed(() => role.value === 'ORGANIZER')
@@ -26,7 +25,6 @@ export const useAuthStore = defineStore('auth', () => {
         eventId: eventId.value,
         groupId: groupId.value,
         username: username.value,
-        displayName: displayName.value,
       }),
     )
   }
@@ -37,12 +35,11 @@ export const useAuthStore = defineStore('auth', () => {
     eventId.value = data.eventId
     groupId.value = data.groupId
     username.value = data.username
-    displayName.value = data.displayName
     persist()
   }
 
-  async function registerAndLogin(user, display, email, pass) {
-    const { data } = await register(user, display, email, pass)
+  async function registerAndLogin(user, email, pass) {
+    const { data } = await register(user, email, pass)
     setSession(data)
     return data
   }
@@ -65,7 +62,6 @@ export const useAuthStore = defineStore('auth', () => {
     eventId.value = null
     groupId.value = null
     username.value = ''
-    displayName.value = ''
     sessionStorage.removeItem('auth')
   }
 
@@ -75,7 +71,6 @@ export const useAuthStore = defineStore('auth', () => {
     eventId,
     groupId,
     username,
-    displayName,
     isAuthenticated,
     isOrganizer,
     isCoOrganizer,

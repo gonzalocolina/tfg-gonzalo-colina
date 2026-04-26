@@ -77,7 +77,6 @@ async function mountSidebar(initialPath) {
     eventId: null,
     groupId: null,
     username: 'organizer',
-    displayName: 'Organizador',
   })
 
   const router = createTestRouter()

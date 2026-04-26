@@ -45,8 +45,7 @@ describe('MyInvitationsView', () => {
           id: 5,
           eventId: 17,
           eventName: 'Evento Compartido',
-          organizerUsername: 'owner',
-          organizerDisplayName: 'Owner User',
+          organizerUsername: 'owner-user',
           eventStatus: 'READY',
           timeLimitMinutes: 180,
           responsibilities: ['THREAT', 'TIMER'],
@@ -74,7 +73,7 @@ describe('MyInvitationsView', () => {
 
     expect(getMyCoOrganizerInvitations).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Evento Compartido')
-    expect(wrapper.text()).toContain('Owner User')
+    expect(wrapper.text()).toContain('owner-user')
     expect(wrapper.text()).toContain('THREAT, TIMER')
   })
 

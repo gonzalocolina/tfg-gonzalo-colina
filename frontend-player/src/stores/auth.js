@@ -12,7 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const role = ref(initial.role || '')
   const eventId = ref(initial.eventId || null)
   const groupId = ref(initial.groupId || null)
-  const displayName = ref(initial.displayName || '')
+  const groupLabel = ref(initial.groupLabel || '')
   const code = ref(initial.code || '')
 
   const isAuthenticated = computed(() => !!accessToken.value)
@@ -27,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
         role: role.value,
         eventId: eventId.value,
         groupId: groupId.value,
-        displayName: displayName.value,
+        groupLabel: groupLabel.value,
         code: code.value,
       }),
     )
@@ -38,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = data.role
     eventId.value = data.eventId
     groupId.value = data.groupId
-    displayName.value = data.displayName
+    groupLabel.value = data.groupLabel
     code.value = data.groupCode || loginCode
     persist()
   }
@@ -54,7 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = ''
     eventId.value = null
     groupId.value = null
-    displayName.value = ''
+    groupLabel.value = ''
     code.value = ''
     sessionStorage.removeItem(STORAGE_KEY)
   }
@@ -64,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     eventId,
     groupId,
-    displayName,
+    groupLabel,
     code,
     isAuthenticated,
     isRepresentative,

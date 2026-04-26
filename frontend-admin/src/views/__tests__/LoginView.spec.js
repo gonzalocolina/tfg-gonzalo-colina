@@ -48,7 +48,7 @@ describe('LoginView', () => {
 
   it('renders the login form', () => {
     const wrapper = mountLogin()
-    expect(wrapper.find('h1').text()).toContain('God of Lies')
+    expect(wrapper.find('h1').text()).toContain('Marvel Champions')
     expect(wrapper.find('#username').exists()).toBe(true)
     expect(wrapper.find('#password').exists()).toBe(true)
     expect(wrapper.find('button').text()).toBe('Iniciar sesión')
@@ -71,7 +71,6 @@ describe('LoginView', () => {
       auth.role = 'ORGANIZER'
       auth.eventId = 42
       auth.username = 'admin'
-      auth.displayName = 'Admin'
     })
 
     await wrapper.find('#username').setValue('admin')

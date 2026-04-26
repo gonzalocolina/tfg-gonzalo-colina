@@ -33,7 +33,6 @@ public class DataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     private static final String DEFAULT_ADMIN_USERNAME = "admin";
-    private static final String DEFAULT_ADMIN_DISPLAY_NAME = "Administrador";
     private static final int DEFAULT_PREDEFINED_CARD_HP = 8;
     private static final InterPodCardStatus DEFAULT_PREDEFINED_CARD_STATUS = InterPodCardStatus.REVELADA;
 
@@ -74,7 +73,6 @@ public class DataInitializer implements ApplicationRunner {
             } else {
                 AppUser admin = new AppUser();
                 admin.setUsername(DEFAULT_ADMIN_USERNAME);
-                admin.setDisplayName(DEFAULT_ADMIN_DISPLAY_NAME);
                 admin.setPasswordHash(passwordEncoder.encode(resolvedAdminPassword));
                 admin.setRole(GlobalRole.ORGANIZER);
                 admin.setEnabled(true);

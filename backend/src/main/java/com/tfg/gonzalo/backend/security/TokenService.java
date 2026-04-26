@@ -21,7 +21,6 @@ public class TokenService {
     private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder URL_DECODER = Base64.getUrlDecoder();
     private static final String EVENT_ID_CLAIM = "eventId";
-    private static final String DISPLAY_NAME_CLAIM = "displayName";
     private final String jwtSecret;
     private final long expirationMinutes;
 
@@ -39,7 +38,6 @@ public class TokenService {
         payload.put("sub", user.getUsername());
         payload.put("uid", user.getId());
         payload.put("role", "ORGANIZER");
-        payload.put(DISPLAY_NAME_CLAIM, user.getDisplayName());
         payload.put("iat", now.getEpochSecond());
         payload.put("exp", exp.getEpochSecond());
         return createToken(payload);
@@ -62,7 +60,6 @@ public class TokenService {
         payload.put("uid", user.getId());
         payload.put("role", "CO_ORGANIZER");
         payload.put(EVENT_ID_CLAIM, eventId);
-        payload.put(DISPLAY_NAME_CLAIM, user.getDisplayName());
         payload.put("iat", now.getEpochSecond());
         payload.put("exp", exp.getEpochSecond());
         return createToken(payload);
@@ -93,10 +90,9 @@ public class TokenService {
                     asLong(payload.get("uid")),
                     asString(payload.get("sub")),
                     asString(payload.get("role")),
-                        asLong(payload.get(EVENT_ID_CLAIM)),
+                    asLong(payload.get(EVENT_ID_CLAIM)),
                     asLong(payload.get("groupId")),
-                    asString(payload.get("codeKind")),
-                        asString(payload.get(DISPLAY_NAME_CLAIM))
+                    asString(payload.get("codeKind"))
             );
         } catch (BusinessRuleException exception) {
             throw exception;
@@ -119,7 +115,6 @@ public class TokenService {
         payload.put(EVENT_ID_CLAIM, group.getEvent().getId());
         payload.put("groupId", group.getId());
         payload.put("codeKind", codeKind);
-        payload.put(DISPLAY_NAME_CLAIM, "Mesa " + group.getIdentifier());
         payload.put("iat", now.getEpochSecond());
         payload.put("exp", exp.getEpochSecond());
         return createToken(payload);
