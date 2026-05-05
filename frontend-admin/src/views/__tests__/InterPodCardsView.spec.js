@@ -111,7 +111,7 @@ describe('InterPodCardsView', () => {
     expect(image.attributes('src')).toBe('blob:def-10')
   })
 
-  it('lets the admin choose another image while editing a custom definition', async () => {
+  it('lets the organizer choose another image while editing a custom definition', async () => {
     const wrapper = mountView()
     await flushPromises()
 

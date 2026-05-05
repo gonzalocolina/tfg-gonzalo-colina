@@ -1,6 +1,6 @@
 package com.tfg.gonzalo.backend.controller;
 
-import com.tfg.gonzalo.backend.dto.auth.AdminLoginRequest;
+import com.tfg.gonzalo.backend.dto.auth.OrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.AuthTokenResponse;
 import com.tfg.gonzalo.backend.dto.auth.CoOrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.GroupLoginByCodeRequest;
@@ -31,9 +31,9 @@ public class AuthController {
         return authService.register(request);
     }
 
-    @PostMapping("/admin/login")
-    public AuthTokenResponse loginAdmin(@Valid @RequestBody AdminLoginRequest request) {
-        return authService.loginAdmin(request);
+    @PostMapping("/organizer/login")
+    public AuthTokenResponse loginOrganizer(@Valid @RequestBody OrganizerLoginRequest request) {
+        return authService.loginOrganizer(request);
     }
 
     @PostMapping("/group/login")

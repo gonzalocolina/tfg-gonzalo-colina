@@ -31,7 +31,7 @@ class EventSetupControllerIntegrationTest {
 
     @Test
     void createPodAndGroupUpdatesStructureAndThreatTarget() throws Exception {
-                String organizerToken = registerOrganizer("setupadmin", "setup@example.com", "Password123");
+                String organizerToken = registerOrganizer("setuporganizer", "setup@example.com", "Password123");
 
         String eventRequest = """
                 {

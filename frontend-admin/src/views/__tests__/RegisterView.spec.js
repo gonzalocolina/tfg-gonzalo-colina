@@ -61,16 +61,16 @@ describe('RegisterView', () => {
     auth.registerAndLogin = vi.fn(async () => {
       auth.accessToken = 'token'
       auth.role = 'ORGANIZER'
-      auth.username = 'new-admin'
+      auth.username = 'new-organizer'
     })
 
-    await wrapper.find('#username').setValue('new-admin')
+    await wrapper.find('#username').setValue('new-organizer')
     await wrapper.find('#email').setValue('new@example.com')
     await wrapper.find('#password').setValue('Password123')
     await wrapper.find('form').trigger('submit')
     await vi.dynamicImportSettled()
 
-    expect(auth.registerAndLogin).toHaveBeenCalledWith('new-admin', 'new@example.com', 'Password123')
+    expect(auth.registerAndLogin).toHaveBeenCalledWith('new-organizer', 'new@example.com', 'Password123')
   })
 
   it('shows backend error message on failed registration', async () => {

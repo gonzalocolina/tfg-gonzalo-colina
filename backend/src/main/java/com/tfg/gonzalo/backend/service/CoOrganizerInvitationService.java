@@ -212,7 +212,7 @@ public class CoOrganizerInvitationService {
             throw new BusinessRuleException("La cuenta invitada no está habilitada.");
         }
         if (invitee.getRole() != GlobalRole.ORGANIZER) {
-            throw new BusinessRuleException("Solo se puede invitar a cuentas registradas del panel de administración.");
+            throw new BusinessRuleException("Solo se puede invitar a cuentas registradas del panel de organizeristración.");
         }
         if (invitee.getId().equals(event.getOrganizer().getId())) {
             throw new BusinessRuleException("El organizador principal ya pertenece al evento y no necesita invitación.");

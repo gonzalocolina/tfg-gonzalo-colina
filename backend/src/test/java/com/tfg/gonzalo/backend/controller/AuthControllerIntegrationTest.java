@@ -58,7 +58,7 @@ class AuthControllerIntegrationTest {
                                 """))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/auth/admin/login")
+        mockMvc.perform(post("/api/auth/organizer/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

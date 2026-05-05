@@ -31,7 +31,7 @@ class GameStateControllerIntegrationTest {
     @Test
     void villainDamageFlowTriggersMilestonesAndVictory() throws Exception {
         long eventId = createEvent("evento-daño", 4);
-        String organizerToken = loginAdmin("evento-daño", "Password123");
+        String organizerToken = loginOrganizer("evento-daño", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
@@ -86,7 +86,7 @@ class GameStateControllerIntegrationTest {
     @Test
     void threatFlowReachesTargetAndEndsInDefeat() throws Exception {
         long eventId = createEvent("evento-amenaza", 3);
-        String organizerToken = loginAdmin("evento-amenaza", "Password123");
+        String organizerToken = loginOrganizer("evento-amenaza", "Password123");
         long podId = createPod(eventId, "Pod B", organizerToken);
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "B1", 3, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
@@ -115,7 +115,7 @@ class GameStateControllerIntegrationTest {
     @Test
     void timerFlowStartPauseResumeAdjustAndTimeout() throws Exception {
         long eventId = createEvent("evento-timer", 2);
-        String organizerToken = loginAdmin("evento-timer", "Password123");
+        String organizerToken = loginOrganizer("evento-timer", "Password123");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -201,7 +201,7 @@ class GameStateControllerIntegrationTest {
     @Test
     void representativeActionsAreBlockedWhilePaused() throws Exception {
         long eventId = createEvent("evento-pause-lock", 4);
-        String organizerToken = loginAdmin("evento-pause-lock", "Password123");
+        String organizerToken = loginOrganizer("evento-pause-lock", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
@@ -243,7 +243,7 @@ class GameStateControllerIntegrationTest {
     @Test
     void representativeActionsAreBlockedWhileTimerIsReady() throws Exception {
         long eventId = createEvent("evento-ready-lock", 4);
-        String organizerToken = loginAdmin("evento-ready-lock", "Password123");
+        String organizerToken = loginOrganizer("evento-ready-lock", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
         String representativeToken = loginGroup(eventId, representativeCode);
@@ -358,8 +358,8 @@ class GameStateControllerIntegrationTest {
         return matcher.group(1);
     }
 
-        private String loginAdmin(String username, String password) throws Exception {
-                MvcResult result = mockMvc.perform(post("/api/auth/admin/login")
+        private String loginOrganizer(String username, String password) throws Exception {
+                MvcResult result = mockMvc.perform(post("/api/auth/organizer/login")
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content("""
                                                                 {

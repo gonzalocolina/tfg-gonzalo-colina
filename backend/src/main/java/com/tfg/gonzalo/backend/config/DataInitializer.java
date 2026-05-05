@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
-    private static final String DEFAULT_ADMIN_USERNAME = "admin";
+    private static final String DEFAULT_ORGANIZER_USERNAME = "organizer";
     private static final int DEFAULT_PREDEFINED_CARD_HP = 8;
     private static final InterPodCardStatus DEFAULT_PREDEFINED_CARD_STATUS = InterPodCardStatus.REVELADA;
 
@@ -42,21 +42,21 @@ public class DataInitializer implements ApplicationRunner {
     private final InterPodCardDefinitionRepository interPodCardDefinitionRepository;
     private final InterPodCardRepository interPodCardRepository;
     private final PasswordEncoder passwordEncoder;
-    private final String seedAdminPassword;
+    private final String seedOrganizerPassword;
 
     public DataInitializer(AppUserRepository appUserRepository,
                            EventRepository eventRepository,
                            VillainDefinitionRepository villainDefinitionRepository,
                            InterPodCardDefinitionRepository interPodCardDefinitionRepository,
                            InterPodCardRepository interPodCardRepository,
-                           @Value("${app.seed.admin.password:}") String seedAdminPassword,
+                           @Value("${app.seed.organizer.password:}") String seedOrganizerPassword,
                            PasswordEncoder passwordEncoder) {
         this.appUserRepository = appUserRepository;
         this.eventRepository = eventRepository;
         this.villainDefinitionRepository = villainDefinitionRepository;
         this.interPodCardDefinitionRepository = interPodCardDefinitionRepository;
         this.interPodCardRepository = interPodCardRepository;
-        this.seedAdminPassword = seedAdminPassword;
+        this.seedOrganizerPassword = seedOrganizerPassword;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -64,19 +64,19 @@ public class DataInitializer implements ApplicationRunner {
     @Transactional(noRollbackFor = DataIntegrityViolationException.class)
     public void run(ApplicationArguments args) {
         try {
-            String resolvedAdminPassword = resolveSeedAdminPassword();
-            if (appUserRepository.existsByUsernameIgnoreCase(DEFAULT_ADMIN_USERNAME)) {
-                AppUser existing = appUserRepository.findByUsernameIgnoreCase(DEFAULT_ADMIN_USERNAME)
-                        .orElseThrow(() -> new IllegalStateException("Usuario administrador no encontrado."));
-                existing.setPasswordHash(passwordEncoder.encode(resolvedAdminPassword));
+            String resolvedOrganizerPassword = resolveSeedOrganizerPassword();
+            if (appUserRepository.existsByUsernameIgnoreCase(DEFAULT_ORGANIZER_USERNAME)) {
+                AppUser existing = appUserRepository.findByUsernameIgnoreCase(DEFAULT_ORGANIZER_USERNAME)
+                        .orElseThrow(() -> new IllegalStateException("Usuario organizador no encontrado."));
+                existing.setPasswordHash(passwordEncoder.encode(resolvedOrganizerPassword));
                 appUserRepository.save(existing);
             } else {
-                AppUser admin = new AppUser();
-                admin.setUsername(DEFAULT_ADMIN_USERNAME);
-                admin.setPasswordHash(passwordEncoder.encode(resolvedAdminPassword));
-                admin.setRole(GlobalRole.ORGANIZER);
-                admin.setEnabled(true);
-                appUserRepository.save(admin);
+                AppUser organizer = new AppUser();
+                organizer.setUsername(DEFAULT_ORGANIZER_USERNAME);
+                organizer.setPasswordHash(passwordEncoder.encode(resolvedOrganizerPassword));
+                organizer.setRole(GlobalRole.ORGANIZER);
+                organizer.setEnabled(true);
+                appUserRepository.save(organizer);
             }
 
             ensurePredefinedLokiVillain();
@@ -189,12 +189,12 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
-    private String resolveSeedAdminPassword() {
-        if (seedAdminPassword != null && !seedAdminPassword.isBlank()) {
-            return seedAdminPassword;
+    private String resolveSeedOrganizerPassword() {
+        if (seedOrganizerPassword != null && !seedOrganizerPassword.isBlank()) {
+            return seedOrganizerPassword;
         }
         String generated = UUID.randomUUID().toString();
-        log.warn("No se ha definido app.seed.admin.password; se genera una contraseña temporal para el admin: {}",
+        log.warn("No se ha definido app.seed.organizer.password; se genera una contraseña temporal para el organizer: {}",
                 generated);
         return generated;
     }

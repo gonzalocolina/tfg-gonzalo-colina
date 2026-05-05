@@ -1,6 +1,6 @@
 package com.tfg.gonzalo.backend.service;
 
-import com.tfg.gonzalo.backend.dto.auth.AdminLoginRequest;
+import com.tfg.gonzalo.backend.dto.auth.OrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.AuthTokenResponse;
 import com.tfg.gonzalo.backend.dto.auth.CoOrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.GroupLoginByCodeRequest;
@@ -89,7 +89,7 @@ public class AuthService {
         return toOrganizerAuthResponse(user, tokenService.createOrganizerToken(user));
     }
 
-    public AuthTokenResponse loginAdmin(AdminLoginRequest request) {
+    public AuthTokenResponse loginOrganizer(OrganizerLoginRequest request) {
         AppUser user = appUserRepository.findByUsernameIgnoreCase(normalizeUsername(request.username()))
                 .orElseThrow(() -> new BusinessRuleException("Credenciales inválidas."));
 
