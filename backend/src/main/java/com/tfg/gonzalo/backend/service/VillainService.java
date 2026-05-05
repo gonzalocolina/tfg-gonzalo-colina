@@ -172,6 +172,6 @@ public class VillainService {
         return villainDefinitionRepository.findByTypeAndNameIgnoreCase(VillainDefinitionType.PREDEFINED, "Loki")
                 .or(() -> villainDefinitionRepository.findFirstByTypeOrderByNameAsc(VillainDefinitionType.PREDEFINED))
                 .orElseThrow(() -> new BusinessRuleException(
-                        "No hay un villano predefinido disponible. Contacta al administrador del sistema."));
+                        "No hay un villano predefinido disponible. Contacta al organizador del sistema."));
     }
 }

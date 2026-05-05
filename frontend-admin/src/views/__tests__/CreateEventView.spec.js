@@ -15,7 +15,7 @@ vi.mock('@/api/interPodCardDefinitions', () => ({
   getInterPodCardDefinitions: vi.fn(),
 }))
 vi.mock('@/api/auth', () => ({
-  adminLogin: vi.fn(),
+  organizerLogin: vi.fn(),
   coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))

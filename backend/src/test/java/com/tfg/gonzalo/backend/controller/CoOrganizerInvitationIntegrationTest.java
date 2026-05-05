@@ -29,7 +29,7 @@ class CoOrganizerInvitationIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void organizerCanInviteExistingAdminAndInviteeCanAcceptAndAccessSharedEvent() throws Exception {
+    void organizerCanInviteExistingOrganizerAndInviteeCanAcceptAndAccessSharedEvent() throws Exception {
                 String organizerToken = registerOrganizer("owner-cu13", "owner-cu13@example.com");
                 String inviteeToken = registerOrganizer("shared-cu12", "shared-cu12@example.com");
         long eventId = createEvent("Evento Invitaciones", organizerToken);

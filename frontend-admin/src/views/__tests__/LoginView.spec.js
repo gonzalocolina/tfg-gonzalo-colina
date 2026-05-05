@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 
 // Mock the API
 vi.mock('@/api/auth', () => ({
-  adminLogin: vi.fn(),
+  organizerLogin: vi.fn(),
   coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
@@ -61,26 +61,26 @@ describe('LoginView', () => {
     expect(link.text()).toContain('Registrarse')
   })
 
-  it('calls loginAdmin on form submit and redirects to dashboard', async () => {
+  it('calls loginOrganizer on form submit and redirects to dashboard', async () => {
     const wrapper = mountLogin()
     const auth = useAuthStore()
 
-    // Mock loginAdmin to set state
-    auth.loginAdmin = vi.fn(async () => {
+    // Mock loginOrganizer to set state
+    auth.loginOrganizer = vi.fn(async () => {
       auth.accessToken = 'token'
       auth.role = 'ORGANIZER'
       auth.eventId = 42
-      auth.username = 'admin'
+      auth.username = 'organizer'
     })
 
-    await wrapper.find('#username').setValue('admin')
+    await wrapper.find('#username').setValue('organizer')
     await wrapper.find('#password').setValue('password123')
     await wrapper.find('form').trigger('submit')
 
     // Wait for async
     await vi.dynamicImportSettled()
 
-    expect(auth.loginAdmin).toHaveBeenCalledWith('admin', 'password123')
+    expect(auth.loginOrganizer).toHaveBeenCalledWith('organizer', 'password123')
   })
 
   it('redirects to my-events after login', async () => {
@@ -88,13 +88,13 @@ describe('LoginView', () => {
     const auth = useAuthStore()
     const pushSpy = vi.spyOn(router, 'push')
 
-    auth.loginAdmin = vi.fn(async () => {
+    auth.loginOrganizer = vi.fn(async () => {
       auth.accessToken = 'token'
       auth.role = 'ORGANIZER'
       auth.eventId = null
     })
 
-    await wrapper.find('#username').setValue('admin')
+    await wrapper.find('#username').setValue('organizer')
     await wrapper.find('#password').setValue('pass')
     await wrapper.find('form').trigger('submit')
     await vi.dynamicImportSettled()
@@ -108,7 +108,7 @@ describe('LoginView', () => {
 
     const error = new Error('fail')
     error.response = { data: { message: 'Credenciales inválidas.' } }
-    auth.loginAdmin = vi.fn().mockRejectedValue(error)
+    auth.loginOrganizer = vi.fn().mockRejectedValue(error)
 
     await wrapper.find('#username').setValue('bad')
     await wrapper.find('#password').setValue('wrong')
@@ -124,11 +124,11 @@ describe('LoginView', () => {
     const wrapper = mountLogin()
     const auth = useAuthStore()
 
-    // Make loginAdmin a promise that never resolves (simulates loading)
+    // Make loginOrganizer a promise that never resolves (simulates loading)
     let resolveLogin
-    auth.loginAdmin = vi.fn(() => new Promise((r) => { resolveLogin = r }))
+    auth.loginOrganizer = vi.fn(() => new Promise((r) => { resolveLogin = r }))
 
-    await wrapper.find('#username').setValue('admin')
+    await wrapper.find('#username').setValue('organizer')
     await wrapper.find('#password').setValue('pass')
     await wrapper.find('form').trigger('submit')
 

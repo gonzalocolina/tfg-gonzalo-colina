@@ -17,7 +17,7 @@ async function handleLogin() {
   errorMsg.value = ''
   loading.value = true
   try {
-    await auth.loginAdmin(username.value, password.value)
+    await auth.loginOrganizer(username.value, password.value)
     notif.success('Sesión iniciada')
     router.push({ name: 'my-events' })
   } catch (err) {
@@ -31,7 +31,7 @@ async function handleLogin() {
 <template>
   <div class="page-centered">
     <div class="form-card">
-      <h1>Marvel Champions - Admin</h1>
+      <h1>Marvel Champions - Organizer</h1>
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label for="username">Usuario</label>

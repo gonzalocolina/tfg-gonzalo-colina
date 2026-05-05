@@ -221,7 +221,7 @@ onMounted(load)
               class="form-control"
               required
               maxlength="60"
-              placeholder="usuario registrado en el panel admin"
+              placeholder="usuario registrado en el panel organizer"
             />
           </div>
 

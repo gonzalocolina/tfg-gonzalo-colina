@@ -4,12 +4,12 @@ import { useAuthStore } from '@/stores/auth'
 
 // Mock the auth API module
 vi.mock('@/api/auth', () => ({
-  adminLogin: vi.fn(),
+  organizerLogin: vi.fn(),
   coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
 
-import { adminLogin, coOrganizerLogin, register } from '@/api/auth'
+import { organizerLogin, coOrganizerLogin, register } from '@/api/auth'
 
 describe('Auth Store', () => {
   beforeEach(() => {
@@ -34,7 +34,7 @@ describe('Auth Store', () => {
         role: 'ORGANIZER',
         eventId: 5,
         groupId: null,
-        username: 'admin',
+        username: 'organizer',
       }),
     )
     // Need a fresh pinia to pick up the stored session
@@ -44,25 +44,25 @@ describe('Auth Store', () => {
     expect(auth.accessToken).toBe('tok123')
     expect(auth.role).toBe('ORGANIZER')
     expect(auth.eventId).toBe(5)
-    expect(auth.username).toBe('admin')
+    expect(auth.username).toBe('organizer')
   })
 
-  it('loginAdmin calls API and stores the response', async () => {
+  it('loginOrganizer calls API and stores the response', async () => {
     const mockResponse = {
       data: {
         accessToken: 'jwt-token',
         role: 'ORGANIZER',
         eventId: 10,
         groupId: null,
-        username: 'admin',
+        username: 'organizer',
       },
     }
-    adminLogin.mockResolvedValue(mockResponse)
+    organizerLogin.mockResolvedValue(mockResponse)
 
     const auth = useAuthStore()
-    const result = await auth.loginAdmin('admin', 'password123')
+    const result = await auth.loginOrganizer('organizer', 'password123')
 
-    expect(adminLogin).toHaveBeenCalledWith('admin', 'password123')
+    expect(organizerLogin).toHaveBeenCalledWith('organizer', 'password123')
     expect(auth.accessToken).toBe('jwt-token')
     expect(auth.role).toBe('ORGANIZER')
     expect(auth.eventId).toBe(10)
@@ -77,13 +77,13 @@ describe('Auth Store', () => {
     expect(stored.eventId).toBe(10)
   })
 
-  it('loginAdmin propagates API errors', async () => {
+  it('loginOrganizer propagates API errors', async () => {
     const apiError = new Error('Network error')
     apiError.response = { status: 400, data: { message: 'Credenciales inválidas.' } }
-    adminLogin.mockRejectedValue(apiError)
+    organizerLogin.mockRejectedValue(apiError)
 
     const auth = useAuthStore()
-    await expect(auth.loginAdmin('bad', 'wrong')).rejects.toThrow('Network error')
+    await expect(auth.loginOrganizer('bad', 'wrong')).rejects.toThrow('Network error')
     expect(auth.isAuthenticated).toBe(false)
   })
 
@@ -114,13 +114,13 @@ describe('Auth Store', () => {
         role: 'ORGANIZER',
         eventId: 1,
         groupId: null,
-        username: 'admin',
+        username: 'organizer',
       },
     }
-    adminLogin.mockResolvedValue(mockResponse)
+    organizerLogin.mockResolvedValue(mockResponse)
 
     const auth = useAuthStore()
-    await auth.loginAdmin('admin', 'pass')
+    await auth.loginOrganizer('organizer', 'pass')
     expect(auth.isAuthenticated).toBe(true)
 
     auth.logout()
@@ -138,16 +138,16 @@ describe('Auth Store', () => {
         role: 'ORGANIZER',
         eventId: null,
         groupId: null,
-        username: 'new-admin',
+        username: 'new-organizer',
       },
     }
     register.mockResolvedValue(mockResponse)
 
     const auth = useAuthStore()
-    const result = await auth.registerAndLogin('new-admin', 'new@example.com', 'Password123')
+    const result = await auth.registerAndLogin('new-organizer', 'new@example.com', 'Password123')
 
-    expect(register).toHaveBeenCalledWith('new-admin', 'new@example.com', 'Password123')
-    expect(auth.username).toBe('new-admin')
+    expect(register).toHaveBeenCalledWith('new-organizer', 'new@example.com', 'Password123')
+    expect(auth.username).toBe('new-organizer')
     expect(auth.isAuthenticated).toBe(true)
     expect(result).toEqual(mockResponse.data)
   })

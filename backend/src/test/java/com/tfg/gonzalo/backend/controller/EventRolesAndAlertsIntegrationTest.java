@@ -37,7 +37,7 @@ class EventRolesAndAlertsIntegrationTest {
     @Test
     void coOrganizerCanOperateOnlyAssignedResponsibilities() throws Exception {
         long eventId = createEvent("evento-coorg", 4, 180);
-        String organizerToken = loginAdmin("evento-coorg", "Password123");
+        String organizerToken = loginOrganizer("evento-coorg", "Password123");
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
@@ -77,7 +77,7 @@ class EventRolesAndAlertsIntegrationTest {
     @Test
         void interPodCardsEnforceSamePodAndAreQueryableInLogs() throws Exception {
       long eventId = createEvent("evento-cartas", 8, 180);
-      String organizerToken = loginAdmin("evento-cartas", "Password123");
+      String organizerToken = loginOrganizer("evento-cartas", "Password123");
 
       long podAId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult groupA = createGroupAndGetResult(eventId, podAId, organizerToken, "A1", 4);
@@ -167,7 +167,7 @@ class EventRolesAndAlertsIntegrationTest {
     @Test
     void representativesCannotOperateInterPodCardsWhileGameIsPaused() throws Exception {
       long eventId = createEvent("evento-cartas-pausa", 4, 180);
-      String organizerToken = loginAdmin("evento-cartas-pausa", "Password123");
+      String organizerToken = loginOrganizer("evento-cartas-pausa", "Password123");
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
@@ -248,7 +248,7 @@ class EventRolesAndAlertsIntegrationTest {
     @Test
     void representativesCannotOperateInterPodCardsWhileTimerIsReady() throws Exception {
       long eventId = createEvent("evento-cartas-ready", 4, 180);
-      String organizerToken = loginAdmin("evento-cartas-ready", "Password123");
+      String organizerToken = loginOrganizer("evento-cartas-ready", "Password123");
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
@@ -325,7 +325,7 @@ class EventRolesAndAlertsIntegrationTest {
     @Test
     void optionalTimerCanBeDisabledAndGameCanStillStart() throws Exception {
         long eventId = createEvent("evento-sin-timer", 2, 0);
-        String organizerToken = loginAdmin("evento-sin-timer", "Password123");
+        String organizerToken = loginOrganizer("evento-sin-timer", "Password123");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -414,8 +414,8 @@ class EventRolesAndAlertsIntegrationTest {
             return new GroupCreationResult(extractId(body), matcher.group(1));
     }
 
-    private String loginAdmin(String username, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/admin/login")
+    private String loginOrganizer(String username, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/organizer/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

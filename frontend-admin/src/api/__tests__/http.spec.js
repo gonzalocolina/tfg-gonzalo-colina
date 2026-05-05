@@ -43,7 +43,7 @@ describe('HTTP Interceptors', () => {
 
     const interceptors = http.interceptors.request.handlers
     const requestInterceptor = interceptors[interceptors.length - 1]
-    const config = { url: '/auth/admin/login', headers: {} }
+    const config = { url: '/auth/organizer/login', headers: {} }
     const result = requestInterceptor.fulfilled(config)
 
     expect(result.headers.Authorization).toBeUndefined()
@@ -84,7 +84,7 @@ describe('HTTP Interceptors', () => {
       writable: true,
     })
 
-    const error = { response: { status: 401 }, config: { url: '/auth/admin/login' } }
+    const error = { response: { status: 401 }, config: { url: '/auth/organizer/login' } }
 
     await expect(responseInterceptor.rejected(error)).rejects.toEqual(error)
     expect(globalThis.sessionStorage.getItem('auth')).toBeNull()
