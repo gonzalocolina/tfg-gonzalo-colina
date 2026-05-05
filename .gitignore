@@ -40,3 +40,7 @@ build/
 
 *.db
 /data/
+
+# Ignorar archivos de base de datos H2 específicos
+god_of_lies.mv.db
+*.mv.db
