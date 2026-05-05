@@ -16,7 +16,7 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
 
 ## 3) Flujo recomendado (happy path)
 1. Crear evento (publico): `POST /api/events`.
-2. Login organizador: `POST /api/auth/admin/login`.
+2. Login organizador: `POST /api/auth/organizer/login`.
 3. Crear pods y mesas:
 - `POST /api/events/{eventId}/pods`
 - `POST /api/events/{eventId}/pods/{podId}/groups`
@@ -34,7 +34,7 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
 ## 4) Endpoints clave
 
 ### Auth
-- `POST /api/auth/admin/login`
+- `POST /api/auth/organizer/login`
   - req: `{ "username", "password" }`
 - `POST /api/auth/co-organizer/login`
   - req: `{ "eventId", "username", "password" }`

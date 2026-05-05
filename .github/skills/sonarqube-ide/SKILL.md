@@ -3,7 +3,7 @@ name: sonarqube-ide
 description: 'Recoger resultados de análisis estático del plugin SonarQube for IDE (sonarsource.sonarlint-vscode) sin servidor externo. USE FOR: analizar archivos, recoger issues de calidad y seguridad, listar security hotspots, excluir archivos del análisis. DO NOT USE FOR: configurar SonarQube Server/Cloud (usar sonarqube_setup_connected_mode directamente).'
 ---
 
-# SonarQube for IDE — Recolección de logs y resultados
+# SonarQube for IDE - Recolección de logs y resultados
 
 ## Cuándo usar
 
@@ -33,7 +33,7 @@ tool_search_tool_regex  pattern: "sonarqube"
 
 ## Procedimiento: Analizar un archivo y recoger resultados
 
-### Paso 1 — Disparar el análisis
+### Paso 1 - Disparar el análisis
 
 ```
 sonarqube_analyze_file  filePath: "<ruta-absoluta-del-archivo>"
@@ -41,7 +41,7 @@ sonarqube_analyze_file  filePath: "<ruta-absoluta-del-archivo>"
 
 El análisis es asíncrono; los issues aparecen en el panel **Problems** de VS Code.
 
-### Paso 2 — Recoger los resultados
+### Paso 2 - Recoger los resultados
 
 Usar `get_errors` para leer el panel Problems:
 
@@ -56,7 +56,7 @@ Para obtener **todos** los problems del workspace (incluidos los de SonarQube):
 get_errors   (sin parámetros)
 ```
 
-### Paso 3 — Issues de seguridad (opcional)
+### Paso 3 - Issues de seguridad (opcional)
 
 ```
 sonarqube_list_potential_security_issues  filePath: "<ruta-absoluta-del-archivo>"
@@ -78,9 +78,9 @@ sonarqube_exclude_from_analysis  globPattern: "**/node_modules/**"
 ```
 
 Patrones comunes:
-- `**/test/**` — excluir tests
-- `**/dist/**` — excluir builds
-- `**/*.min.js` — excluir minificados
+- `**/test/**` - excluir tests
+- `**/dist/**` - excluir builds
+- `**/*.min.js` - excluir minificados
 
 ## Ejemplo completo de flujo
 
