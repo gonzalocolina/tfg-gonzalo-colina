@@ -1,6 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { Client } from '@stomp/stompjs'
-import SockJS from 'sockjs-client/dist/sockjs'
+import SockJS from 'sockjs-client'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
 
