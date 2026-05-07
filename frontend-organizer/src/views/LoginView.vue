@@ -31,7 +31,7 @@ async function handleLogin() {
 <template>
   <div class="page-centered">
     <div class="form-card">
-      <h1>Marvel Champions - Organizer</h1>
+      <h1>Marvel Champions - Organizador</h1>
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label for="username">Usuario</label>
