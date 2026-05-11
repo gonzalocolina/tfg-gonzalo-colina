@@ -1,7 +1,9 @@
 package com.tfg.gonzalo.backend.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -278,6 +280,146 @@ class GameStateControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
     }
 
+    @Test
+    void organizerCannotUseNormalTableReportEndpoint() throws Exception {
+        long eventId = createEvent("evento-normal-bloqueado", 4);
+        String organizerToken = loginOrganizer("evento-normal-bloqueado", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "damage": 5
+                                }
+                                """.formatted(group.representativeCode())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(containsString("representante")));
+    }
+
+    @Test
+    void representativeReportKeepsMesaAsOriginWithoutUserActor() throws Exception {
+        long eventId = createEvent("evento-log-mesa", 4);
+        String organizerToken = loginOrganizer("evento-log-mesa", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, group.representativeCode());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "damage": 5
+                                }
+                                """.formatted(group.representativeCode())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(5));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "VILLAIN_DAMAGE_REPORTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].actor").value(nullValue()))
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"));
+    }
+
+    @Test
+        void delegatedReportsAllowOmittingJustificationAndKeepTraceability() throws Exception {
+        long eventId = createEvent("evento-delegado", 4);
+        String organizerToken = loginOrganizer("evento-delegado", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                                                                                                                        "damage": 5
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(5));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "VILLAIN_DAMAGE_DELEGATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].actor").value("evento-delegado"))
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"))
+                .andExpect(jsonPath("$[0].notes").value("Registro delegado de daño al villano en nombre de la mesa."));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 1,
+                                  "justification": "Representante comunicó la amenaza en voz alta"
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(1));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "THREAT_DELEGATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].actor").value("evento-delegado"))
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"))
+                .andExpect(jsonPath("$[0].notes").value(containsString("voz alta")));
+    }
+
+    @Test
+        void manualCorrectionsAllowOmittingJustificationAndStillStoreLog() throws Exception {
+        long eventId = createEvent("evento-correccion", 2);
+        String organizerToken = loginOrganizer("evento-correccion", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        createGroup(eventId, podId, "A1", 2, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/events/{eventId}/game-state/villain-hp", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "value": 12
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(12));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "VILLAIN_HP_CORRECTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].actor").value("evento-correccion"))
+                .andExpect(jsonPath("$[0].groupIdentifier").value(nullValue()))
+                .andExpect(jsonPath("$[0].notes").value("Corrección manual global de HP del villano."));
+    }
+
     private long createEvent(String username, int players) throws Exception {
         String organizerToken = registerOrganizer(username);
 
@@ -333,11 +475,19 @@ class GameStateControllerIntegrationTest {
         return extractId(result.getResponse().getContentAsString());
     }
 
-    private String createGroupAndGetRepresentativeCode(long eventId,
-                                                       long podId,
-                                                       String identifier,
-                                                       int playerCount,
-                                                       String organizerToken) throws Exception {
+        private String createGroupAndGetRepresentativeCode(long eventId,
+                                                                                                           long podId,
+                                                                                                           String identifier,
+                                                                                                           int playerCount,
+                                                                                                           String organizerToken) throws Exception {
+                return createGroup(eventId, podId, identifier, playerCount, organizerToken).representativeCode();
+        }
+
+        private GroupCreationResult createGroup(long eventId,
+                                                                                        long podId,
+                                                                                        String identifier,
+                                                                                        int playerCount,
+                                                                                        String organizerToken) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/events/{eventId}/pods/{podId}/groups", eventId, podId)
                         .header("Authorization", "Bearer " + organizerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -351,11 +501,11 @@ class GameStateControllerIntegrationTest {
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
-        Matcher matcher = REPRESENTATIVE_CODE_PATTERN.matcher(body);
-        if (!matcher.find()) {
+                Matcher codeMatcher = REPRESENTATIVE_CODE_PATTERN.matcher(body);
+                if (!codeMatcher.find()) {
             throw new IllegalStateException("No se ha encontrado representativeCode en la respuesta.");
         }
-        return matcher.group(1);
+                return new GroupCreationResult(extractId(body), codeMatcher.group(1));
     }
 
         private String loginOrganizer(String username, String password) throws Exception {
@@ -411,4 +561,7 @@ class GameStateControllerIntegrationTest {
                 }
                 return matcher.group(1);
         }
+
+    private record GroupCreationResult(long id, String representativeCode) {
+    }
 }

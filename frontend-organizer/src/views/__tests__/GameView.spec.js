@@ -8,8 +8,8 @@ const {
   getEventStructure,
   assignGroupToPod,
   startGame,
-  reportVillainDamage,
-  reportThreat,
+  delegateVillainDamage,
+  delegateThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -24,8 +24,8 @@ const {
   getEventStructure: vi.fn(),
   assignGroupToPod: vi.fn(),
   startGame: vi.fn(),
-  reportVillainDamage: vi.fn(),
-  reportThreat: vi.fn(),
+  delegateVillainDamage: vi.fn(),
+  delegateThreat: vi.fn(),
   manualUpdateVillainHp: vi.fn(),
   manualUpdateThreat: vi.fn(),
   startTimer: vi.fn(),
@@ -51,8 +51,8 @@ vi.mock('@/api/setup', () => ({
 vi.mock('@/api/gameState', () => ({
   getGameState,
   startGame,
-  reportVillainDamage,
-  reportThreat,
+  delegateVillainDamage,
+  delegateThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -110,7 +110,16 @@ function buildStructure(overrides = {}) {
         totalGroups: 1,
         totalPlayers: 4,
         warnings: [],
-        groups: [{ id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 4 }],
+        groups: [
+          {
+            id: 19,
+            podId: 7,
+            identifier: 'Mesa Alfa',
+            playerCount: 4,
+            representativeCode: 'REP-ALFA',
+            observerCode: 'OBS-ALFA',
+          },
+        ],
       },
     ],
     unassignedGroups: [],
@@ -146,8 +155,8 @@ describe('GameView', () => {
     getEventStructure.mockResolvedValue({ data: buildStructure() })
     assignGroupToPod.mockResolvedValue({ data: {} })
     startGame.mockResolvedValue({ data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS' }) } })
-    reportVillainDamage.mockResolvedValue({ data: { snapshot: buildSnapshot({ villainHpCurrent: 39 }) } })
-    reportThreat.mockResolvedValue({ data: { snapshot: buildSnapshot({ schemeThreatCurrent: 4 }) } })
+    delegateVillainDamage.mockResolvedValue({ data: { snapshot: buildSnapshot({ villainHpCurrent: 39 }) } })
+    delegateThreat.mockResolvedValue({ data: { snapshot: buildSnapshot({ schemeThreatCurrent: 4 }) } })
     manualUpdateVillainHp.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
     manualUpdateThreat.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
     startTimer.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
@@ -183,6 +192,86 @@ describe('GameView', () => {
     await flushPromises()
 
     expect(getEventStructure).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('allows delegated registration and manual corrections without justification text', async () => {
+    getGameState.mockResolvedValue({ data: buildSnapshot({ eventStatus: 'IN_PROGRESS' }) })
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        currentGroupCount: 2,
+        configuredPlayerCount: 6,
+        assignedPlayerCount: 4,
+        unassignedGroupCount: 1,
+        unassignedPlayerCount: 2,
+        unassignedGroups: [
+          {
+            id: 21,
+            podId: null,
+            identifier: 'Mesa Beta',
+            playerCount: 2,
+            representativeCode: 'REP-BETA',
+            observerCode: 'OBS-BETA',
+          },
+        ],
+      }),
+    })
+    delegateVillainDamage.mockResolvedValue({
+      data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', villainHpCurrent: 39 }) },
+    })
+    delegateThreat.mockResolvedValue({
+      data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', schemeThreatCurrent: 4 }) },
+    })
+    manualUpdateVillainHp.mockResolvedValue({
+      data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', villainHpCurrent: 35 }) },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Registro delegado en nombre de una mesa')
+    expect(wrapper.text()).toContain('Correcciones manuales globales')
+    expect(wrapper.text()).not.toContain('Código representante')
+
+    const damageGroupSelect = wrapper.find('#delegated-dmg-group')
+    const threatGroupSelect = wrapper.find('#delegated-threat-group')
+
+    expect(damageGroupSelect.exists()).toBe(true)
+    expect(threatGroupSelect.exists()).toBe(true)
+    expect(damageGroupSelect.text()).toContain('Mesa Alfa · Pod Norte')
+    expect(damageGroupSelect.text()).toContain('Mesa Beta · Sin pod asignado')
+
+    await damageGroupSelect.setValue('19')
+    await wrapper.find('#delegated-dmg-amount').setValue('3')
+    await wrapper.find('[data-testid="delegated-damage-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(delegateVillainDamage).toHaveBeenCalledWith(42, {
+      groupId: 19,
+      damage: 3,
+      justification: '',
+    })
+
+    await threatGroupSelect.setValue('21')
+    await wrapper.find('#delegated-threat-amount').setValue('2')
+    await wrapper.find('[data-testid="delegated-threat-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(delegateThreat).toHaveBeenCalledWith(42, {
+      groupId: 21,
+      threat: 2,
+      justification: '',
+    })
+
+    await wrapper.find('#manual-hp').setValue('35')
+    await wrapper.find('[data-testid="manual-hp-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(manualUpdateVillainHp).toHaveBeenCalledWith(42, {
+      value: 35,
+      justification: '',
+    })
 
     wrapper.unmount()
   })

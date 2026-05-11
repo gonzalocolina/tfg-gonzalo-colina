@@ -1,14 +1,17 @@
 package com.tfg.gonzalo.backend.service;
 
 import com.tfg.gonzalo.backend.dto.event.EventLogEntryResponse;
+import com.tfg.gonzalo.backend.exception.ForbiddenOperationException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
+import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.security.AuthPrincipal;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import jakarta.transaction.Transactional;
 import java.util.List;
@@ -19,13 +22,16 @@ public class EventLogService {
 
     private final EventRepository eventRepository;
     private final EventLogRepository eventLogRepository;
+    private final AppUserRepository appUserRepository;
     private final AccessControlService accessControlService;
 
     public EventLogService(EventRepository eventRepository,
                            EventLogRepository eventLogRepository,
+                           AppUserRepository appUserRepository,
                            AccessControlService accessControlService) {
         this.eventRepository = eventRepository;
         this.eventLogRepository = eventLogRepository;
+        this.appUserRepository = appUserRepository;
         this.accessControlService = accessControlService;
     }
 
@@ -80,6 +86,40 @@ public class EventLogService {
         eventLogRepository.save(eventLog);
     }
 
+    public void appendAuthenticatedLog(Event event,
+                                       EventGroup group,
+                                       EventActionType actionType,
+                                       String previousValue,
+                                       String newValue,
+                                       String notes) {
+        appendLog(event, resolveAuthenticatedActor(), group, actionType, previousValue, newValue, notes);
+    }
+
+    public void appendAuthenticatedLog(Event event,
+                                       EventActionType actionType,
+                                       String previousValue,
+                                       String newValue,
+                                       String notes) {
+        appendAuthenticatedLog(event, null, actionType, previousValue, newValue, notes);
+    }
+
+    public void appendSystemLog(Event event,
+                                EventGroup group,
+                                EventActionType actionType,
+                                String previousValue,
+                                String newValue,
+                                String notes) {
+        appendLog(event, null, group, actionType, previousValue, newValue, notes);
+    }
+
+    public void appendSystemLog(Event event,
+                                EventActionType actionType,
+                                String previousValue,
+                                String newValue,
+                                String notes) {
+        appendSystemLog(event, null, actionType, previousValue, newValue, notes);
+    }
+
     public void appendOrganizerLog(Event event,
                                    EventGroup group,
                                    EventActionType actionType,
@@ -95,5 +135,17 @@ public class EventLogService {
                                    String newValue,
                                    String notes) {
         appendOrganizerLog(event, null, actionType, previousValue, newValue, notes);
+    }
+
+    private AppUser resolveAuthenticatedActor() {
+        try {
+            AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
+            if (principal.userId() == null) {
+                return null;
+            }
+            return appUserRepository.findById(principal.userId()).orElse(null);
+        } catch (ForbiddenOperationException ex) {
+            return null;
+        }
     }
 }

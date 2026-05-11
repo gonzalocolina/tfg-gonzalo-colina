@@ -16,12 +16,22 @@ export function reportThreat(eventId, data) {
   return http.post(`/events/${eventId}/game-state/threat`, data)
 }
 
-export function manualUpdateVillainHp(eventId, value) {
-  return http.patch(`/events/${eventId}/game-state/villain-hp`, { value })
+export function delegateVillainDamage(eventId, data) {
+  return http.post(`/events/${eventId}/game-state/villain-damage/delegated`, data)
 }
 
-export function manualUpdateThreat(eventId, value) {
-  return http.patch(`/events/${eventId}/game-state/threat`, { value })
+export function delegateThreat(eventId, data) {
+  return http.post(`/events/${eventId}/game-state/threat/delegated`, data)
+}
+
+export function manualUpdateVillainHp(eventId, valueOrData, justification) {
+  const payload = typeof valueOrData === 'object' ? valueOrData : { value: valueOrData, justification }
+  return http.patch(`/events/${eventId}/game-state/villain-hp`, payload)
+}
+
+export function manualUpdateThreat(eventId, valueOrData, justification) {
+  const payload = typeof valueOrData === 'object' ? valueOrData : { value: valueOrData, justification }
+  return http.patch(`/events/${eventId}/game-state/threat`, payload)
 }
 
 export function startTimer(eventId) {

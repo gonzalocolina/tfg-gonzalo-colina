@@ -7,8 +7,8 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { getEventStructure, assignGroupToPod } from '@/api/setup'
 import {
   startGame,
-  reportVillainDamage,
-  reportThreat,
+  delegateVillainDamage,
+  delegateThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -31,18 +31,24 @@ const { connected, realtimeEvent, connect } = useWebSocket(eventId.value)
 const socketConnected = computed(() => Boolean(unref(connected)))
 
 // Report damage form
-const dmgCode = ref('')
+const dmgGroupId = ref('')
 const dmgAmount = ref(1)
+const dmgJustification = ref('')
 const dmgLoading = ref(false)
 
 // Report threat form
-const threatCode = ref('')
+const threatGroupId = ref('')
 const threatAmount = ref(1)
+const threatJustification = ref('')
 const threatLoading = ref(false)
 
 // Manual corrections
 const manualHp = ref(0)
 const manualThreat = ref(0)
+const manualHpJustification = ref('')
+const manualThreatJustification = ref('')
+const manualHpLoading = ref(false)
+const manualThreatLoading = ref(false)
 const eventStructure = ref(null)
 const structureLoading = ref(false)
 
@@ -54,15 +60,54 @@ const canStartGame = computed(() => eventStructure.value !== null && pendingGrou
 const pendingGroupsSummary = computed(() => pendingGroups.value.map((group) => group.identifier).join(', '))
 
 const pods = computed(() => eventStructure.value?.pods || [])
+const availableGroups = computed(() => {
+  const assignedGroups = pods.value.flatMap((pod) =>
+    (pod.groups || []).map((group) => ({
+      ...group,
+      podName: pod.name,
+    })),
+  )
+
+  const unassignedReportGroups = pendingGroups.value.map((group) => ({
+    ...group,
+    podName: null,
+  }))
+
+  return [...assignedGroups, ...unassignedReportGroups]
+    .filter((group) => group?.id != null)
+    .sort((left, right) =>
+      left.identifier.localeCompare(right.identifier, 'es', {
+        numeric: true,
+        sensitivity: 'base',
+      }),
+    )
+})
+const hasAvailableGroups = computed(() => availableGroups.value.length > 0)
 const assignPodByGroup = ref({})
 const assigningGroupId = ref(null)
+
+function findReportGroup(groupId) {
+  return availableGroups.value.find((group) => String(group.id) === String(groupId)) || null
+}
+
+function resolveRepresentativeCode(groupId) {
+  return findReportGroup(groupId)?.representativeCode || ''
+}
+
+function formatReportGroupLabel(group) {
+  return group.podName ? `${group.identifier} · ${group.podName}` : `${group.identifier} · Sin pod asignado`
+}
+
+function syncManualValuesFromState() {
+  manualHp.value = gs.villainHpCurrent
+  manualThreat.value = gs.schemeThreatCurrent
+}
 
 async function load() {
   try {
     await gs.fetchGameState(eventId.value)
     await loadStructure({ silent: true })
-    manualHp.value = gs.villainHpCurrent
-    manualThreat.value = gs.schemeThreatCurrent
+    syncManualValuesFromState()
   } catch {
     notif.error('Error al cargar el estado de la partida')
   }
@@ -121,16 +166,27 @@ async function handleAssignGroup(groupId) {
   }
 }
 
-async function handleReportDamage() {
+async function handleDelegateDamage() {
+  const group = findReportGroup(dmgGroupId.value)
+  if (!group) {
+    notif.error('Selecciona una mesa válida antes de reportar daño.')
+    return
+  }
+
+  const justification = dmgJustification.value.trim()
+
   dmgLoading.value = true
   try {
-    const { data } = await reportVillainDamage(eventId.value, {
-      representativeCode: dmgCode.value,
+    const { data } = await delegateVillainDamage(eventId.value, {
+      groupId: group.id,
       damage: dmgAmount.value,
+      justification,
     })
     gs.applySnapshot(data.snapshot)
-    notif.success(`Daño registrado: ${dmgAmount.value}`)
+    syncManualValuesFromState()
+    notif.success(`Daño delegado registrado: ${dmgAmount.value}`)
     dmgAmount.value = 1
+    dmgJustification.value = ''
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al reportar daño')
   } finally {
@@ -138,16 +194,27 @@ async function handleReportDamage() {
   }
 }
 
-async function handleReportThreat() {
+async function handleDelegateThreat() {
+  const group = findReportGroup(threatGroupId.value)
+  if (!group) {
+    notif.error('Selecciona una mesa válida antes de reportar amenaza.')
+    return
+  }
+
+  const justification = threatJustification.value.trim()
+
   threatLoading.value = true
   try {
-    const { data } = await reportThreat(eventId.value, {
-      representativeCode: threatCode.value,
+    const { data } = await delegateThreat(eventId.value, {
+      groupId: group.id,
       threat: threatAmount.value,
+      justification,
     })
     gs.applySnapshot(data.snapshot)
-    notif.success(`Amenaza registrada: ${threatAmount.value}`)
+    syncManualValuesFromState()
+    notif.success(`Amenaza delegada registrada: ${threatAmount.value}`)
     threatAmount.value = 1
+    threatJustification.value = ''
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al reportar amenaza')
   } finally {
@@ -156,22 +223,42 @@ async function handleReportThreat() {
 }
 
 async function handleManualHp() {
+  const justification = manualHpJustification.value.trim()
+
+  manualHpLoading.value = true
   try {
-    const { data } = await manualUpdateVillainHp(eventId.value, manualHp.value)
+    const { data } = await manualUpdateVillainHp(eventId.value, {
+      value: manualHp.value,
+      justification,
+    })
     gs.applySnapshot(data.snapshot)
+    syncManualValuesFromState()
+    manualHpJustification.value = ''
     notif.success('HP del villano corregido')
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error')
+  } finally {
+    manualHpLoading.value = false
   }
 }
 
 async function handleManualThreat() {
+  const justification = manualThreatJustification.value.trim()
+
+  manualThreatLoading.value = true
   try {
-    const { data } = await manualUpdateThreat(eventId.value, manualThreat.value)
+    const { data } = await manualUpdateThreat(eventId.value, {
+      value: manualThreat.value,
+      justification,
+    })
     gs.applySnapshot(data.snapshot)
+    syncManualValuesFromState()
+    manualThreatJustification.value = ''
     notif.success('Amenaza corregida')
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error')
+  } finally {
+    manualThreatLoading.value = false
   }
 }
 
@@ -237,6 +324,22 @@ watch(
       void loadStructure({ silent: true })
     }
   },
+)
+
+watch(
+  availableGroups,
+  (groups) => {
+    const validGroupIds = new Set(groups.map((group) => String(group.id)))
+
+    if (dmgGroupId.value && !validGroupIds.has(dmgGroupId.value)) {
+      dmgGroupId.value = ''
+    }
+
+    if (threatGroupId.value && !validGroupIds.has(threatGroupId.value)) {
+      threatGroupId.value = ''
+    }
+  },
+  { immediate: true },
 )
 
 watch(socketConnected, (isNowConnected) => {
@@ -369,37 +472,82 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px" class="mt-2">
-          <!-- Report damage -->
-          <div class="card">
-            <h3 class="mb-1">Reportar Daño al Villano</h3>
-            <form @submit.prevent="handleReportDamage">
+        <div class="card mt-2">
+          <h3 class="mb-1">Registro delegado en nombre de una mesa</h3>
+          <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">
+            Usa esta opción cuando el organizador o co-organizador registra una aportación real de una mesa. El log
+            guardará la mesa de origen y el actor que realizó el registro. Puedes añadir una justificación opcional si
+            aporta contexto.
+          </p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+            <form data-testid="delegated-damage-form" @submit.prevent="handleDelegateDamage">
+              <h4 class="mb-1">Registrar daño en nombre de una mesa</h4>
               <div class="form-group">
-                <label for="dmg-code">Código representante</label>
-                <input id="dmg-code" v-model="dmgCode" class="form-control" required maxlength="16" />
+                <label for="delegated-dmg-group">Mesa</label>
+                <select
+                  id="delegated-dmg-group"
+                  v-model="dmgGroupId"
+                  class="form-control"
+                  :disabled="!hasAvailableGroups"
+                  required
+                >
+                  <option value="" disabled>
+                    {{ hasAvailableGroups ? 'Selecciona una mesa' : 'No hay mesas disponibles' }}
+                  </option>
+                  <option v-for="group in availableGroups" :key="group.id" :value="String(group.id)">
+                    {{ formatReportGroupLabel(group) }}
+                  </option>
+                </select>
               </div>
               <div class="form-group">
-                <label for="dmg-amount">Cantidad de daño</label>
-                <input id="dmg-amount" v-model.number="dmgAmount" type="number" class="form-control" min="1" required />
+                <label for="delegated-dmg-amount">Cantidad de daño</label>
+                <input
+                  id="delegated-dmg-amount"
+                  v-model.number="dmgAmount"
+                  type="number"
+                  class="form-control"
+                  min="1"
+                  required
+                />
               </div>
-              <button class="btn btn-primary btn-sm" :disabled="dmgLoading">
-                {{ dmgLoading ? 'Enviando…' : 'Reportar daño' }}
+              <div class="form-group">
+                <label for="delegated-dmg-justification">Motivo / justificación (opcional)</label>
+                <textarea
+                  id="delegated-dmg-justification"
+                  v-model="dmgJustification"
+                  class="form-control"
+                  rows="3"
+                  maxlength="300"
+                />
+              </div>
+              <button class="btn btn-primary btn-sm" :disabled="dmgLoading || !dmgGroupId">
+                {{ dmgLoading ? 'Enviando…' : 'Registrar daño delegado' }}
               </button>
             </form>
-          </div>
 
-          <!-- Report threat -->
-          <div class="card">
-            <h3 class="mb-1">Reportar Amenaza</h3>
-            <form @submit.prevent="handleReportThreat">
+            <form data-testid="delegated-threat-form" @submit.prevent="handleDelegateThreat">
+              <h4 class="mb-1">Registrar amenaza en nombre de una mesa</h4>
               <div class="form-group">
-                <label for="threat-code">Código representante</label>
-                <input id="threat-code" v-model="threatCode" class="form-control" required maxlength="16" />
+                <label for="delegated-threat-group">Mesa</label>
+                <select
+                  id="delegated-threat-group"
+                  v-model="threatGroupId"
+                  class="form-control"
+                  :disabled="!hasAvailableGroups"
+                  required
+                >
+                  <option value="" disabled>
+                    {{ hasAvailableGroups ? 'Selecciona una mesa' : 'No hay mesas disponibles' }}
+                  </option>
+                  <option v-for="group in availableGroups" :key="group.id" :value="String(group.id)">
+                    {{ formatReportGroupLabel(group) }}
+                  </option>
+                </select>
               </div>
               <div class="form-group">
-                <label for="threat-amount">Cantidad de amenaza</label>
+                <label for="delegated-threat-amount">Cantidad de amenaza</label>
                 <input
-                  id="threat-amount"
+                  id="delegated-threat-amount"
                   v-model.number="threatAmount"
                   type="number"
                   class="form-control"
@@ -407,8 +555,18 @@ onUnmounted(() => {
                   required
                 />
               </div>
-              <button class="btn btn-primary btn-sm" :disabled="threatLoading">
-                {{ threatLoading ? 'Enviando…' : 'Reportar amenaza' }}
+              <div class="form-group">
+                <label for="delegated-threat-justification">Motivo / justificación (opcional)</label>
+                <textarea
+                  id="delegated-threat-justification"
+                  v-model="threatJustification"
+                  class="form-control"
+                  rows="3"
+                  maxlength="300"
+                />
+              </div>
+              <button class="btn btn-primary btn-sm" :disabled="threatLoading || !threatGroupId">
+                {{ threatLoading ? 'Enviando…' : 'Registrar amenaza delegada' }}
               </button>
             </form>
           </div>
@@ -416,43 +574,57 @@ onUnmounted(() => {
 
         <!-- Manual corrections -->
         <div class="card mt-2">
-          <h3 class="mb-1">Correcciones manuales</h3>
+          <h3 class="mb-1">Correcciones manuales globales</h3>
           <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">
-            Solo organizador / co-organizador. Se registra en el log.
+            Solo organizador / co-organizador. Usa esta opción para corregir un total global erróneo. No se atribuye a
+            una mesa concreta. Puedes añadir una justificación opcional en el log si quieres dejar más contexto.
           </p>
-          <div class="flex gap-2" style="align-items: flex-end">
-            <div class="form-group" style="margin-bottom: 0">
-              <label for="manual-hp">HP del villano</label>
-              <div class="flex gap-1">
-                <input
-                  id="manual-hp"
-                  v-model.number="manualHp"
-                  type="number"
-                  class="form-control"
-                  min="0"
-                  style="width: 100px"
-                />
-                <button class="btn btn-secondary btn-sm" @click="handleManualHp">
-                  Corregir HP
-                </button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+            <form data-testid="manual-hp-form" @submit.prevent="handleManualHp">
+              <div class="form-group">
+                <label for="manual-hp">HP del villano</label>
+                <input id="manual-hp" v-model.number="manualHp" type="number" class="form-control" min="0" />
               </div>
-            </div>
-            <div class="form-group" style="margin-bottom: 0">
-              <label for="manual-threat">Amenaza</label>
-              <div class="flex gap-1">
+              <div class="form-group">
+                <label for="manual-hp-justification">Justificación (opcional)</label>
+                <textarea
+                  id="manual-hp-justification"
+                  v-model="manualHpJustification"
+                  class="form-control"
+                  rows="3"
+                  maxlength="300"
+                />
+              </div>
+              <button class="btn btn-secondary btn-sm" :disabled="manualHpLoading">
+                {{ manualHpLoading ? 'Guardando…' : 'Corregir HP' }}
+              </button>
+            </form>
+
+            <form data-testid="manual-threat-form" @submit.prevent="handleManualThreat">
+              <div class="form-group">
+                <label for="manual-threat">Amenaza</label>
                 <input
                   id="manual-threat"
                   v-model.number="manualThreat"
                   type="number"
                   class="form-control"
                   min="0"
-                  style="width: 100px"
                 />
-                <button class="btn btn-secondary btn-sm" @click="handleManualThreat">
-                  Corregir amenaza
-                </button>
               </div>
-            </div>
+              <div class="form-group">
+                <label for="manual-threat-justification">Justificación (opcional)</label>
+                <textarea
+                  id="manual-threat-justification"
+                  v-model="manualThreatJustification"
+                  class="form-control"
+                  rows="3"
+                  maxlength="300"
+                />
+              </div>
+              <button class="btn btn-secondary btn-sm" :disabled="manualThreatLoading">
+                {{ manualThreatLoading ? 'Guardando…' : 'Corregir amenaza' }}
+              </button>
+            </form>
           </div>
         </div>
       </template>

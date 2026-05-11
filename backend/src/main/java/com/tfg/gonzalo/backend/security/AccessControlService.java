@@ -109,8 +109,13 @@ public class AccessControlService {
             throw new ForbiddenOperationException("No eres el organizador propietario de este evento.");
         }
 
+        requireRepresentativeForGroup(event, group, representativeCode);
+    }
+
+    public void requireRepresentativeForGroup(Event event, EventGroup group, String representativeCode) {
+        AuthPrincipal principal = requireAuthenticatedPrincipal();
         if (!principal.isRepresentative()) {
-            throw new ForbiddenOperationException("Solo un representante o el organizador pueden reportar esta acción.");
+            throw new ForbiddenOperationException("Solo el representante de la mesa puede reportar esta acción.");
         }
         if (principal.eventId() == null || !principal.eventId().equals(event.getId())) {
             throw new ForbiddenOperationException("El token no pertenece al evento solicitado.");
