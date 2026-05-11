@@ -34,30 +34,26 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) {
-    next()
-    return
+    return true
   }
 
   const raw = sessionStorage.getItem('auth')
   if (!raw) {
-    next({ name: 'login' })
-    return
+    return { name: 'login' }
   }
 
   try {
     const { accessToken } = JSON.parse(raw)
     if (!accessToken) {
-      next({ name: 'login' })
-      return
+      return { name: 'login' }
     }
   } catch {
-    next({ name: 'login' })
-    return
+    return { name: 'login' }
   }
 
-  next()
+  return true
 })
 
 export default router
