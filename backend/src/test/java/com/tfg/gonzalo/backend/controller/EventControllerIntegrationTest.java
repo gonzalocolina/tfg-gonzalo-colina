@@ -1,6 +1,7 @@
 package com.tfg.gonzalo.backend.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -94,6 +95,56 @@ class EventControllerIntegrationTest {
                         .value("/api/inter-pod-card-definitions/" + definitionId + "/image"));
     }
 
+                @Test
+                void updateEventUpdatesAndClearsSelectedInterPodDefinitions() throws Exception {
+              String organizerToken = registerOrganizer("organizer3", "orga3@example.com", "Password123");
+
+              long firstDefinitionId = createInterPodCardDefinition(organizerToken, "FIRST_CUSTOM_CARD");
+              long secondDefinitionId = createInterPodCardDefinition(organizerToken, "SECOND_CUSTOM_CARD");
+              long eventId = createEvent(
+                organizerToken,
+                """
+                  {
+                    "name": "Evento editable",
+                    "timeLimitMinutes": 180,
+                    "interPodCardDefinitionIds": [%d]
+                  }
+                  """.formatted(firstDefinitionId)
+              );
+
+              mockMvc.perform(put("/api/events/{eventId}", eventId)
+                  .header("Authorization", "Bearer " + organizerToken)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                    """
+                      {
+                        "name": "Evento editable",
+                        "timeLimitMinutes": 180,
+                        "interPodCardDefinitionIds": [%d]
+                      }
+                      """.formatted(secondDefinitionId)
+                  ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions.length()").value(1))
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].id").value((int) secondDefinitionId));
+
+              mockMvc.perform(put("/api/events/{eventId}", eventId)
+                  .header("Authorization", "Bearer " + organizerToken)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                    """
+                      {
+                        "name": "Evento editable",
+                        "timeLimitMinutes": 180,
+                        "interPodCardDefinitionIds": []
+                      }
+                      """
+                  ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions").isArray())
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions").isEmpty());
+                }
+
     private String registerOrganizer(String username, String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -113,6 +164,30 @@ class EventControllerIntegrationTest {
         }
         return matcher.group(1);
     }
+
+      private long createInterPodCardDefinition(String organizerToken, String name) throws Exception {
+        MvcResult createDefinitionResult = mockMvc.perform(multipart("/api/inter-pod-card-definitions")
+                .param("name", name)
+                .param("cardCategory", "ESBIRRO")
+                .param("defaultHpMax", "8")
+                .param("defaultStatus", "REVELADA")
+                .header("Authorization", "Bearer " + organizerToken))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        return extractId(createDefinitionResult.getResponse().getContentAsString());
+      }
+
+      private long createEvent(String organizerToken, String requestBody) throws Exception {
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                .header("Authorization", "Bearer " + organizerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        return extractId(createEventResult.getResponse().getContentAsString());
+      }
 
       private long extractId(String responseBody) {
         Matcher matcher = ID_PATTERN.matcher(responseBody);

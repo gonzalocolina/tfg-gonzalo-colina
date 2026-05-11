@@ -69,14 +69,16 @@ describe('CreateEventView', () => {
     })
   }
 
-  it('renders the create event form', () => {
+  it('renders the create event form', async () => {
     const wrapper = mountView()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
     expect(wrapper.find('h1').text()).toBe('Crear Evento')
     expect(wrapper.find('#name').exists()).toBe(true)
     expect(wrapper.find('#players').exists()).toBe(false)
     expect(wrapper.find('#villain').exists()).toBe(true)
     expect(wrapper.text()).toContain('Cartas inter-nodo para este evento')
-    expect(wrapper.text()).toContain('Se calculará automáticamente')
+    expect(wrapper.text()).toContain('0 = sin temporizador')
     // Organizer fields no longer exist
     expect(wrapper.find('#orgUser').exists()).toBe(false)
     expect(wrapper.find('#orgPass').exists()).toBe(false)

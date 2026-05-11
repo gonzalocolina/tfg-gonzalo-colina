@@ -3,11 +3,17 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import InterPodCardsView from '../InterPodCardsView.vue'
 
+const routeState = vi.hoisted(() => ({
+  params: {},
+}))
+
 const {
   getInterPodCardDefinitions,
   createInterPodCardDefinition,
   updateInterPodCardDefinition,
   deleteInterPodCardDefinition,
+  getEvent,
+  updateEvent,
   syncImageUrls,
   protectedImagesById,
 } = vi.hoisted(() => ({
@@ -15,6 +21,8 @@ const {
   createInterPodCardDefinition: vi.fn(),
   updateInterPodCardDefinition: vi.fn(),
   deleteInterPodCardDefinition: vi.fn(),
+  getEvent: vi.fn(),
+  updateEvent: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
 }))
@@ -24,6 +32,11 @@ vi.mock('@/api/interPodCardDefinitions', () => ({
   createInterPodCardDefinition,
   updateInterPodCardDefinition,
   deleteInterPodCardDefinition,
+}))
+
+vi.mock('@/api/events', () => ({
+  getEvent,
+  updateEvent,
 }))
 
 vi.mock('@/composables/useProtectedImageUrls', () => ({
@@ -37,15 +50,13 @@ vi.mock('@/composables/useProtectedImageUrls', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({
-    params: {},
-  }),
+  useRoute: () => routeState,
 }))
 
 const originalCreateObjectURL = URL.createObjectURL
 const originalRevokeObjectURL = URL.revokeObjectURL
 
-function buildDefinition() {
+function buildDefinition(overrides = {}) {
   return {
     id: 10,
     name: 'THE_MANGOG',
@@ -55,6 +66,21 @@ function buildDefinition() {
     defaultStatus: 'REVELADA',
     imageUrl: '/api/inter-pod-card-definitions/10/image',
     ownerUsername: 'organizer',
+    ...overrides,
+  }
+}
+
+function buildEvent(overrides = {}) {
+  return {
+    id: 516,
+    name: 'Evento 516',
+    timeLimitMinutes: 180,
+    villainDefinitionId: 1,
+    villainName: 'Loki',
+    status: 'DRAFT',
+    currentUserIsOwner: true,
+    selectedInterPodCardDefinitions: [buildDefinition()],
+    ...overrides,
   }
 }
 
@@ -76,6 +102,7 @@ function mountView() {
 
 describe('InterPodCardsView', () => {
   beforeEach(() => {
+    routeState.params = {}
     vi.clearAllMocks()
     Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
     protectedImagesById['10'] = 'blob:def-10'
@@ -87,6 +114,8 @@ describe('InterPodCardsView', () => {
     createInterPodCardDefinition.mockResolvedValue({ data: { id: 11 } })
     updateInterPodCardDefinition.mockResolvedValue({ data: { id: 10 } })
     deleteInterPodCardDefinition.mockResolvedValue({})
+    getEvent.mockResolvedValue({ data: buildEvent() })
+    updateEvent.mockResolvedValue({ data: buildEvent() })
 
     URL.createObjectURL = vi.fn(() => 'blob:replacement-preview')
     URL.revokeObjectURL = vi.fn()
@@ -147,6 +176,49 @@ describe('InterPodCardsView', () => {
     expect(syncImageUrls).toHaveBeenLastCalledWith(
       [{ id: 10, url: '/api/inter-pod-card-definitions/10/image' }],
       { force: true },
+    )
+  })
+
+  it('updates the selected cards when the view is opened from an event route', async () => {
+    routeState.params = { eventId: '516' }
+    const secondDefinition = buildDefinition({
+      id: 11,
+      name: 'DOOR_BETWEEN_WORLDS',
+      imageUrl: null,
+    })
+
+    getInterPodCardDefinitions.mockResolvedValue({
+      data: [buildDefinition(), secondDefinition],
+    })
+    updateEvent.mockResolvedValue({
+      data: buildEvent({
+        selectedInterPodCardDefinitions: [buildDefinition(), secondDefinition],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getEvent).toHaveBeenCalledWith('516')
+    expect(wrapper.text()).toContain('Selección para el evento')
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    expect(checkboxes).toHaveLength(2)
+    await checkboxes[1].trigger('change')
+
+    const saveButton = wrapper.findAll('button').find((button) => button.text().includes('Guardar cartas del evento'))
+    expect(saveButton).toBeDefined()
+    await saveButton.trigger('click')
+    await flushPromises()
+
+    expect(updateEvent).toHaveBeenCalledWith(
+      '516',
+      expect.objectContaining({
+        name: 'Evento 516',
+        timeLimitMinutes: 180,
+        villainDefinitionId: 1,
+        interPodCardDefinitionIds: [10, 11],
+      }),
     )
   })
 })
