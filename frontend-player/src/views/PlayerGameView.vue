@@ -364,7 +364,7 @@ onUnmounted(() => {
         <ThreatCard :current="gs.schemeThreatCurrent" :target="gs.schemeThreatTarget" />
 
         <div v-if="interPodCards.length" class="card">
-          <div class="card-title">Cartas Inter-Pod activas</div>
+          <div class="card-title">Cartas Inter-Nodo activas</div>
           <div class="interpod-inline-grid">
             <button
               v-for="card in interPodCards"
@@ -442,7 +442,7 @@ onUnmounted(() => {
         style="flex: 0 0 auto; padding: 10px 14px"
         @click="openInterPodDialog()"
       >
-        Cartas Inter-Pod
+        Cartas Inter-Nodo
       </button>
     </div>
 

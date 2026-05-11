@@ -85,7 +85,7 @@ async function load({ forceImages = false } = {}) {
     definitions.value = data || []
     await syncImageUrls(buildDefinitionImageEntries(definitions.value), { force: forceImages })
   } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al cargar cartas inter-pod')
+    notif.error(err.response?.data?.message || 'Error al cargar cartas inter-nodo')
   } finally {
     loading.value = false
   }
@@ -129,11 +129,11 @@ async function handleCreate() {
   savingCreate.value = true
   try {
     await createInterPodCardDefinition(createForm.value, createImage.value)
-    notif.success('Carta inter-pod creada')
+    notif.success('Carta inter-nodo creada')
     resetCreateForm()
     await load()
   } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al crear carta inter-pod')
+    notif.error(err.response?.data?.message || 'Error al crear carta inter-nodo')
   } finally {
     savingCreate.value = false
   }
@@ -144,26 +144,26 @@ async function handleUpdate(definitionId) {
   try {
     const shouldRefreshImages = Boolean(editImage.value)
     await updateInterPodCardDefinition(definitionId, editForm.value, editImage.value)
-    notif.success('Carta inter-pod actualizada')
+    notif.success('Carta inter-nodo actualizada')
     editingId.value = null
     setEditImage(null)
     await load({ forceImages: shouldRefreshImages })
   } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al actualizar carta inter-pod')
+    notif.error(err.response?.data?.message || 'Error al actualizar carta inter-nodo')
   } finally {
     savingEdit.value = false
   }
 }
 
 async function handleDelete(definition) {
-  if (!confirm(`¿Eliminar carta inter-pod "${prettyCardName(definition.name)}"?`)) return
+  if (!confirm(`¿Eliminar carta inter-nodo "${prettyCardName(definition.name)}"?`)) return
   deletingId.value = definition.id
   try {
     await deleteInterPodCardDefinition(definition.id)
-    notif.success('Carta inter-pod eliminada')
+    notif.success('Carta inter-nodo eliminada')
     await load()
   } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al eliminar carta inter-pod')
+    notif.error(err.response?.data?.message || 'Error al eliminar carta inter-nodo')
   } finally {
     deletingId.value = null
   }
@@ -178,12 +178,12 @@ onUnmounted(() => {
 <template>
   <div>
     <div class="flex" style="align-items: center; justify-content: space-between; margin-bottom: 16px">
-      <h1 class="page-title" style="margin-bottom: 0">Cartas Inter-Pod</h1>
+      <h1 class="page-title" style="margin-bottom: 0">Cartas Inter-Nodo</h1>
       <router-link class="btn btn-secondary" :to="backRoute">{{ backLabel }}</router-link>
     </div>
 
     <div class="card">
-      <h3 style="margin-bottom: 12px">Crear carta inter-pod personalizada</h3>
+      <h3 style="margin-bottom: 12px">Crear carta inter-nodo personalizada</h3>
       <form @submit.prevent="handleCreate">
         <div class="form-group">
           <label for="new-card-name">Nombre</label>
@@ -246,9 +246,9 @@ onUnmounted(() => {
     </div>
 
     <div class="card mt-2">
-      <h3 style="margin-bottom: 12px">Catálogo de cartas inter-pod</h3>
+      <h3 style="margin-bottom: 12px">Catálogo de cartas inter-nodo</h3>
       <div v-if="loading" class="text-muted">Cargando…</div>
-      <div v-else-if="!definitions.length" class="text-muted">No hay cartas inter-pod disponibles.</div>
+      <div v-else-if="!definitions.length" class="text-muted">No hay cartas inter-nodo disponibles.</div>
       <div v-else class="table-wrap">
         <table>
           <thead>

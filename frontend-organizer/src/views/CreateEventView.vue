@@ -63,7 +63,7 @@ async function loadInterPodCardDefinitions() {
       form.value.interPodCardDefinitionIds = interPodCardDefinitions.value.map((definition) => definition.id)
     }
   } catch (err) {
-    errorMsg.value = err.response?.data?.message || 'No se pudo cargar el catálogo de cartas inter-pod'
+    errorMsg.value = err.response?.data?.message || 'No se pudo cargar el catálogo de cartas inter-nodo'
   } finally {
     loadingInterPodCardDefinitions.value = false
   }
@@ -146,10 +146,10 @@ onMounted(async () => {
         </div>
 
         <div class="form-group">
-          <p style="margin: 0 0 8px; font-weight: 500">Cartas inter-pod para este evento</p>
-          <div v-if="loadingInterPodCardDefinitions" class="text-muted">Cargando cartas inter-pod…</div>
+          <p style="margin: 0 0 8px; font-weight: 500">Cartas inter-nodo para este evento</p>
+          <div v-if="loadingInterPodCardDefinitions" class="text-muted">Cargando cartas inter-nodo…</div>
           <div v-else-if="!interPodCardDefinitions.length" class="text-muted">
-            No hay cartas inter-pod disponibles. <router-link to="/inter-pod-cards">Créelas aquí</router-link>.
+            No hay cartas inter-nodo disponibles. <router-link to="/inter-pod-cards">Créelas aquí</router-link>.
           </div>
           <div v-else class="card" style="padding: 12px; border-radius: 8px">
             <label
@@ -173,7 +173,7 @@ onMounted(async () => {
             </label>
           </div>
           <small class="text-muted">
-            Puedes gestionar el catálogo en <router-link to="/inter-pod-cards">Cartas inter-pod</router-link>.
+            Puedes gestionar el catálogo en <router-link to="/inter-pod-cards">Cartas inter-nodo</router-link>.
           </small>
         </div>
 

@@ -64,13 +64,13 @@ function buildCardImageEntries(entries) {
 
 const actionsDisabledReason = computed(() => {
   if (!auth.isRepresentative) {
-    return 'Solo la mesa representante puede realizar acciones inter-pod.'
+    return 'Solo la mesa representante puede realizar acciones inter-nodo.'
   }
   if (gs.timerStatus === 'PAUSED') {
-    return 'La partida está pausada. No puedes realizar acciones inter-pod hasta que se reanude.'
+    return 'La partida está pausada. No puedes realizar acciones inter-nodo hasta que se reanude.'
   }
   if (gs.eventStatus === 'IN_PROGRESS' && gs.timerStatus === 'READY') {
-    return 'La partida ya ha comenzado, pero el organizador todavía no ha iniciado el contador. No puedes realizar acciones inter-pod todavía.'
+    return 'La partida ya ha comenzado, pero el organizador todavía no ha iniciado el contador. No puedes realizar acciones inter-nodo todavía.'
   }
   if (!props.podId) {
     return 'Tu mesa todavía no está asignada a un pod.'
@@ -99,7 +99,7 @@ async function loadCards({ silent = false } = {}) {
     await focusPendingCard()
   } catch {
     if (!silent) {
-      notif.error('Error al cargar las cartas inter-pod del pod')
+      notif.error('Error al cargar las cartas inter-nodo del pod')
     }
   } finally {
     if (!silent) {
@@ -157,7 +157,7 @@ async function handleCreate() {
     return
   }
   if (!interPodCardDefinitionId.value) {
-    notif.error('No hay cartas inter-pod seleccionadas para este evento.')
+    notif.error('No hay cartas inter-nodo seleccionadas para este evento.')
     return
   }
 
@@ -170,7 +170,7 @@ async function handleCreate() {
         interPodCardDefinitionId: interPodCardDefinitionId.value,
       },
     )
-    notif.success('Carta inter-pod registrada')
+    notif.success('Carta inter-nodo registrada')
     await loadCards()
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al crear carta')
@@ -181,7 +181,7 @@ async function handleCreate() {
 
 function mapMutationError(err, fallback) {
   if (err.response?.status === 403) {
-    return 'Solo puedes modificar cartas inter-pod del mismo pod.'
+    return 'Solo puedes modificar cartas inter-nodo del mismo pod.'
   }
   return err.response?.data?.message || fallback
 }
@@ -482,7 +482,7 @@ onUnmounted(() => {
 <template>
   <div class="modal-overlay" @click="handleOverlayClick">
     <div class="modal-panel">
-      <div class="modal-title">Cartas Inter-Pod</div>
+      <div class="modal-title">Cartas Inter-Nodo</div>
       <p v-if="podName" class="text-muted text-center mb-1" style="font-size: 0.85rem">
         Pod actual: {{ podName }}
       </p>
@@ -509,7 +509,7 @@ onUnmounted(() => {
       </div>
 
       <p v-if="!loadingDefinitions && !selectedDefinitions.length" class="text-muted" style="font-size: 0.85rem">
-        Este evento no tiene cartas inter-pod habilitadas.
+        Este evento no tiene cartas inter-nodo habilitadas.
       </p>
 
       <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px">
@@ -549,7 +549,7 @@ onUnmounted(() => {
             >
               <img
                 :src="getProtectedImageUrl(a.id)"
-                alt="Carta inter-pod"
+                alt="Carta inter-nodo"
                 class="interpod-card-thumb"
                 @error="handleImageLoadError"
               />
@@ -587,7 +587,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div v-else-if="!loadingCards" class="text-muted text-center mt-2" style="font-size: 0.85rem">
-        No hay cartas inter-pod en tu pod.
+        No hay cartas inter-nodo en tu pod.
       </div>
 
       <button class="btn btn-secondary btn-block mt-2" @click="emit('close')">Cerrar</button>

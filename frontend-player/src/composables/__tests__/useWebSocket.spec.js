@@ -3,9 +3,9 @@ import { mapNotificationLabel, resolveNotificationType } from '../useWebSocket'
 
 describe('useWebSocket notification helpers', () => {
   it('maps inter-pod notifications to user-friendly labels', () => {
-    expect(mapNotificationLabel('INTER_POD_CARD_CREATED')).toBe('Se ha creado una carta inter-pod en tu pod.')
+    expect(mapNotificationLabel('INTER_POD_CARD_CREATED')).toBe('Se ha creado una carta inter-nodo en tu pod.')
     expect(mapNotificationLabel('INTER_POD_CARD_STATUS_UPDATED')).toBe(
-      'Se ha actualizado el estado de una carta inter-pod de tu pod.',
+      'Se ha actualizado el estado de una carta inter-nodo de tu pod.',
     )
   })
 
