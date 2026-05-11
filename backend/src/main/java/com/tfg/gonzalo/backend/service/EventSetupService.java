@@ -36,6 +36,7 @@ public class EventSetupService {
     private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
     private static final String DEFAULT_POD_NAME_PREFIX = "Pod";
     private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^pod\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
+    private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
 
     private final EventRepository eventRepository;
     private final PodRepository podRepository;
@@ -46,6 +47,7 @@ public class EventSetupService {
     private final VillainFormulaService villainFormulaService;
     private final EventPlayerMetricsService eventPlayerMetricsService;
     private final AccessControlService accessControlService;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     public EventSetupService(EventRepository eventRepository,
                              PodRepository podRepository,
@@ -55,7 +57,8 @@ public class EventSetupService {
                              CodeGeneratorService codeGeneratorService,
                              VillainFormulaService villainFormulaService,
                              EventPlayerMetricsService eventPlayerMetricsService,
-                             AccessControlService accessControlService) {
+                             AccessControlService accessControlService,
+                             RealtimeEventPublisher realtimeEventPublisher) {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
         this.eventGroupRepository = eventGroupRepository;
@@ -65,6 +68,7 @@ public class EventSetupService {
         this.villainFormulaService = villainFormulaService;
         this.eventPlayerMetricsService = eventPlayerMetricsService;
         this.accessControlService = accessControlService;
+        this.realtimeEventPublisher = realtimeEventPublisher;
     }
 
     @Transactional
@@ -80,6 +84,7 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, EventActionType.POD_CREATED,
                 null, pod.getName(), "Pod creado para el evento.");
+        publishStructureRealtime(eventId);
         return mapPodResponse(pod, List.of());
     }
 
@@ -113,6 +118,7 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
                 null, group.getIdentifier(), "Mesa creada y amenaza objetivo recalculada.");
+        publishStructureRealtime(eventId);
         return mapGroupResponse(group);
     }
 
@@ -141,6 +147,7 @@ public class EventSetupService {
                 ? "Jugador/mesa devuelto a la lista de pendientes de asignación."
                 : "Jugador/mesa reasignado de pod.");
 
+        publishStructureRealtime(eventId);
         return mapGroupResponse(group);
     }
 
@@ -157,6 +164,7 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, EventActionType.POD_UPDATED,
                 previousName, nextName, "Nombre del pod actualizado.");
+        publishStructureRealtime(eventId);
         return mapPodResponse(pod, List.of());
     }
 
@@ -177,6 +185,8 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, EventActionType.POD_UPDATED,
                 pod.getName(), null, "Pod eliminado; sus mesas quedan pendientes de asignación.");
+
+    publishStructureRealtime(eventId);
     }
 
     @Transactional
@@ -206,6 +216,7 @@ public class EventSetupService {
 
         eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
             previousSummary, nextSummary, "Datos de la mesa actualizados.");
+        publishStructureRealtime(eventId);
         return mapGroupResponse(group);
     }
 
@@ -353,6 +364,10 @@ public class EventSetupService {
             code = codeGeneratorService.generateGroupCode();
         }
         return code;
+    }
+
+    private void publishStructureRealtime(Long eventId) {
+        realtimeEventPublisher.publishEventOperation(eventId, STRUCTURE_UPDATED_OPERATION);
     }
 
     private PodResponse mapPodResponse(Pod pod, List<EventGroup> groups) {

@@ -122,6 +122,35 @@ describe('InterPodAlertDialog', () => {
     wrapper.unmount()
   })
 
+  it('does not auto-refresh the pod cards on a timer', async () => {
+    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(12000)
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('reloads pod cards when a realtime refresh tick arrives', async () => {
+    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte', refreshTick: 0 })
+
+    await flushPromises()
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ refreshTick: 1 })
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+  })
+
   it('creates a card with the minimal payload required by the player flow', async () => {
     createInterPodCard.mockResolvedValue({ data: { id: 99 } })
 

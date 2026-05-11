@@ -30,6 +30,7 @@ public class AuthService {
     private static final String BEARER = "Bearer";
     private static final String DEFAULT_PLAYER_NAME_PREFIX = "Jugador";
     private static final int MAX_GROUP_IDENTIFIER_LENGTH = 40;
+    private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
 
     private final AppUserRepository appUserRepository;
     private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
@@ -42,6 +43,7 @@ public class AuthService {
     private final EventLogService eventLogService;
     private final VillainFormulaService villainFormulaService;
     private final EventPlayerMetricsService eventPlayerMetricsService;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     public AuthService(AppUserRepository appUserRepository,
                        CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
@@ -53,7 +55,8 @@ public class AuthService {
                        CodeGeneratorService codeGeneratorService,
                        EventLogService eventLogService,
                        VillainFormulaService villainFormulaService,
-                       EventPlayerMetricsService eventPlayerMetricsService) {
+                       EventPlayerMetricsService eventPlayerMetricsService,
+                       RealtimeEventPublisher realtimeEventPublisher) {
         this.appUserRepository = appUserRepository;
         this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
         this.eventGroupRepository = eventGroupRepository;
@@ -65,6 +68,7 @@ public class AuthService {
         this.eventLogService = eventLogService;
         this.villainFormulaService = villainFormulaService;
         this.eventPlayerMetricsService = eventPlayerMetricsService;
+        this.realtimeEventPublisher = realtimeEventPublisher;
     }
 
     public AuthTokenResponse register(RegisterRequest request) {
@@ -227,6 +231,7 @@ public class AuthService {
         eventPlayerMetricsService.synchronizePlayerMetrics(event);
         eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_CREATED,
                 null, uniqueIdentifier, "Jugador unido al evento mediante código de evento.");
+        realtimeEventPublisher.publishEventOperation(event.getId(), STRUCTURE_UPDATED_OPERATION);
 
         return group;
     }

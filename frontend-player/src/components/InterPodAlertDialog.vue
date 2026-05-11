@@ -15,6 +15,7 @@ const props = defineProps({
   podId: { type: [Number, String], default: null },
   podName: { type: String, default: '' },
   initialCardId: { type: [Number, String], default: null },
+  refreshTick: { type: Number, default: 0 },
 })
 
 const emit = defineEmits(['close'])
@@ -42,7 +43,6 @@ const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth-play
 const MAX_PREVIEW_SCALE = 4
 
 let highlightResetTimeout = null
-let cardsRefreshInterval = null
 let pinchStartDistance = 0
 let pinchStartScale = 1
 let panStart = { x: 0, y: 0 }
@@ -414,20 +414,6 @@ function handlePreviewPopState() {
   closeImagePreview({ restoreHistory: false })
 }
 
-function startCardsPolling() {
-  stopCardsPolling()
-  cardsRefreshInterval = setInterval(() => {
-    loadCards({ silent: true })
-  }, 4000)
-}
-
-function stopCardsPolling() {
-  if (cardsRefreshInterval) {
-    clearInterval(cardsRefreshInterval)
-    cardsRefreshInterval = null
-  }
-}
-
 watch(
   () => props.podId,
   (nextPodId) => {
@@ -440,6 +426,17 @@ watch(
     loadingCards.value = false
   },
   { immediate: true },
+)
+
+watch(
+  () => props.refreshTick,
+  (nextRefreshTick, previousRefreshTick) => {
+    if (nextRefreshTick === previousRefreshTick || !props.podId) {
+      return
+    }
+
+    void loadCards({ silent: true })
+  },
 )
 
 watch(
@@ -465,11 +462,9 @@ onMounted(async () => {
   }
 
   await loadSelectedDefinitions()
-  startCardsPolling()
 })
 
 onUnmounted(() => {
-  stopCardsPolling()
   if (highlightResetTimeout) {
     clearTimeout(highlightResetTimeout)
   }

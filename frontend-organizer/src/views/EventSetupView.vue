@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { assignGroupToPod, createPod, getEventStructure } from '@/api/setup'
 import GroupItem from '@/components/GroupItem.vue'
@@ -17,8 +17,6 @@ const movingGroupId = ref(null)
 const activeDragGroup = ref(null)
 const activeDropColumn = ref(null)
 const newPodName = ref('')
-
-let refreshInterval = null
 
 const pods = computed(() => structure.value?.pods || [])
 const pendingGroups = computed(() => structure.value?.unassignedGroups || [])
@@ -165,28 +163,8 @@ async function handlePodDrop(pod) {
   await moveActiveGroup(pod?.id ?? null, pod?.name || 'este pod')
 }
 
-function startAutoRefresh() {
-  stopAutoRefresh()
-  refreshInterval = setInterval(() => {
-    if (creatingPod.value || movingGroupId.value || activeDragGroup.value) return
-    load({ silent: true })
-  }, 4000)
-}
-
-function stopAutoRefresh() {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
-  }
-}
-
 onMounted(() => {
   load()
-  startAutoRefresh()
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
 })
 </script>
 

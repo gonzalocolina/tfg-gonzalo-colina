@@ -41,4 +41,8 @@ public class RealtimeEventPublisher {
             messagingTemplate.convertAndSend(GAME_FINISHED_TOPIC.formatted(eventId), message);
         }
     }
+
+    public void publishEventOperation(Long eventId, String operation) {
+        publishGameStateUpdate(eventId, operation, null, List.of());
+    }
 }

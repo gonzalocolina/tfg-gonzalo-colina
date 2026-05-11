@@ -88,4 +88,4 @@ describe('RegisterView', () => {
 
     expect(wrapper.find('.form-error').text()).toBe('Ya existe un usuario con ese nombre de usuario.')
   })
-}
+})

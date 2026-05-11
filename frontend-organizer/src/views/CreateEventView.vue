@@ -117,13 +117,6 @@ onMounted(async () => {
           <small class="text-muted">0 = sin temporizador</small>
         </div>
 
-        <div class="card" style="padding: 14px; border-radius: 8px; margin-bottom: 14px">
-          <p style="margin: 0; font-weight: 600">Jugadores del evento</p>
-          <p class="text-muted" style="margin-top: 6px; font-size: 0.9rem">
-            Ya no necesitas indicar el total aquí. Se calculará automáticamente sumando los jugadores de todas las mesas que se vayan creando o uniendo al evento.
-          </p>
-        </div>
-
         <div class="form-group">
           <label for="villain">Villano</label>
           <select

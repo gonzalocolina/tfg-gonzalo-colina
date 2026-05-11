@@ -47,7 +47,16 @@ function pushRealtimeNotifications(payload, notifStore) {
 
 export function useWebSocket(eventId) {
   const connected = ref(false)
+  const realtimeEvent = ref(null)
   let client = null
+
+  function rememberRealtimeEvent(payload) {
+    realtimeEvent.value = {
+      operation: payload?.operation || null,
+      notifications: Array.isArray(payload?.notifications) ? [...payload.notifications] : [],
+      emittedAt: payload?.emittedAt || Date.now(),
+    }
+  }
 
   function connect() {
     const gameStore = useGameStateStore()
@@ -63,6 +72,7 @@ export function useWebSocket(eventId) {
           const payload = JSON.parse(msg.body)
           gameStore.applySnapshot(payload.snapshot)
           pushRealtimeNotifications(payload, notifStore)
+          rememberRealtimeEvent(payload)
         })
 
         client.subscribe(`/topic/events/${eventId}/notifications`, (msg) => {
@@ -102,5 +112,5 @@ export function useWebSocket(eventId) {
 
   onUnmounted(() => disconnect())
 
-  return { connected, connect, disconnect }
+  return { connected, realtimeEvent, connect, disconnect }
 }

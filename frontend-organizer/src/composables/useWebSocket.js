@@ -12,6 +12,7 @@ function resolveNotificationType(notification) {
 
 export function useWebSocket(eventId) {
   const connected = ref(false)
+  const realtimeEvent = ref(null)
   let client = null
 
   const NOTIFICATION_LABELS = {
@@ -28,6 +29,14 @@ export function useWebSocket(eventId) {
     EVENT_FINISHED_TIMEOUT_DEFEAT: 'Derrota - Se agotó el tiempo',
   }
 
+  function rememberRealtimeEvent(payload) {
+    realtimeEvent.value = {
+      operation: payload?.operation || null,
+      notifications: Array.isArray(payload?.notifications) ? [...payload.notifications] : [],
+      emittedAt: payload?.emittedAt || Date.now(),
+    }
+  }
+
   function connect() {
     const gameStore = useGameStateStore()
     const notifStore = useNotificationsStore()
@@ -41,6 +50,7 @@ export function useWebSocket(eventId) {
         client.subscribe(`/topic/events/${eventId}/game-state`, (msg) => {
           const payload = JSON.parse(msg.body)
           gameStore.applySnapshot(payload.snapshot)
+          rememberRealtimeEvent(payload)
 
           if (payload.notifications?.length) {
             for (const n of payload.notifications) {
@@ -92,5 +102,5 @@ export function useWebSocket(eventId) {
 
   onUnmounted(() => disconnect())
 
-  return { connected, connect, disconnect }
+  return { connected, realtimeEvent, connect, disconnect }
 }
