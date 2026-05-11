@@ -3,13 +3,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import PlayerGameView from '../PlayerGameView.vue'
 
-const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById } = vi.hoisted(() => ({
+const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById, realtimeEvent } = vi.hoisted(() => ({
   getGameState: vi.fn(),
   getEventStructure: vi.fn(),
   getInterPodCards: vi.fn(),
   connect: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
+  realtimeEvent: { value: null },
 }))
 
 let websocketConnected = true
@@ -29,6 +30,7 @@ vi.mock('@/api/interPod', () => ({
 vi.mock('@/composables/useWebSocket', () => ({
   useWebSocket: () => ({
     connected: websocketConnected,
+    realtimeEvent,
     connect,
   }),
 }))
@@ -154,6 +156,7 @@ describe('PlayerGameView', () => {
     getEventStructure.mockReset()
     getInterPodCards.mockReset()
     syncImageUrls.mockReset()
+    realtimeEvent.value = null
     Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
     getGameState.mockResolvedValue({ data: buildSnapshot() })
     getEventStructure.mockResolvedValue({ data: buildStructure() })
@@ -332,7 +335,7 @@ describe('PlayerGameView', () => {
     wrapper.unmount()
   })
 
-  it('polls the game state when realtime is disconnected', async () => {
+  it('does not poll the game state on a timer when realtime is disconnected', async () => {
     seedAuthSession('GROUP_REPRESENTATIVE')
     websocketConnected = false
 
@@ -341,10 +344,27 @@ describe('PlayerGameView', () => {
 
     expect(getGameState).toHaveBeenCalledTimes(1)
 
-    vi.advanceTimersByTime(4000)
+    await vi.advanceTimersByTimeAsync(12000)
     await flushPromises()
 
-    expect(getGameState).toHaveBeenCalledTimes(2)
+    expect(getGameState).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('does not poll the structure on a timer during the game', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getEventStructure).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(12000)
+    await flushPromises()
+
+    expect(getEventStructure).toHaveBeenCalledTimes(1)
 
     wrapper.unmount()
   })

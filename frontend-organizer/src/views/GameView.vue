@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, unref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -27,7 +27,8 @@ const gs = useGameStateStore()
 const notif = useNotificationsStore()
 const eventId = computed(() => route.params.eventId)
 
-const { connected, connect } = useWebSocket(eventId.value)
+const { connected, realtimeEvent, connect } = useWebSocket(eventId.value)
+const socketConnected = computed(() => Boolean(unref(connected)))
 
 // Report damage form
 const dmgCode = ref('')
@@ -212,7 +213,6 @@ async function handleTimerAdjust(delta) {
 
 // Local timer countdown
 let timerInterval = null
-let structureInterval = null
 
 function startLocalTimer() {
   stopLocalTimer()
@@ -230,30 +230,29 @@ function stopLocalTimer() {
   }
 }
 
-function startStructurePolling() {
-  stopStructurePolling()
-  structureInterval = setInterval(() => {
-    loadStructure({ silent: true })
-  }, 5000)
-}
+watch(
+  () => realtimeEvent?.value,
+  (nextRealtimeEvent) => {
+    if (nextRealtimeEvent?.operation === 'EVENT_STRUCTURE_UPDATED') {
+      void loadStructure({ silent: true })
+    }
+  },
+)
 
-function stopStructurePolling() {
-  if (structureInterval) {
-    clearInterval(structureInterval)
-    structureInterval = null
+watch(socketConnected, (isNowConnected) => {
+  if (isNowConnected) {
+    void loadStructure({ silent: true })
   }
-}
+})
 
 onMounted(() => {
   load()
   connect()
   startLocalTimer()
-  startStructurePolling()
 })
 
 onUnmounted(() => {
   stopLocalTimer()
-  stopStructurePolling()
 })
 </script>
 
@@ -274,9 +273,9 @@ onUnmounted(() => {
           {{ gs.eventStatus }}
         </span>
         <span
-          :style="{ color: connected ? 'var(--c-success)' : 'var(--c-danger)', fontSize: '0.82rem' }"
+          :style="{ color: socketConnected ? 'var(--c-success)' : 'var(--c-danger)', fontSize: '0.82rem' }"
         >
-          ● {{ connected ? 'Conectado' : 'Desconectado' }}
+          ● {{ socketConnected ? 'Conectado' : 'Desconectado' }}
         </span>
       </div>
     </div>

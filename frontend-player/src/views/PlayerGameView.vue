@@ -23,7 +23,7 @@ const gs = useGameStateStore()
 const notif = useNotificationsStore()
 const eventId = auth.eventId
 
-const { connected, connect } = useWebSocket(eventId)
+const { connected, realtimeEvent, connect } = useWebSocket(eventId)
 const socketConnected = computed(() => Boolean(unref(connected)))
 
 const eventStructure = ref(null)
@@ -33,6 +33,7 @@ const showDamageDialog = ref(false)
 const showThreatDialog = ref(false)
 const showInterPodDialog = ref(false)
 const selectedInterPodCardId = ref(null)
+const interPodRefreshTick = ref(0)
 
 const interPodCards = ref([])
 const interPodCardsLoading = ref(false)
@@ -224,8 +225,6 @@ function closeInterPodDialog() {
 
 // Local timer countdown
 let timerInterval = null
-let structureInterval = null
-let gameStateInterval = null
 
 function startLocalTimer() {
   stopLocalTimer()
@@ -236,41 +235,10 @@ function startLocalTimer() {
   }, 1000)
 }
 
-function startStructurePolling() {
-  stopStructurePolling()
-  structureInterval = setInterval(() => {
-    loadStructure({ silent: true })
-    loadInterPodCards({ silent: true })
-  }, 4000)
-}
-
-function startGameStatePolling() {
-  stopGameStatePolling()
-  gameStateInterval = setInterval(() => {
-    if (!socketConnected.value) {
-      void loadGameState({ silent: true })
-    }
-  }, 4000)
-}
-
 function stopLocalTimer() {
   if (timerInterval) {
     clearInterval(timerInterval)
     timerInterval = null
-  }
-}
-
-function stopStructurePolling() {
-  if (structureInterval) {
-    clearInterval(structureInterval)
-    structureInterval = null
-  }
-}
-
-function stopGameStatePolling() {
-  if (gameStateInterval) {
-    clearInterval(gameStateInterval)
-    gameStateInterval = null
   }
 }
 
@@ -290,10 +258,31 @@ watch(currentPodId, (nextPodId, previousPodId) => {
   void loadInterPodCards({ silent: true })
 })
 
+watch(
+  () => realtimeEvent?.value,
+  (nextRealtimeEvent) => {
+    const operation = nextRealtimeEvent?.operation
+    if (!operation) {
+      return
+    }
+
+    if (operation === 'EVENT_STRUCTURE_UPDATED') {
+      void loadStructure({ silent: true })
+      return
+    }
+
+    if (operation.startsWith('INTER_POD_CARD_')) {
+      interPodRefreshTick.value += 1
+      void loadInterPodCards({ silent: true })
+    }
+  },
+)
+
 watch(socketConnected, (isNowConnected) => {
   if (isNowConnected) {
     void loadGameState({ silent: true })
     void loadStructure({ silent: true })
+    void loadInterPodCards({ silent: true })
     return
   }
 
@@ -306,14 +295,10 @@ onMounted(() => {
   void loadInterPodCards()
   connect()
   startLocalTimer()
-  startStructurePolling()
-  startGameStatePolling()
 })
 
 onUnmounted(() => {
   stopLocalTimer()
-  stopStructurePolling()
-  stopGameStatePolling()
 })
 </script>
 
@@ -454,6 +439,7 @@ onUnmounted(() => {
       :pod-id="currentPodId"
       :pod-name="currentPodName"
       :initial-card-id="selectedInterPodCardId"
+      :refresh-tick="interPodRefreshTick"
       @close="closeInterPodDialog"
     />
   </div>

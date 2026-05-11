@@ -110,6 +110,20 @@ describe('EventSetupView', () => {
     wrapper.unmount()
   })
 
+  it('does not auto-refresh the structure on a timer', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getEventStructure).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(12000)
+    await flushPromises()
+
+    expect(getEventStructure).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
   it('moves a pending table into a pod with drag and drop', async () => {
     const wrapper = mountView()
     await flushPromises()
