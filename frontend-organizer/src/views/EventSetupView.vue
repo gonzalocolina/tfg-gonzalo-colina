@@ -24,6 +24,23 @@ const pods = computed(() => structure.value?.pods || [])
 const pendingGroups = computed(() => structure.value?.unassignedGroups || [])
 const hasPendingGroups = computed(() => pendingGroups.value.length > 0)
 
+const assignedGroupCount = computed(() => {
+  const total = structure.value?.currentGroupCount ?? 0
+  const unassigned = structure.value?.unassignedGroupCount ?? 0
+  return total - unassigned
+})
+const groupAssignedPercent = computed(() => {
+  const total = structure.value?.currentGroupCount ?? 0
+  return total === 0 ? 0 : Math.round((assignedGroupCount.value / total) * 100)
+})
+const playerAssignedPercent = computed(() => {
+  const total = structure.value?.configuredPlayerCount ?? 0
+  const assigned = structure.value?.assignedPlayerCount ?? 0
+  return total === 0 ? 0 : Math.round((assigned / total) * 100)
+})
+const groupsReady = computed(() => (structure.value?.unassignedGroupCount ?? 1) === 0)
+const playersReady = computed(() => (structure.value?.unassignedPlayerCount ?? 1) === 0)
+
 function computeNextSortOrder(podList = pods.value) {
   return podList.reduce((maxSortOrder, pod) => Math.max(maxSortOrder, Number(pod.sortOrder ?? -1)), -1) + 1
 }
@@ -180,30 +197,64 @@ onUnmounted(() => {
     <div v-if="loading" class="text-muted">Cargando…</div>
 
     <template v-else-if="structure">
-      <div class="summary-grid mb-2">
-        <div class="summary-item">
-          <div class="label">Jugadores totales</div>
-          <div class="value">{{ structure.configuredPlayerCount }}</div>
+      <div class="setup-status mb-2">
+        <!-- Mesas -->
+        <div class="status-metric">
+          <div class="status-metric__header">
+            <span class="status-metric__label">Mesas asignadas</span>
+            <span class="badge" :class="groupsReady ? 'badge-ready' : 'badge-finished'">{{ groupsReady ? 'Listo' : 'Pendientes' }}</span>
+          </div>
+          <div class="status-metric__fraction">
+            <span class="status-metric__current">{{ assignedGroupCount }}</span>
+            <span class="status-metric__separator"> / </span>
+            <span class="status-metric__total">{{ structure.currentGroupCount }}</span>
+          </div>
+          <div class="status-metric__bar">
+            <div
+              class="status-metric__fill"
+              :class="groupsReady ? 'status-metric__fill--ready' : 'status-metric__fill--pending'"
+              :style="{ width: groupAssignedPercent + '%' }"
+            />
+          </div>
+          <div class="status-metric__sub">
+            <span v-if="structure.unassignedGroupCount > 0" class="text-muted">
+              {{ structure.unassignedGroupCount }} mesa{{ structure.unassignedGroupCount !== 1 ? 's' : '' }} sin asignar
+            </span>
+            <span v-else class="status-metric__sub--ok">Todas las mesas están en un pod</span>
+          </div>
         </div>
-        <div class="summary-item">
-          <div class="label">Jugadores en pods</div>
-          <div class="value">{{ structure.assignedPlayerCount }}</div>
+
+        <!-- Jugadores -->
+        <div class="status-metric">
+          <div class="status-metric__header">
+            <span class="status-metric__label">Jugadores en pods</span>
+            <span class="badge" :class="playersReady ? 'badge-ready' : 'badge-finished'">{{ playersReady ? 'Listo' : 'Pendientes' }}</span>
+          </div>
+          <div class="status-metric__fraction">
+            <span class="status-metric__current">{{ structure.assignedPlayerCount }}</span>
+            <span class="status-metric__separator"> / </span>
+            <span class="status-metric__total">{{ structure.configuredPlayerCount }}</span>
+          </div>
+          <div class="status-metric__bar">
+            <div
+              class="status-metric__fill"
+              :class="playersReady ? 'status-metric__fill--ready' : 'status-metric__fill--pending'"
+              :style="{ width: playerAssignedPercent + '%' }"
+            />
+          </div>
+          <div class="status-metric__sub">
+            <span v-if="structure.unassignedPlayerCount > 0" class="text-muted">
+              {{ structure.unassignedPlayerCount }} jugador{{ structure.unassignedPlayerCount !== 1 ? 'es' : '' }} sin pod
+            </span>
+            <span v-else class="status-metric__sub--ok">Todos los jugadores están en pods</span>
+          </div>
         </div>
-        <div class="summary-item">
-          <div class="label">Mesas registradas</div>
-          <div class="value">{{ structure.currentGroupCount }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="label">Amenaza target</div>
-          <div class="value">{{ structure.schemeThreatTarget }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="label">Mesas sin asignar</div>
-          <div class="value">{{ structure.unassignedGroupCount }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="label">Jugadores sin pod</div>
-          <div class="value">{{ structure.unassignedPlayerCount }}</div>
+
+        <!-- Amenaza target -->
+        <div class="status-stat">
+          <span class="status-stat__label">Amenaza target</span>
+          <span class="status-stat__value">{{ structure.schemeThreatTarget }}</span>
+          <span class="status-stat__hint text-muted">Objetivo de amenaza global</span>
         </div>
       </div>
 
@@ -427,6 +478,125 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--c-primary) 10%, var(--c-surface));
 }
 
+/* ── Setup status panel ────────────────────────────── */
+
+.setup-status {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.status-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--c-surface-alt);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+}
+
+.status-metric__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-metric__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-muted);
+}
+
+.status-metric__fraction {
+  line-height: 1;
+}
+
+.status-metric__current {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.status-metric__separator {
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: var(--c-text-muted);
+}
+
+.status-metric__total {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--c-text-muted);
+}
+
+.status-metric__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c-border) 60%, transparent);
+  overflow: hidden;
+}
+
+.status-metric__fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease, background-color 0.3s ease;
+}
+
+.status-metric__fill--ready {
+  background: var(--c-success);
+}
+
+.status-metric__fill--pending {
+  background: var(--c-warning);
+}
+
+.status-metric__sub {
+  font-size: 0.82rem;
+  min-height: 1.2em;
+}
+
+.status-metric__sub--ok {
+  color: var(--c-success);
+  font-weight: 500;
+}
+
+.status-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--c-surface-alt);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  min-width: 130px;
+  text-align: center;
+}
+
+.status-stat__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-muted);
+}
+
+.status-stat__value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--c-threat);
+  line-height: 1;
+}
+
+.status-stat__hint {
+  font-size: 0.78rem;
+}
+
 @media (max-width: 720px) {
   .create-pod-card__form {
     grid-template-columns: 1fr;
@@ -434,6 +604,15 @@ onUnmounted(() => {
 
   .create-pod-card__button {
     width: 100%;
+  }
+
+  .setup-status {
+    flex-direction: column;
+  }
+
+  .status-stat {
+    text-align: left;
+    min-width: unset;
   }
 }
 </style>
