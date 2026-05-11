@@ -75,7 +75,7 @@ describe('CreateEventView', () => {
     expect(wrapper.find('#name').exists()).toBe(true)
     expect(wrapper.find('#players').exists()).toBe(false)
     expect(wrapper.find('#villain').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Cartas inter-pod para este evento')
+    expect(wrapper.text()).toContain('Cartas inter-nodo para este evento')
     expect(wrapper.text()).toContain('Se calculará automáticamente')
     // Organizer fields no longer exist
     expect(wrapper.find('#orgUser').exists()).toBe(false)

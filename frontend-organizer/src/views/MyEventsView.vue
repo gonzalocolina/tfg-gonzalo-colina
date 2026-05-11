@@ -71,11 +71,11 @@ onMounted(load)
 <template>
   <div class="my-events-page">
     <div class="my-events-header">
-      <h1>Mis Eventos</h1>
+      <h1 style="min-width: 200px;">Mis Eventos</h1>
       <div class="header-actions">
         <router-link to="/invitations" class="btn btn-secondary">Mis invitaciones</router-link>
         <router-link to="/villains" class="btn btn-secondary">Gestionar villanos</router-link>
-        <router-link to="/inter-pod-cards" class="btn btn-secondary">Gestionar cartas inter-pod</router-link>
+        <router-link to="/inter-pod-cards" class="btn btn-secondary">Gestionar cartas inter-nodo</router-link>
         <router-link to="/create-event" class="btn btn-primary">+ Crear nuevo evento</router-link>
         <button class="btn btn-logout" @click="logout">Cerrar sesión</button>
       </div>
@@ -90,7 +90,7 @@ onMounted(load)
       <p>No tienes eventos todavía.</p>
       <router-link to="/invitations" class="btn btn-secondary">Revisar invitaciones</router-link>
       <router-link to="/villains" class="btn btn-secondary" style="margin-left: 8px">Configurar villanos</router-link>
-      <router-link to="/inter-pod-cards" class="btn btn-secondary" style="margin-left: 8px">Configurar cartas inter-pod</router-link>
+      <router-link to="/inter-pod-cards" class="btn btn-secondary" style="margin-left: 8px">Configurar cartas inter-nodo</router-link>
       <router-link to="/create-event" class="btn btn-primary" style="margin-left: 8px;">Crear tu primer evento</router-link>
     </div>
 
@@ -129,7 +129,7 @@ onMounted(load)
           </div>
         </div>
         <div v-if="!event.currentUserIsOwner" class="shared-responsibilities">
-          <span class="stat-label">Responsabilidades delegadas</span>
+          <span class="stat-label">Responsabilidades delegadas: </span>
           <span class="stat-value">{{ formatResponsibilities(event.currentUserResponsibilities) }}</span>
         </div>
         <div class="event-card-footer">

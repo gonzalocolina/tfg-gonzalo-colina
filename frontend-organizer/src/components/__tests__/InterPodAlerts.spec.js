@@ -82,7 +82,7 @@ describe('InterPodAlerts', () => {
       { id: 99, url: '/api/events/1/inter-pod-cards/99/image' },
     ])
 
-    const image = wrapper.find('img[alt="Carta inter-pod"]')
+    const image = wrapper.find('img[alt="Carta inter-nodo"]')
     expect(image.exists()).toBe(true)
     expect(image.attributes('src')).toBe('blob:card-99')
   })

@@ -77,7 +77,7 @@ const ICONS = {
 const navItems = computed(() => {
   const items = [
     { label: 'Villanos', icon: 'mask', to: villainsRoute.value },
-    { label: 'Cartas Inter-Pod', icon: 'tag', to: interPodCardsRoute.value },
+    { label: 'Cartas Inter-Nodo', icon: 'tag', to: interPodCardsRoute.value },
   ]
 
   if (showInvitationsLink.value) {

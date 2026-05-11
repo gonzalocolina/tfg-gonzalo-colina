@@ -227,8 +227,8 @@ describe('PlayerGameView', () => {
     const image = wrapper.find('.interpod-inline-img')
     expect(image.exists()).toBe(true)
     expect(image.attributes('src')).toBe('blob:player-card-77')
-    expect(wrapper.html().indexOf('THREAT')).toBeLessThan(wrapper.html().indexOf('Cartas Inter-Pod activas'))
-    expect(wrapper.html().indexOf('Cartas Inter-Pod activas')).toBeLessThan(wrapper.html().indexOf('Pods y mesas'))
+    expect(wrapper.html().indexOf('THREAT')).toBeLessThan(wrapper.html().indexOf('Cartas Inter-Nodo activas'))
+    expect(wrapper.html().indexOf('Cartas Inter-Nodo activas')).toBeLessThan(wrapper.html().indexOf('Pods y mesas'))
 
     wrapper.unmount()
   })

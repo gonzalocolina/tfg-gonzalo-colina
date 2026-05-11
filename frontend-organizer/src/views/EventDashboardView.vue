@@ -177,13 +177,13 @@ onMounted(loadVillains)
             <div class="value" style="font-size: 1rem">{{ event.organizerUsername }}</div>
           </div>
           <div class="summary-item" style="grid-column: 1 / -1">
-            <div class="label">Cartas inter-pod seleccionadas</div>
+            <div class="label">Cartas inter-nodo seleccionadas</div>
             <div class="value" style="font-size: 1rem">
               <template v-if="event.selectedInterPodCardDefinitions?.length">
                 {{ event.selectedInterPodCardDefinitions.map((definition) => prettyCardName(definition.name)).join(', ') }}
               </template>
               <template v-else>
-                No hay cartas inter-pod seleccionadas.
+                No hay cartas inter-nodo seleccionadas.
               </template>
             </div>
           </div>
@@ -245,7 +245,7 @@ onMounted(loadVillains)
           Gestionar villanos
         </router-link>
         <router-link :to="{ name: 'event-inter-pod-cards', params: { eventId } }" class="btn btn-secondary">
-          Gestionar cartas inter-pod
+          Gestionar cartas inter-nodo
         </router-link>
         <button class="btn btn-danger" @click="handleDelete">Eliminar evento</button>
         <router-link

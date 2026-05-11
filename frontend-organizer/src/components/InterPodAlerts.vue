@@ -75,7 +75,7 @@ async function handleReportDamage(card) {
       card.id,
       { damage },
     )
-    notif.success('Daño aplicado a la carta inter-pod')
+    notif.success('Daño aplicado a la carta inter-nodo')
     damageByCard.value[card.id] = ''
     await load()
   } catch (err) {
@@ -113,7 +113,7 @@ async function handleDeleteCard(card) {
   mutatingCardId.value = card.id
   try {
     await deleteInterPodCard(props.eventId, card.id)
-    notif.success('Carta inter-pod eliminada')
+    notif.success('Carta inter-nodo eliminada')
     await load()
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al eliminar carta')
@@ -143,14 +143,14 @@ onMounted(() => {
 <template>
   <div class="card">
     <div class="card-header">
-      <h3>Cartas Inter-Pod</h3>
+      <h3>Cartas Inter-Nodo</h3>
       <button v-if="!disabled" type="button" class="btn btn-secondary btn-sm" @click="load">
         Actualizar
       </button>
     </div>
 
     <div v-if="loading" class="text-muted">Cargando…</div>
-    <div v-else-if="!cards.length" class="text-muted">No hay cartas inter-pod.</div>
+    <div v-else-if="!cards.length" class="text-muted">No hay cartas inter-nodo.</div>
     <div v-else class="table-wrap">
       <table>
         <thead>
@@ -188,7 +188,7 @@ onMounted(() => {
               >
                 <img
                   :src="getProtectedImageUrl(card.id)"
-                  alt="Carta inter-pod"
+                  alt="Carta inter-nodo"
                   style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--c-border)"
                   @error="handleImageLoadError"
                 />
