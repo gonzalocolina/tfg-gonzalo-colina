@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNotificationsStore } from '@/stores/notifications'
+import { getEvent, updateEvent } from '@/api/events'
 import {
   getInterPodCardDefinitions,
   createInterPodCardDefinition,
@@ -12,7 +13,9 @@ import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 
 const route = useRoute()
 const notif = useNotificationsStore()
+
 const eventId = computed(() => route?.params?.eventId || null)
+const isEventScoped = computed(() => Boolean(eventId.value))
 const backRoute = computed(() => {
   if (eventId.value) {
     return {
@@ -24,13 +27,18 @@ const backRoute = computed(() => {
   return { name: 'my-events' }
 })
 const backLabel = computed(() => (eventId.value ? 'Volver al evento' : 'Volver a eventos'))
+const pageTitle = computed(() => (isEventScoped.value ? 'Cartas Inter-Nodo del Evento' : 'Cartas Inter-Nodo'))
 
 const definitions = ref([])
+const event = ref(null)
 const loading = ref(true)
+const loadingEvent = ref(false)
 const savingCreate = ref(false)
 const savingEdit = ref(false)
+const savingSelection = ref(false)
 const deletingId = ref(null)
 const editingId = ref(null)
+const selectedDefinitionIds = ref([])
 
 const CATEGORY_OPTIONS = ['PLAN', 'ESBIRRO']
 const STATUS_OPTIONS = ['OCULTA', 'REVELADA', 'DERROTADA']
@@ -53,6 +61,34 @@ const editImage = ref(null)
 const editImagePreviewUrl = ref(null)
 const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth')
 
+const canEditEventSelection = computed(() => {
+  if (!isEventScoped.value || !event.value) return false
+  return event.value.currentUserIsOwner === true && event.value.status === 'DRAFT'
+})
+
+const currentEventDefinitionIds = computed(() =>
+  (event.value?.selectedInterPodCardDefinitions || []).map((definition) => definition.id),
+)
+
+const eventSelectionChanged = computed(() => !sameIdSelection(selectedDefinitionIds.value, currentEventDefinitionIds.value))
+
+const eventSelectionDisabledMessage = computed(() => {
+  if (!isEventScoped.value || loadingEvent.value || !event.value) return ''
+  if (event.value.currentUserIsOwner !== true) {
+    return 'Solo el organizador principal puede cambiar las cartas inter-nodo del evento.'
+  }
+  if (event.value.status !== 'DRAFT') {
+    return 'Las cartas inter-nodo del evento solo se pueden cambiar mientras el evento está en borrador.'
+  }
+  return ''
+})
+
+const selectedDefinitionNames = computed(() =>
+  definitions.value
+    .filter((definition) => selectedDefinitionIds.value.includes(definition.id))
+    .map((definition) => prettyCardName(definition.name)),
+)
+
 function buildDefinitionImageEntries(entries) {
   return entries
     .filter((definition) => definition?.id != null && definition?.imageUrl)
@@ -60,6 +96,16 @@ function buildDefinitionImageEntries(entries) {
       id: definition.id,
       url: definition.imageUrl,
     }))
+}
+
+function normalizeIdSelection(ids) {
+  return [...new Set((ids || []).filter((id) => id != null))].sort((left, right) => left - right)
+}
+
+function sameIdSelection(left, right) {
+  const normalizedLeft = normalizeIdSelection(left)
+  const normalizedRight = normalizeIdSelection(right)
+  return normalizedLeft.length === normalizedRight.length && normalizedLeft.every((id, index) => id === normalizedRight[index])
 }
 
 function clearEditImagePreview() {
@@ -78,7 +124,7 @@ function setEditImage(file) {
   }
 }
 
-async function load({ forceImages = false } = {}) {
+async function loadDefinitions({ forceImages = false } = {}) {
   loading.value = true
   try {
     const { data } = await getInterPodCardDefinitions()
@@ -89,6 +135,39 @@ async function load({ forceImages = false } = {}) {
   } finally {
     loading.value = false
   }
+}
+
+async function loadEventContext() {
+  if (!isEventScoped.value) {
+    event.value = null
+    selectedDefinitionIds.value = []
+    return
+  }
+
+  loadingEvent.value = true
+  try {
+    const { data } = await getEvent(eventId.value)
+    event.value = data
+    selectedDefinitionIds.value = (data?.selectedInterPodCardDefinitions || []).map((definition) => definition.id)
+  } catch (err) {
+    event.value = null
+    selectedDefinitionIds.value = []
+    notif.error(err.response?.data?.message || 'Error al cargar la configuración del evento')
+  } finally {
+    loadingEvent.value = false
+  }
+}
+
+async function loadPage() {
+  cancelEdit()
+  if (isEventScoped.value) {
+    await Promise.all([loadDefinitions(), loadEventContext()])
+    return
+  }
+
+  event.value = null
+  selectedDefinitionIds.value = []
+  await loadDefinitions()
 }
 
 function resetCreateForm() {
@@ -109,6 +188,15 @@ function prettyCardName(name) {
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
 }
 
+function toggleEventDefinition(definitionId) {
+  const selectedIds = selectedDefinitionIds.value
+  if (selectedIds.includes(definitionId)) {
+    selectedDefinitionIds.value = selectedIds.filter((id) => id !== definitionId)
+    return
+  }
+  selectedDefinitionIds.value = [...selectedIds, definitionId]
+}
+
 function startEdit(definition) {
   editingId.value = definition.id
   editForm.value = {
@@ -125,13 +213,42 @@ function cancelEdit() {
   editingId.value = null
 }
 
+function buildEventUpdatePayload(overrides = {}) {
+  return {
+    name: event.value.name,
+    timeLimitMinutes: event.value.timeLimitMinutes,
+    villainDefinitionId: event.value.villainDefinitionId,
+    interPodCardDefinitionIds: currentEventDefinitionIds.value,
+    ...overrides,
+  }
+}
+
+async function handleSaveEventSelection() {
+  if (!event.value) return
+
+  savingSelection.value = true
+  try {
+    const { data } = await updateEvent(
+      eventId.value,
+      buildEventUpdatePayload({ interPodCardDefinitionIds: selectedDefinitionIds.value }),
+    )
+    event.value = data
+    selectedDefinitionIds.value = (data?.selectedInterPodCardDefinitions || []).map((definition) => definition.id)
+    notif.success('Cartas inter-nodo del evento actualizadas')
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al actualizar las cartas inter-nodo del evento')
+  } finally {
+    savingSelection.value = false
+  }
+}
+
 async function handleCreate() {
   savingCreate.value = true
   try {
     await createInterPodCardDefinition(createForm.value, createImage.value)
     notif.success('Carta inter-nodo creada')
     resetCreateForm()
-    await load()
+    await loadDefinitions()
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al crear carta inter-nodo')
   } finally {
@@ -147,7 +264,7 @@ async function handleUpdate(definitionId) {
     notif.success('Carta inter-nodo actualizada')
     editingId.value = null
     setEditImage(null)
-    await load({ forceImages: shouldRefreshImages })
+    await loadDefinitions({ forceImages: shouldRefreshImages })
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al actualizar carta inter-nodo')
   } finally {
@@ -161,7 +278,7 @@ async function handleDelete(definition) {
   try {
     await deleteInterPodCardDefinition(definition.id)
     notif.success('Carta inter-nodo eliminada')
-    await load()
+    await loadDefinitions()
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al eliminar carta inter-nodo')
   } finally {
@@ -169,7 +286,20 @@ async function handleDelete(definition) {
   }
 }
 
-onMounted(load)
+function statusBadgeClass(status) {
+  return {
+    DRAFT: 'badge-draft',
+    READY: 'badge-ready',
+    IN_PROGRESS: 'badge-in-progress',
+    FINISHED: 'badge-finished',
+    CANCELLED: 'badge-cancelled',
+  }[status] || 'badge-draft'
+}
+
+watch(eventId, () => {
+  void loadPage()
+}, { immediate: true })
+
 onUnmounted(() => {
   clearEditImagePreview()
 })
@@ -178,12 +308,117 @@ onUnmounted(() => {
 <template>
   <div>
     <div class="flex" style="align-items: center; justify-content: space-between; margin-bottom: 16px">
-      <h1 class="page-title" style="margin-bottom: 0">Cartas Inter-Nodo</h1>
+      <h1 class="page-title" style="margin-bottom: 0">{{ pageTitle }}</h1>
       <router-link class="btn btn-secondary" :to="backRoute">{{ backLabel }}</router-link>
     </div>
 
+    <div v-if="isEventScoped" class="card">
+      <div class="card-header" style="gap: 12px; align-items: flex-start">
+        <div>
+          <h3 style="margin-bottom: 6px">Selección para el evento</h3>
+          <p class="text-muted" style="font-size: 0.9rem">
+            Marca qué cartas inter-nodo estarán disponibles en <strong>{{ event?.name || 'este evento' }}</strong>.
+            Esta selección es específica del evento y no modifica el catálogo global.
+          </p>
+        </div>
+        <span v-if="event?.status" class="badge" :class="statusBadgeClass(event.status)">
+          {{ event.status }}
+        </span>
+      </div>
+
+      <div v-if="loadingEvent" class="text-muted">Cargando configuración del evento…</div>
+      <template v-else-if="event">
+        <div class="summary-grid" style="margin-bottom: 16px">
+          <div class="summary-item">
+            <div class="label">Evento</div>
+            <div class="value" style="font-size: 1rem">{{ event.name }}</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Seleccionadas</div>
+            <div class="value">{{ selectedDefinitionIds.length }}</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Villano actual</div>
+            <div class="value" style="font-size: 1rem">{{ event.villainName }}</div>
+          </div>
+        </div>
+
+        <div v-if="loading" class="text-muted">Cargando catálogo de cartas inter-nodo…</div>
+        <div v-else-if="!definitions.length" class="text-muted">
+          No hay cartas inter-nodo disponibles. <router-link :to="{ name: 'inter-pod-cards' }">Créelas aquí</router-link>.
+        </div>
+        <div v-else class="selection-grid">
+          <label
+            v-for="definition in definitions"
+            :key="definition.id"
+            class="selection-card"
+            :class="{ 'is-selected': selectedDefinitionIds.includes(definition.id) }"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedDefinitionIds.includes(definition.id)"
+              :disabled="!canEditEventSelection || savingSelection"
+              @change="toggleEventDefinition(definition.id)"
+            />
+            <img
+              v-if="getProtectedImageUrl(definition.id)"
+              :src="getProtectedImageUrl(definition.id)"
+              alt="Carta"
+              class="selection-card-image"
+            />
+            <div class="selection-card-content">
+              <div class="selection-card-actions">
+                <div class="selection-card-title">{{ prettyCardName(definition.name) }}</div>
+                <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
+                  {{ definition.type }}
+                </span>
+              </div>
+              <div class="selection-card-meta">
+                {{ definition.cardCategory }} · HP {{ definition.defaultHpMax }}
+              </div>
+              <div class="selection-card-tags">
+                <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
+                  {{ definition.ownerUsername ? `Personalizada · ${definition.ownerUsername}` : 'Sistema' }}
+                </span>
+                <span v-if="selectedDefinitionIds.includes(definition.id)" class="badge badge-ready">Seleccionada</span>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            v-if="canEditEventSelection"
+            class="btn btn-primary"
+            :disabled="savingSelection || !eventSelectionChanged"
+            @click="handleSaveEventSelection"
+          >
+            {{ savingSelection ? 'Guardando…' : 'Guardar cartas del evento' }}
+          </button>
+        </div>
+
+        <p v-if="eventSelectionDisabledMessage" class="warn-box">
+          {{ eventSelectionDisabledMessage }}
+        </p>
+        <p v-else class="text-muted" style="font-size: 0.9rem; margin-top: 8px">
+          <template v-if="selectedDefinitionNames.length">
+            Seleccionadas: <strong>{{ selectedDefinitionNames.join(', ') }}</strong>.
+          </template>
+          <template v-else>
+            Si no seleccionas ninguna, el evento no ofrecerá cartas inter-nodo.
+          </template>
+        </p>
+      </template>
+      <div v-else class="text-muted">No se pudo cargar la configuración del evento.</div>
+    </div>
+
     <div class="card">
-      <h3 style="margin-bottom: 12px">Crear carta inter-nodo personalizada</h3>
+      <h3 style="margin-bottom: 8px">
+        {{ isEventScoped ? 'Crear carta y añadirla al catálogo' : 'Crear carta inter-nodo personalizada' }}
+      </h3>
+      <p v-if="isEventScoped" class="text-muted" style="margin-bottom: 12px; font-size: 0.9rem">
+        Las cartas que crees aquí se añaden a tu catálogo personal. Después podrás marcarlas arriba para este evento.
+      </p>
       <form @submit.prevent="handleCreate">
         <div class="form-group">
           <label for="new-card-name">Nombre</label>
@@ -246,7 +481,12 @@ onUnmounted(() => {
     </div>
 
     <div class="card mt-2">
-      <h3 style="margin-bottom: 12px">Catálogo de cartas inter-nodo</h3>
+      <h3 style="margin-bottom: 8px">
+        {{ isEventScoped ? 'Catálogo disponible para este evento' : 'Catálogo de cartas inter-nodo' }}
+      </h3>
+      <p v-if="isEventScoped" class="text-muted" style="margin-bottom: 12px; font-size: 0.9rem">
+        Gestiona aquí las cartas disponibles; la selección concreta del evento se guarda desde el bloque superior.
+      </p>
       <div v-if="loading" class="text-muted">Cargando…</div>
       <div v-else-if="!definitions.length" class="text-muted">No hay cartas inter-nodo disponibles.</div>
       <div v-else class="table-wrap">

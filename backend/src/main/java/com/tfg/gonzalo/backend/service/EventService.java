@@ -162,6 +162,7 @@ public class EventService {
         Event event = findEvent(eventId);
         accessControlService.requireOrganizerForEvent(event);
         ensureEditable(event);
+
         Long currentVillainDefinitionId = event.getVillainDefinition() != null
             ? event.getVillainDefinition().getId()
             : null;
@@ -170,10 +171,18 @@ public class EventService {
             : request.villainDefinitionId();
         VillainDefinition selectedVillain = villainService
             .findSelectableVillainForOrganizer(event.getOrganizer().getId(), villainDefinitionId);
+        List<InterPodCardDefinition> selectedInterPodCardDefinitions = request.interPodCardDefinitionIds() == null
+            ? event.getInterPodCardDefinitions().stream().toList()
+            : interPodCardDefinitionService.resolveSelectedDefinitionsForOrganizer(
+                event.getOrganizer().getId(),
+                request.interPodCardDefinitionIds(),
+                false
+            );
 
         event.setName(request.name().trim());
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
         event.setVillainDefinition(selectedVillain);
+        event.setInterPodCardDefinitions(new LinkedHashSet<>(selectedInterPodCardDefinitions));
         applyVillainSnapshot(event, selectedVillain);
         event = eventRepository.save(event);
 

@@ -177,11 +177,21 @@ public class InterPodCardDefinitionService {
     @Transactional(readOnly = true)
     public List<InterPodCardDefinition> resolveSelectedDefinitionsForOrganizer(Long organizerId,
                                                                                List<Long> requestedDefinitionIds) {
+        return resolveSelectedDefinitionsForOrganizer(organizerId, requestedDefinitionIds, true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InterPodCardDefinition> resolveSelectedDefinitionsForOrganizer(Long organizerId,
+                                                                               List<Long> requestedDefinitionIds,
+                                                                               boolean useDefaultSelectionWhenEmpty) {
         List<Long> normalizedIds = requestedDefinitionIds == null
                 ? List.of()
             : requestedDefinitionIds.stream().filter(Objects::nonNull).distinct().toList();
 
         if (normalizedIds.isEmpty()) {
+            if (!useDefaultSelectionWhenEmpty) {
+                return List.of();
+            }
             return deduplicateDefinitions(
                     interPodCardDefinitionRepository.findByTypeOrderByNameAsc(InterPodCardDefinitionType.PREDEFINED));
         }
