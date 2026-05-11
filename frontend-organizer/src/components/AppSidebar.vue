@@ -166,7 +166,7 @@ function handleLogout() {
     </nav>
 
     <div class="sidebar-footer">
-      <button class="btn btn-secondary btn-sm" style="width: 100%" @click="handleLogout">
+      <button class="btn btn-secondary btn-sm" style="width: 100%;  justify-content: center;" @click="handleLogout">
         Cerrar sesión
       </button>
     </div>

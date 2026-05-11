@@ -507,10 +507,6 @@ onUnmounted(() => {
         Este evento no tiene cartas inter-nodo habilitadas.
       </p>
 
-      <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px">
-        Solo tienes que indicar que te ha aparecido la carta. Su estado se muestra automáticamente: al revelarse aparece como revelada y, si su HP llega a 0, pasa a derrotada.
-      </p>
-
       <button
         class="btn btn-primary btn-block btn-lg"
         :disabled="creating || loadingDefinitions || !selectedDefinitions.length || actionsDisabled"
@@ -576,7 +572,7 @@ onUnmounted(() => {
               style="width: 90px"
             />
             <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleDamage(a)">
-              Daño
+              Registrar daño
             </button>
           </div>
         </div>

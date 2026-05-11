@@ -1,5 +1,7 @@
 package com.tfg.gonzalo.backend.controller;
 
+import com.tfg.gonzalo.backend.dto.gamestate.DelegatedThreatRequest;
+import com.tfg.gonzalo.backend.dto.gamestate.DelegatedVillainDamageRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateOperationResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateSnapshotResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.ManualThreatUpdateRequest;
@@ -42,6 +44,18 @@ public class GameStateController {
     public GameStateOperationResponse reportThreat(@PathVariable Long eventId,
                                                    @Valid @RequestBody ReportThreatRequest request) {
         return gameStateService.reportThreat(eventId, request);
+    }
+
+    @PostMapping("/villain-damage/delegated")
+    public GameStateOperationResponse delegateVillainDamage(@PathVariable Long eventId,
+                                                            @Valid @RequestBody DelegatedVillainDamageRequest request) {
+        return gameStateService.delegateVillainDamage(eventId, request);
+    }
+
+    @PostMapping("/threat/delegated")
+    public GameStateOperationResponse delegateThreat(@PathVariable Long eventId,
+                                                     @Valid @RequestBody DelegatedThreatRequest request) {
+        return gameStateService.delegateThreat(eventId, request);
     }
 
     @PatchMapping("/villain-hp")
