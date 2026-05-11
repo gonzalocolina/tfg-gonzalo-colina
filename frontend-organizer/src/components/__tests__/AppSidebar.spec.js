@@ -107,6 +107,21 @@ describe('AppSidebar', () => {
     })
   })
 
+  it('shows invitations only on the my-events home route', async () => {
+    const { wrapper } = await mountSidebar('/my-events')
+
+    expect(getGameState).not.toHaveBeenCalled()
+    expect(getEvent).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Mis invitaciones')
+    expect(wrapper.text()).toContain('Villanos')
+    expect(wrapper.text()).toContain('Cartas Inter-Pod')
+    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/villains"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/inter-pod-cards"]').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
   it('keeps the event navigation visible on the event villains route', async () => {
     const { wrapper } = await mountSidebar('/event/42/villains')
 
@@ -115,10 +130,67 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).toContain('Dashboard')
     expect(wrapper.text()).toContain('Pods y Mesas')
     expect(wrapper.text()).toContain('Co-organizadores')
+    expect(wrapper.text()).not.toContain('Mis invitaciones')
+    expect(wrapper.text()).toContain('Partida')
+    expect(wrapper.text()).toContain('Registro (Log)')
+    expect(wrapper.find('a[href="/event/42/roles"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/event/42/villains"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/event/42/inter-pod-cards"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('keeps the event navigation visible for non-owners on the event villains route', async () => {
+    getEvent.mockResolvedValueOnce({
+      data: {
+        id: 42,
+        currentUserIsOwner: false,
+      },
+    })
+
+    const { wrapper } = await mountSidebar('/event/42/villains')
+
+    expect(getGameState).toHaveBeenCalledWith('42')
+    expect(getEvent).toHaveBeenCalledWith('42')
+    expect(wrapper.text()).toContain('Dashboard')
+    expect(wrapper.text()).not.toContain('Mis invitaciones')
+    expect(wrapper.text()).not.toContain('Pods y Mesas')
+    expect(wrapper.text()).not.toContain('Co-organizadores')
     expect(wrapper.text()).toContain('Partida')
     expect(wrapper.text()).toContain('Registro (Log)')
     expect(wrapper.find('a[href="/event/42/villains"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/event/42/inter-pod-cards"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/villains"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/inter-pod-cards"]').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('keeps the event navigation visible for non-owners on the event inter-pod cards route', async () => {
+    getEvent.mockResolvedValueOnce({
+      data: {
+        id: 42,
+        currentUserIsOwner: false,
+      },
+    })
+
+    const { wrapper } = await mountSidebar('/event/42/inter-pod-cards')
+
+    expect(getGameState).toHaveBeenCalledWith('42')
+    expect(getEvent).toHaveBeenCalledWith('42')
+    expect(wrapper.text()).toContain('Dashboard')
+    expect(wrapper.text()).not.toContain('Mis invitaciones')
+    expect(wrapper.text()).not.toContain('Pods y Mesas')
+    expect(wrapper.text()).not.toContain('Co-organizadores')
+    expect(wrapper.text()).toContain('Partida')
+    expect(wrapper.text()).toContain('Registro (Log)')
+    expect(wrapper.find('a[href="/event/42/villains"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/event/42/inter-pod-cards"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/villains"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/inter-pod-cards"]').exists()).toBe(false)
 
     wrapper.unmount()
   })
@@ -128,10 +200,12 @@ describe('AppSidebar', () => {
 
     expect(getGameState).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('Dashboard')
+    expect(wrapper.text()).not.toContain('Mis invitaciones')
     expect(wrapper.text()).not.toContain('Pods y Mesas')
     expect(wrapper.text()).not.toContain('Co-organizadores')
     expect(wrapper.text()).toContain('Villanos')
     expect(wrapper.text()).toContain('Cartas Inter-Pod')
+    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/villains"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/inter-pod-cards"]').exists()).toBe(true)
 
