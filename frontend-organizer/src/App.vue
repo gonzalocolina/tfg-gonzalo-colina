@@ -9,7 +9,7 @@ const route = useRoute()
 const auth = useAuthStore()
 
 const showSidebar = computed(() => {
-  const noSidebar = ['login', 'register', 'my-events', 'create-event']
+  const noSidebar = ['login', 'register', 'my-events', 'create-event', 'invitations']
   return auth.isAuthenticated && !noSidebar.includes(route.name)
 })
 </script>

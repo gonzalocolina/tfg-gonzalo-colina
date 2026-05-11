@@ -201,6 +201,49 @@ fieldset.form-group {
   border-color: var(--c-primary);
 }
 
+.password-control {
+  position: relative;
+}
+
+.password-control .form-control {
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.password-toggle:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-border) 55%, transparent);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  color: var(--c-text);
+}
+
+.password-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
 select.form-control {
   appearance: none;
 }
