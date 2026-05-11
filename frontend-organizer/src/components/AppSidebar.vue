@@ -12,9 +12,10 @@ const gs = useGameStateStore()
 const currentEvent = ref(null)
 
 const eventId = computed(() => route.params.eventId)
+const showInvitationsLink = computed(() => route.name === 'my-events')
 const currentEventIsOwner = computed(() => currentEvent.value?.currentUserIsOwner === true)
 const villainsRoute = computed(() => {
-  if (eventId.value && currentEventIsOwner.value) {
+  if (eventId.value) {
     return {
       name: 'event-villains',
       params: { eventId: eventId.value },
@@ -25,7 +26,7 @@ const villainsRoute = computed(() => {
 })
 
 const interPodCardsRoute = computed(() => {
-  if (eventId.value && currentEventIsOwner.value) {
+  if (eventId.value) {
     return {
       name: 'event-inter-pod-cards',
       params: { eventId: eventId.value },
@@ -75,10 +76,13 @@ const ICONS = {
 
 const navItems = computed(() => {
   const items = [
-    { label: 'Mis invitaciones', icon: 'users', to: { name: 'invitations' } },
     { label: 'Villanos', icon: 'mask', to: villainsRoute.value },
     { label: 'Cartas Inter-Pod', icon: 'tag', to: interPodCardsRoute.value },
   ]
+
+  if (showInvitationsLink.value) {
+    items.unshift({ label: 'Mis invitaciones', icon: 'users', to: { name: 'invitations' } })
+  }
 
   if (!eventId.value) {
     return items
