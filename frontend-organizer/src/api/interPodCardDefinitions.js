@@ -12,7 +12,8 @@ export function createInterPodCardDefinition(data, imageFile) {
   const formData = new FormData()
   formData.append('name', data.name)
   formData.append('cardCategory', data.cardCategory)
-  formData.append('defaultHpMax', String(data.defaultHpMax))
+  formData.append('defaultHpMax', String(data.defaultHpMax ?? 0))
+  formData.append('defaultThreatMax', String(data.defaultThreatMax ?? 0))
   if (data.defaultStatus) {
     formData.append('defaultStatus', data.defaultStatus)
   }
@@ -26,7 +27,8 @@ export function updateInterPodCardDefinition(definitionId, data, imageFile) {
   const formData = new FormData()
   formData.append('name', data.name)
   formData.append('cardCategory', data.cardCategory)
-  formData.append('defaultHpMax', String(data.defaultHpMax))
+  formData.append('defaultHpMax', String(data.defaultHpMax ?? 0))
+  formData.append('defaultThreatMax', String(data.defaultThreatMax ?? 0))
   if (data.defaultStatus) {
     formData.append('defaultStatus', data.defaultStatus)
   }

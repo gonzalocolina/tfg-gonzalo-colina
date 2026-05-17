@@ -4,13 +4,14 @@ import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UpdateInterPodCardDefinitionRequest(
         @NotBlank @Size(max = 120) String name,
-        @NotNull InterPodCardCategory cardCategory,
-        @NotNull @Min(1) Integer defaultHpMax,
-        InterPodCardStatus defaultStatus
+        InterPodCardCategory cardCategory,
+        @Min(0) Integer defaultHpMax,
+        @Min(0) Integer defaultThreatMax,
+        InterPodCardStatus defaultStatus,
+        @Size(max = 500) String imageUrl
 ) {
 }

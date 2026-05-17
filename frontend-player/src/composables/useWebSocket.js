@@ -22,6 +22,7 @@ export const NOTIFICATION_LABELS = {
   TIMER_5_MINUTES: '¡Solo quedan 5 minutos!',
   INTER_POD_CARD_CREATED: 'Se ha creado una carta inter-nodo en tu pod.',
   INTER_POD_CARD_DAMAGED: 'Una carta inter-nodo de tu pod ha recibido daño.',
+  INTER_POD_CARD_THREAT_UPDATED: 'Se ha actualizado la amenaza de una carta inter-nodo de tu pod.',
   INTER_POD_CARD_STATUS_UPDATED: 'Se ha actualizado el estado de una carta inter-nodo de tu pod.',
   INTER_POD_CARD_DELETED: 'Se ha eliminado una carta inter-nodo de tu pod.',
   EVENT_FINISHED_PLAYERS_VICTORY: '¡Victoria! ¡El villano ha sido derrotado!',

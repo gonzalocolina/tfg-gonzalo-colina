@@ -4,6 +4,12 @@ import { useRoute } from 'vue-router'
 import { useNotificationsStore } from '@/stores/notifications'
 import { getEvent, updateEvent } from '@/api/events'
 import { getVillains, createVillain, updateVillain, deleteVillain } from '@/api/villains'
+import {
+  eventStatusBadgeClass,
+  formatCatalogItemType,
+  formatEventStatus,
+  formatRuleType,
+} from '@/utils/displayLabels'
 
 const route = useRoute()
 const notif = useNotificationsStore()
@@ -213,16 +219,6 @@ async function handleDelete(villain) {
   }
 }
 
-function statusBadgeClass(status) {
-  return {
-    DRAFT: 'badge-draft',
-    READY: 'badge-ready',
-    IN_PROGRESS: 'badge-in-progress',
-    FINISHED: 'badge-finished',
-    CANCELLED: 'badge-cancelled',
-  }[status] || 'badge-draft'
-}
-
 watch(eventId, () => {
   void loadPage()
 }, { immediate: true })
@@ -244,8 +240,8 @@ watch(eventId, () => {
             Esta decisión afecta solo a este evento y no cambia el catálogo global.
           </p>
         </div>
-        <span v-if="event?.status" class="badge" :class="statusBadgeClass(event.status)">
-          {{ event.status }}
+        <span v-if="event?.status" class="badge" :class="eventStatusBadgeClass(event.status)">
+          {{ formatEventStatus(event.status) }}
         </span>
       </div>
 
@@ -262,7 +258,7 @@ watch(eventId, () => {
           </div>
           <div class="summary-item">
             <div class="label">Tipo</div>
-            <div class="value" style="font-size: 1rem">{{ event.villainType || '-' }}</div>
+            <div class="value" style="font-size: 1rem">{{ formatCatalogItemType(event.villainType) }}</div>
           </div>
         </div>
 
@@ -287,11 +283,11 @@ watch(eventId, () => {
               <div class="selection-card-actions">
                 <div class="selection-card-title">{{ v.name }}</div>
                 <span class="badge" :class="v.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                  {{ v.type }}
+                  {{ formatCatalogItemType(v.type) }}
                 </span>
               </div>
               <div class="selection-card-meta">
-                HP {{ v.hpRuleType }}: {{ v.hpRuleValue }} · Amenaza {{ v.threatRuleType }}: {{ v.threatRuleValue }}
+                HP {{ formatRuleType(v.hpRuleType) }}: {{ v.hpRuleValue }} · Amenaza {{ formatRuleType(v.threatRuleType) }}: {{ v.threatRuleValue }}
               </div>
               <div class="selection-card-tags">
                 <span class="badge" :class="v.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
@@ -347,7 +343,7 @@ watch(eventId, () => {
           <div class="form-group">
             <label for="new-hp-type">Regla HP</label>
             <select id="new-hp-type" v-model="createForm.hpRuleType" class="form-control" required>
-              <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ type }}</option>
+              <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ formatRuleType(type) }}</option>
             </select>
           </div>
           <div class="form-group">
@@ -367,7 +363,7 @@ watch(eventId, () => {
           <div class="form-group">
             <label for="new-threat-type">Regla Amenaza</label>
             <select id="new-threat-type" v-model="createForm.threatRuleType" class="form-control" required>
-              <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ type }}</option>
+              <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ formatRuleType(type) }}</option>
             </select>
           </div>
           <div class="form-group">
@@ -418,11 +414,11 @@ watch(eventId, () => {
                 <td>
                   <input v-model="editForm.name" class="form-control" maxlength="120" required />
                 </td>
-                <td>{{ v.type }}</td>
+                <td>{{ formatCatalogItemType(v.type) }}</td>
                 <td>
                   <div class="flex gap-1">
                     <select v-model="editForm.hpRuleType" class="form-control" style="width: 130px">
-                      <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ type }}</option>
+                      <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ formatRuleType(type) }}</option>
                     </select>
                     <input
                       v-model.number="editForm.hpRuleValue"
@@ -437,7 +433,7 @@ watch(eventId, () => {
                 <td>
                   <div class="flex gap-1">
                     <select v-model="editForm.threatRuleType" class="form-control" style="width: 130px">
-                      <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ type }}</option>
+                      <option v-for="type in RULE_TYPES" :key="type" :value="type">{{ formatRuleType(type) }}</option>
                     </select>
                     <input
                       v-model.number="editForm.threatRuleValue"
@@ -464,11 +460,11 @@ watch(eventId, () => {
                 <td>{{ v.name }}</td>
                 <td>
                   <span class="badge" :class="v.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                    {{ v.type }}
+                    {{ formatCatalogItemType(v.type) }}
                   </span>
                 </td>
-                <td>{{ v.hpRuleType }}: {{ v.hpRuleValue }}</td>
-                <td>{{ v.threatRuleType }}: {{ v.threatRuleValue }}</td>
+                <td>{{ formatRuleType(v.hpRuleType) }}: {{ v.hpRuleValue }}</td>
+                <td>{{ formatRuleType(v.threatRuleType) }}: {{ v.threatRuleValue }}</td>
                 <td>{{ v.ownerUsername || 'Sistema' }}</td>
                 <td>
                   <div v-if="v.type === 'CUSTOM'" class="flex gap-1">

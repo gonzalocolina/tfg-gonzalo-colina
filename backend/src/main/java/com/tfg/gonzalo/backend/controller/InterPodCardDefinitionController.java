@@ -48,10 +48,19 @@ public class InterPodCardDefinitionController {
     public InterPodCardDefinitionResponse createDefinition(
             @RequestParam("name") String name,
             @RequestParam("cardCategory") InterPodCardCategory cardCategory,
-            @RequestParam("defaultHpMax") Integer defaultHpMax,
+            @RequestParam(value = "defaultHpMax", required = false) Integer defaultHpMax,
+            @RequestParam(value = "defaultThreatMax", required = false) Integer defaultThreatMax,
             @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestPart(value = "image", required = false) MultipartFile image) {
-        var request = new CreateInterPodCardDefinitionRequest(name, cardCategory, defaultHpMax, defaultStatus);
+        var request = new CreateInterPodCardDefinitionRequest(
+                name,
+                cardCategory,
+                defaultHpMax,
+                defaultThreatMax,
+                defaultStatus,
+                imageUrl
+        );
         return interPodCardDefinitionService.createDefinition(request, image);
     }
 
@@ -60,10 +69,19 @@ public class InterPodCardDefinitionController {
             @PathVariable Long definitionId,
             @RequestParam("name") String name,
             @RequestParam("cardCategory") InterPodCardCategory cardCategory,
-            @RequestParam("defaultHpMax") Integer defaultHpMax,
+            @RequestParam(value = "defaultHpMax", required = false) Integer defaultHpMax,
+            @RequestParam(value = "defaultThreatMax", required = false) Integer defaultThreatMax,
             @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestPart(value = "image", required = false) MultipartFile image) {
-        var request = new UpdateInterPodCardDefinitionRequest(name, cardCategory, defaultHpMax, defaultStatus);
+        var request = new UpdateInterPodCardDefinitionRequest(
+                name,
+                cardCategory,
+                defaultHpMax,
+                defaultThreatMax,
+                defaultStatus,
+                imageUrl
+        );
         return interPodCardDefinitionService.updateDefinition(definitionId, request, image);
     }
 

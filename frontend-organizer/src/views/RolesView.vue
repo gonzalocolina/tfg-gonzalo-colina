@@ -9,6 +9,7 @@ import {
   revokeCoOrganizerInvitation,
 } from '@/api/roles'
 import { useNotificationsStore } from '@/stores/notifications'
+import { formatResponsibility, formatResponsibilities } from '@/utils/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,10 +32,6 @@ const form = ref({
 const RESPONSIBILITIES = ['VILLAIN_HP', 'THREAT', 'TIMER']
 
 const availableSlots = computed(() => Math.max(0, 3 - coOrganizers.value.length - pendingInvitations.value.length))
-
-function formatResponsibilities(responsibilities = []) {
-  return responsibilities.length ? responsibilities.join(', ') : '-'
-}
 
 function formatDate(value) {
   if (!value) return '-'
@@ -158,7 +155,7 @@ onMounted(load)
                 class="badge badge-ready"
                 style="margin-right: 4px"
               >
-                {{ responsibility }}
+                {{ formatResponsibility(responsibility) }}
               </span>
             </td>
           </tr>
@@ -229,7 +226,7 @@ onMounted(load)
           <div class="checkbox-group">
             <label v-for="responsibility in RESPONSIBILITIES" :key="responsibility">
               <input v-model="form.responsibilities" type="checkbox" :value="responsibility" />
-              {{ responsibility }}
+              {{ formatResponsibility(responsibility) }}
             </label>
           </div>
         </fieldset>

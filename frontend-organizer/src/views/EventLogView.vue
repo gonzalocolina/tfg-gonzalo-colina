@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { getEventLogs } from '@/api/logs'
 import { getEventStructure } from '@/api/setup'
 import { useNotificationsStore } from '@/stores/notifications'
+import { LOG_ACTION_TYPES, formatLogActionType } from '@/utils/displayLabels'
 
 const route = useRoute()
 const notif = useNotificationsStore()
@@ -17,28 +18,7 @@ const filterGroupId = ref('')
 const filterActionType = ref('')
 const groups = ref([])
 
-const ACTION_TYPES = [
-  'EVENT_CREATED',
-  'EVENT_UPDATED',
-  'EVENT_STARTED',
-  'POD_CREATED',
-  'GROUP_CREATED',
-  'VILLAIN_DAMAGE_REPORTED',
-  'VILLAIN_DAMAGE_DELEGATED',
-  'THREAT_REPORTED',
-  'THREAT_DELEGATED',
-  'VILLAIN_HP_CORRECTED',
-  'THREAT_CORRECTED',
-  'TIMER_STARTED',
-  'TIMER_PAUSED',
-  'TIMER_RESUMED',
-  'TIMER_ADJUSTED',
-  'INTER_POD_CARD_CREATED',
-  'INTER_POD_CARD_DAMAGED',
-  'INTER_POD_CARD_STATUS_UPDATED',
-  'INTER_POD_CARD_DELETED',
-  'EVENT_FINISHED',
-]
+const ACTION_TYPES = LOG_ACTION_TYPES
 
 async function loadGroups() {
   try {
@@ -108,7 +88,7 @@ onMounted(() => {
           <label for="filter-action">Tipo de acción</label>
           <select id="filter-action" v-model="filterActionType" class="form-control" @change="loadLogs">
             <option value="">Todos</option>
-            <option v-for="t in ACTION_TYPES" :key="t" :value="t">{{ t }}</option>
+            <option v-for="t in ACTION_TYPES" :key="t" :value="t">{{ formatLogActionType(t) }}</option>
           </select>
         </div>
         <button class="btn btn-secondary btn-sm" @click="loadLogs">Actualizar</button>
@@ -138,7 +118,7 @@ onMounted(() => {
               <td>{{ log.actor || '-' }}</td>
               <td>{{ log.groupIdentifier || '-' }}</td>
               <td>
-                <span class="badge badge-ready">{{ log.actionType }}</span>
+                <span class="badge badge-ready">{{ formatLogActionType(log.actionType) }}</span>
               </td>
               <td>{{ log.previousValue || '-' }}</td>
               <td>{{ log.newValue || '-' }}</td>

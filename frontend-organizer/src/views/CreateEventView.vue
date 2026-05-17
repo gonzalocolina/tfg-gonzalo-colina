@@ -5,6 +5,7 @@ import { createEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
 import { getInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 import { useNotificationsStore } from '@/stores/notifications'
+import { formatCardCategory, formatCardStatus, formatCatalogItemType } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
@@ -43,6 +44,13 @@ function prettyCardName(name) {
     .replaceAll('_', ' ')
     .toLowerCase()
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
+}
+
+function definitionMetricText(definition) {
+  if (definition.cardCategory === 'ESBIRRO') {
+    return `HP ${definition.defaultHpMax}`
+  }
+  return `Amenaza ${definition.defaultThreatMax}`
 }
 
 function toggleInterPodCardDefinition(definitionId) {
@@ -130,7 +138,7 @@ onMounted(async () => {
               {{ loadingVillains ? 'Cargando villanos…' : 'Selecciona un villano' }}
             </option>
             <option v-for="v in villains" :key="v.id" :value="v.id">
-              {{ v.name }} ({{ v.type }})
+              {{ v.name }} ({{ formatCatalogItemType(v.type) }})
             </option>
           </select>
           <small class="text-muted">
@@ -160,7 +168,7 @@ onMounted(async () => {
               <span>
                 <strong>{{ prettyCardName(definition.name) }}</strong>
                 <span class="text-muted" style="font-size: 0.85rem">
-                  · {{ definition.cardCategory }} · HP {{ definition.defaultHpMax }} · {{ definition.defaultStatus }}
+                  · {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricText(definition) }} · {{ formatCardStatus(definition.defaultStatus) }}
                 </span>
               </span>
             </label>

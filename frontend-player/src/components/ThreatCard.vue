@@ -19,7 +19,7 @@ function barColor(current, target) {
 
 <template>
   <div class="card">
-    <div class="card-title">Amenaza del Esquema</div>
+    <div class="card-title">Amenaza del Plan Principal</div>
     <div class="big-value" :style="{ color: barColor(props.current, props.target) }">
       {{ current }} <small>/ {{ target }}</small>
     </div>

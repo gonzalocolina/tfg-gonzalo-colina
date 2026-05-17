@@ -2,12 +2,14 @@
 import { ref, onMounted } from 'vue'
 import {
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
   updateInterPodCardStatus,
   deleteInterPodCard,
   getInterPodCards,
 } from '@/api/interPod'
 import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 import { useNotificationsStore } from '@/stores/notifications'
+import { formatCardCategory, formatCardStatus } from '@/utils/displayLabels'
 
 const props = defineProps({
   eventId: { type: [String, Number], required: true },
@@ -19,7 +21,7 @@ const notif = useNotificationsStore()
 const cards = ref([])
 const loading = ref(true)
 
-const damageByCard = ref({})
+const amountByCard = ref({})
 const statusByCard = ref({})
 const mutatingCardId = ref(null)
 
@@ -61,22 +63,60 @@ function prettyCardName(name) {
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
 }
 
-async function handleReportDamage(card) {
-  const damage = Number(damageByCard.value[card.id] || 0)
-  if (damage < 1) {
-    notif.error('El daño debe ser mayor que 0.')
+function isMinionCard(card) {
+  return card?.cardCategory === 'ESBIRRO'
+}
+
+function cardMetricLabel(card) {
+  return isMinionCard(card) ? 'HP' : 'Amenaza'
+}
+
+function cardCurrentValue(card) {
+  return isMinionCard(card) ? card.hpCurrent : card.threatCurrent
+}
+
+function cardMaxValue(card) {
+  return isMinionCard(card) ? card.hpMax : card.threatMax
+}
+
+function actionPlaceholder(card) {
+  return isMinionCard(card) ? 'Daño' : 'Amenaza'
+}
+
+function actionLabel(card) {
+  return isMinionCard(card) ? 'Daño' : 'Quitar amenaza'
+}
+
+function successMessage(card) {
+  return isMinionCard(card)
+    ? 'Daño aplicado a la carta inter-nodo'
+    : 'Amenaza retirada del plan inter-nodo'
+}
+
+async function handleApplyProgress(card) {
+  const amount = Number(amountByCard.value[card.id] || 0)
+  if (amount < 1) {
+    notif.error(isMinionCard(card) ? 'El daño debe ser mayor que 0.' : 'La amenaza debe ser mayor que 0.')
     return
   }
 
   mutatingCardId.value = card.id
   try {
-    await reportInterPodCardDamage(
-      props.eventId,
-      card.id,
-      { damage },
-    )
-    notif.success('Daño aplicado a la carta inter-nodo')
-    damageByCard.value[card.id] = ''
+    if (isMinionCard(card)) {
+      await reportInterPodCardDamage(
+        props.eventId,
+        card.id,
+        { damage: amount },
+      )
+    } else {
+      await reportInterPodCardThreat(
+        props.eventId,
+        card.id,
+        { threat: amount },
+      )
+    }
+    notif.success(successMessage(card))
+    amountByCard.value[card.id] = ''
     await load()
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error')
@@ -174,11 +214,11 @@ onMounted(() => {
             <td>{{ prettyCardName(card.cardName) }}</td>
             <td>
               <span class="badge" :class="card.cardCategory === 'ESBIRRO' ? 'badge-danger' : 'badge-ready'">
-                {{ card.cardCategory }}
+                {{ formatCardCategory(card.cardCategory) }}
               </span>
             </td>
-            <td>{{ card.hpCurrent }} / {{ card.hpMax }}</td>
-            <td>{{ card.status }}</td>
+            <td>{{ cardMetricLabel(card) }} {{ cardCurrentValue(card) }} / {{ cardMaxValue(card) }}</td>
+            <td>{{ formatCardStatus(card.status) }}</td>
             <td>
               <a
                 v-if="getProtectedImageUrl(card.id)"
@@ -198,24 +238,24 @@ onMounted(() => {
             <td v-if="!disabled">
               <div class="flex gap-1" style="align-items: center; flex-wrap: wrap">
                 <input
-                  v-model.number="damageByCard[card.id]"
+                  v-model.number="amountByCard[card.id]"
                   class="form-control"
                   type="number"
                   min="1"
-                  placeholder="Daño"
+                  :placeholder="actionPlaceholder(card)"
                   style="width: 90px"
                 />
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm"
                   :disabled="mutatingCardId === card.id"
-                  @click="handleReportDamage(card)"
+                  @click="handleApplyProgress(card)"
                 >
-                  Daño
+                  {{ actionLabel(card) }}
                 </button>
 
                 <select v-model="statusByCard[card.id]" class="form-control" style="width: 130px">
-                  <option v-for="s in CARD_STATUSES" :key="s" :value="s">{{ s }}</option>
+                  <option v-for="s in CARD_STATUSES" :key="s" :value="s">{{ formatCardStatus(s) }}</option>
                 </select>
                 <button
                   type="button"

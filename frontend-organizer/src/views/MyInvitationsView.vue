@@ -7,6 +7,7 @@ import {
   rejectCoOrganizerInvitation,
 } from '@/api/invitations'
 import { useNotificationsStore } from '@/stores/notifications'
+import { formatEventStatus, formatResponsibilities } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
@@ -25,20 +26,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-function formatResponsibilities(responsibilities = []) {
-  return responsibilities.join(', ')
-}
-
-function formatStatus(status) {
-  return {
-    DRAFT: 'Borrador',
-    READY: 'Listo',
-    IN_PROGRESS: 'En curso',
-    FINISHED: 'Finalizado',
-    CANCELLED: 'Cancelado',
-  }[status] || status
 }
 
 async function handleAccept(invitation) {
@@ -101,10 +88,10 @@ onMounted(load)
             <h3>{{ invitation.eventName }}</h3>
             <p class="text-muted">
               Organiza {{ invitation.organizerUsername }} ·
-              Estado actual: {{ formatStatus(invitation.eventStatus) }}
+              Estado actual: {{ formatEventStatus(invitation.eventStatus) }}
             </p>
           </div>
-          <span class="badge badge-in-progress">Pendiente</span>
+          <span class="badge badge-in-progress" style="height: 26px;">Pendiente</span>
         </div>
 
         <div class="invitation-summary-grid">
@@ -114,7 +101,7 @@ onMounted(load)
           </div>
           <div>
             <span class="summary-label">Permisos delegados</span>
-            <strong>{{ formatResponsibilities(invitation.responsibilities) }}</strong>
+            <strong>{{ formatResponsibilities(invitation.responsibilities, 'Sin responsabilidades delegadas') }}</strong>
           </div>
         </div>
 

@@ -13,6 +13,10 @@ export function reportInterPodCardDamage(eventId, cardId, data) {
   return http.post(`/events/${eventId}/inter-pod-cards/${cardId}/damage`, data)
 }
 
+export function reportInterPodCardThreat(eventId, cardId, data) {
+  return http.post(`/events/${eventId}/inter-pod-cards/${cardId}/threat`, data)
+}
+
 export function updateInterPodCardStatus(eventId, cardId, data) {
   return http.patch(`/events/${eventId}/inter-pod-cards/${cardId}/status`, data)
 }

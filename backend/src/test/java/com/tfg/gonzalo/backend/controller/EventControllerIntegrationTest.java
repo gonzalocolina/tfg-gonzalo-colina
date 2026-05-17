@@ -96,6 +96,42 @@ class EventControllerIntegrationTest {
     }
 
                 @Test
+                void createEventReturnsSelectedInterPodDefinitionExternalImageUrl() throws Exception {
+                  String organizerToken = registerOrganizer("organizer2b", "orga2b@example.com", "Password123");
+                  String externalImageUrl = "https://marvelcdb.com/bundles/cards/55041.jpg";
+
+              MvcResult createDefinitionResult = mockMvc.perform(multipart("/api/inter-pod-card-definitions")
+                  .param("name", "CUSTOM_REMOTE_IMAGE_TEST_CARD")
+                  .param("cardCategory", "ESBIRRO")
+                  .param("defaultHpMax", "8")
+                  .param("defaultStatus", "REVELADA")
+                  .param("imageUrl", externalImageUrl)
+                  .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrl").value(externalImageUrl))
+                .andReturn();
+
+              long definitionId = extractId(createDefinitionResult.getResponse().getContentAsString());
+
+              String requestBody = """
+                {
+                  "name": "Evento con carta inter-pod remota",
+                  "configuredPlayerCount": 8,
+                  "timeLimitMinutes": 180,
+                  "interPodCardDefinitionIds": [%d]
+                }
+                """.formatted(definitionId);
+
+              mockMvc.perform(post("/api/events")
+                  .header("Authorization", "Bearer " + organizerToken)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].id").value((int) definitionId))
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].imageUrl").value(externalImageUrl));
+                }
+
+                @Test
                 void updateEventUpdatesAndClearsSelectedInterPodDefinitions() throws Exception {
               String organizerToken = registerOrganizer("organizer3", "orga3@example.com", "Password123");
 

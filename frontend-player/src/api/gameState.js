@@ -11,3 +11,7 @@ export function reportVillainDamage(eventId, data) {
 export function reportThreat(eventId, data) {
   return http.post(`/events/${eventId}/game-state/threat`, data)
 }
+
+export function removeThreat(eventId, data) {
+  return http.post(`/events/${eventId}/game-state/threat/remove`, data)
+}

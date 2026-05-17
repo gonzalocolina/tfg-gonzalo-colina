@@ -228,9 +228,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Amenaza target -->
+        <!-- Amenaza objetivo -->
         <div class="status-stat">
-          <span class="status-stat__label">Amenaza target</span>
+          <span class="status-stat__label">Amenaza objetivo</span>
           <span class="status-stat__value">{{ structure.schemeThreatTarget }}</span>
           <span class="status-stat__hint text-muted">Objetivo de amenaza global</span>
         </div>

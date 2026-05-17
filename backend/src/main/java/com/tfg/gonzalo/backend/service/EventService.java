@@ -52,6 +52,7 @@ public class EventService {
     private final InterPodCardService interPodCardService;
     private final EventPlayerMetricsService eventPlayerMetricsService;
     private final AccessControlService accessControlService;
+    private final InterPodCardImageStorageService interPodCardImageStorageService;
 
     public EventService(AppUserRepository appUserRepository,
                         CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
@@ -67,7 +68,8 @@ public class EventService {
                         VillainFormulaService villainFormulaService,
                         InterPodCardService interPodCardService,
                         EventPlayerMetricsService eventPlayerMetricsService,
-                        AccessControlService accessControlService) {
+                        AccessControlService accessControlService,
+                        InterPodCardImageStorageService interPodCardImageStorageService) {
         this.appUserRepository = appUserRepository;
                 this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
                 this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
@@ -83,6 +85,7 @@ public class EventService {
         this.interPodCardService = interPodCardService;
         this.eventPlayerMetricsService = eventPlayerMetricsService;
         this.accessControlService = accessControlService;
+        this.interPodCardImageStorageService = interPodCardImageStorageService;
     }
 
     @Transactional
@@ -331,17 +334,15 @@ public class EventService {
     }
 
     private InterPodCardDefinitionResponse toInterPodCardDefinitionResponse(InterPodCardDefinition definition) {
-        String imageUrl = definition.getImagePath() != null
-            ? "/api/inter-pod-card-definitions/" + definition.getId() + "/image"
-                : null;
         return new InterPodCardDefinitionResponse(
                 definition.getId(),
                 definition.getName(),
                 definition.getType(),
                 definition.getCardCategory(),
                 definition.getDefaultHpMax(),
+            definition.getDefaultThreatMax(),
                 definition.getDefaultStatus(),
-                imageUrl,
+                interPodCardImageStorageService.resolveDefinitionImageUrl(definition.getId(), definition.getImagePath()),
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),
                 definition.getCreatedAt(),

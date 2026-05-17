@@ -8,6 +8,7 @@ const {
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
   getEventInterPodCardDefinitions,
   syncImageUrls,
   protectedImagesById,
@@ -15,6 +16,7 @@ const {
   createInterPodCard: vi.fn(),
   getInterPodCards: vi.fn(),
   reportInterPodCardDamage: vi.fn(),
+  reportInterPodCardThreat: vi.fn(),
   getEventInterPodCardDefinitions: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
@@ -24,6 +26,7 @@ vi.mock('@/api/interPod', () => ({
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
@@ -91,12 +94,13 @@ describe('InterPodAlertDialog', () => {
     createInterPodCard.mockReset()
     getInterPodCards.mockReset()
     reportInterPodCardDamage.mockReset()
+    reportInterPodCardThreat.mockReset()
     getEventInterPodCardDefinitions.mockReset()
     syncImageUrls.mockReset()
     Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
     getInterPodCards.mockResolvedValue({ data: [] })
     getEventInterPodCardDefinitions.mockResolvedValue({
-      data: [{ id: 10, name: 'THE_MANGOG', defaultHpMax: 8, defaultStatus: 'REVELADA' }],
+      data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultThreatMax: 0, defaultStatus: 'REVELADA' }],
     })
     syncImageUrls.mockResolvedValue()
   })
@@ -271,8 +275,10 @@ describe('InterPodAlertDialog', () => {
           id: 41,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          hpCurrent: 8,
-          hpMax: 8,
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 8,
+          threatMax: 8,
           status: 'REVELADA',
           sourceGroupIdentifier: 'Mesa Alfa',
           createdAt: '2026-03-31T12:00:00Z',
@@ -284,6 +290,8 @@ describe('InterPodAlertDialog', () => {
           cardCategory: 'ESBIRRO',
           hpCurrent: 7,
           hpMax: 8,
+          threatCurrent: 0,
+          threatMax: 0,
           status: 'REVELADA',
           sourceGroupIdentifier: 'Mesa Beta',
           createdAt: '2026-03-31T12:00:00Z',
@@ -311,6 +319,8 @@ describe('InterPodAlertDialog', () => {
           cardCategory: 'ESBIRRO',
           hpCurrent: 7,
           hpMax: 8,
+          threatCurrent: 0,
+          threatMax: 0,
           status: 'REVELADA',
           sourceGroupIdentifier: 'Mesa Beta',
           createdAt: '2026-03-31T12:00:00Z',
@@ -325,6 +335,42 @@ describe('InterPodAlertDialog', () => {
     expect(wrapper.findAll('select').length).toBe(1)
     expect(wrapper.text()).not.toContain('Estado actualizado')
     expect(wrapper.findAll('button').some((button) => button.text() === 'Estado')).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('uses the threat endpoint for plan cards', async () => {
+    getInterPodCards.mockResolvedValue({
+      data: [
+        {
+          id: 52,
+          cardName: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 5,
+          threatMax: 8,
+          status: 'REVELADA',
+          sourceGroupIdentifier: 'Mesa Beta',
+          createdAt: '2026-03-31T12:00:00Z',
+          imageUrl: null,
+        },
+      ],
+    })
+
+    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+    await flushPromises()
+
+    await wrapper.find('input[type="number"]').setValue('2')
+    const threatButton = wrapper.findAll('button').find((button) => button.text() === 'Quitar amenaza')
+    expect(threatButton).toBeDefined()
+    await threatButton.trigger('click')
+
+    expect(reportInterPodCardThreat).toHaveBeenCalledWith(1, 52, {
+      representativeCode: 'REP001',
+      threat: 2,
+    })
+    expect(reportInterPodCardDamage).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

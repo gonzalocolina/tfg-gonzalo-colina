@@ -6,6 +6,7 @@ import InterPodAlerts from '../InterPodAlerts.vue'
 const {
   getInterPodCards,
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
   updateInterPodCardStatus,
   deleteInterPodCard,
   syncImageUrls,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
   getInterPodCards: vi.fn(),
   reportInterPodCardDamage: vi.fn(),
+  reportInterPodCardThreat: vi.fn(),
   updateInterPodCardStatus: vi.fn(),
   deleteInterPodCard: vi.fn(),
   syncImageUrls: vi.fn(),
@@ -22,6 +24,7 @@ const {
 vi.mock('@/api/interPod', () => ({
   getInterPodCards,
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
   updateInterPodCardStatus,
   deleteInterPodCard,
 }))
@@ -85,5 +88,36 @@ describe('InterPodAlerts', () => {
     const image = wrapper.find('img[alt="Carta inter-nodo"]')
     expect(image.exists()).toBe(true)
     expect(image.attributes('src')).toBe('blob:card-99')
+  })
+
+  it('routes plan progress updates to the threat endpoint', async () => {
+    getInterPodCards.mockResolvedValue({
+      data: [
+        {
+          id: 101,
+          podName: 'Pod Norte',
+          sourceGroupIdentifier: 'Mesa Beta',
+          cardName: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 6,
+          threatMax: 8,
+          status: 'REVELADA',
+          createdAt: '2026-04-11T12:00:00Z',
+        },
+      ],
+    })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    await wrapper.find('input[type="number"]').setValue('3')
+    const threatButton = wrapper.findAll('button').find((button) => button.text() === 'Quitar amenaza')
+    expect(threatButton).toBeDefined()
+    await threatButton.trigger('click')
+
+    expect(reportInterPodCardThreat).toHaveBeenCalledWith(1, 101, { threat: 3 })
+    expect(reportInterPodCardDamage).not.toHaveBeenCalled()
   })
 })

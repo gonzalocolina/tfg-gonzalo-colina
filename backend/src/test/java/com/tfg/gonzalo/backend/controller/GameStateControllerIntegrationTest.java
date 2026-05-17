@@ -115,6 +115,131 @@ class GameStateControllerIntegrationTest {
     }
 
     @Test
+    void threatCanBeRemovedByRepresentativeAndDelegated() throws Exception {
+        long eventId = createEvent("evento-amenaza-remove", 4);
+        String organizerToken = loginOrganizer("evento-amenaza-remove", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, group.representativeCode());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "threat": 1
+                                }
+                                """.formatted(group.representativeCode())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(1));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/remove", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "threat": 1
+                                }
+                                """.formatted(group.representativeCode())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(0));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 1
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(1));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/remove/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 1,
+                                  "justification": "La mesa limpió el plan principal"
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(0));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "THREAT_REMOVED_DELEGATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].actor").value("evento-amenaza-remove"))
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"))
+                .andExpect(jsonPath("$[0].notes").value(containsString("limpió el plan principal")));
+    }
+
+    @Test
+    void joiningByEventCodeRecalculatesThreatTarget() throws Exception {
+        String organizerToken = registerOrganizer("evento-join-threat");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Join Threat",
+                                  "configuredPlayerCount": 8,
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String eventBody = createEventResult.getResponse().getContentAsString();
+        long eventId = extractId(eventBody);
+        String eventCode = extractRequiredField(eventBody, EVENT_CODE_PATTERN, "eventCode");
+
+        mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "groupLabel": "Mesa 1",
+                                  "playerCount": 4
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/events/{eventId}/game-state", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schemeThreatTarget").value(2));
+
+        mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "groupLabel": "Mesa 2",
+                                  "playerCount": 4
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/events/{eventId}/game-state", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schemeThreatTarget").value(4));
+    }
+
+    @Test
     void timerFlowStartPauseResumeAdjustAndTimeout() throws Exception {
         long eventId = createEvent("evento-timer", 2);
         String organizerToken = loginOrganizer("evento-timer", "Password123");

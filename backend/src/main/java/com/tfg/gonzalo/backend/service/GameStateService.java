@@ -2,11 +2,13 @@ package com.tfg.gonzalo.backend.service;
 
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedVillainDamageRequest;
+import com.tfg.gonzalo.backend.dto.gamestate.DelegatedRemoveThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.FinalSummaryResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateOperationResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateSnapshotResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.ManualThreatUpdateRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ManualVillainHpUpdateRequest;
+import com.tfg.gonzalo.backend.dto.gamestate.RemoveThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ReportThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ReportVillainDamageRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.TimerAdjustRequest;
@@ -114,10 +116,8 @@ public class GameStateService {
         ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = before + request.threat();
-        gameState.setSchemeThreatCurrent(newThreat);
+        int newThreat = increaseMainSchemeThreat(gameState, request.threat(), notifications);
 
-        evaluateThreatMilestones(gameState, notifications);
         if (newThreat >= gameState.getSchemeThreatTarget() && gameState.getSchemeThreatTarget() > 0) {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
@@ -125,6 +125,29 @@ public class GameStateService {
         eventLogService.appendAuthenticatedLog(event, group, EventActionType.THREAT_REPORTED,
             String.valueOf(before), String.valueOf(newThreat), "Amenaza reportada por la mesa.");
         return persistAndRespond(eventId, "REPORT_THREAT", event, gameState, notifications);
+    }
+
+    @Transactional
+    public GameStateOperationResponse removeThreat(Long eventId, RemoveThreatRequest request) {
+        Event event = findEvent(eventId);
+        GameState gameState = findGameState(eventId);
+        EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
+        accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
+        List<String> notifications = new ArrayList<>();
+
+        ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
+        markEventAsStarted(event);
+        refreshTimerState(event, gameState, notifications);
+        ensureNotFinished(event);
+        ensureRepresentativeActionsAllowed(gameState);
+
+        int before = gameState.getSchemeThreatCurrent();
+        int newThreat = decreaseMainSchemeThreat(gameState, request.threat());
+
+        eventLogService.appendAuthenticatedLog(event, group, EventActionType.THREAT_REMOVED,
+                String.valueOf(before), String.valueOf(newThreat), "Amenaza retirada del plan principal por la mesa.");
+        return persistAndRespond(eventId, "REMOVE_THREAT", event, gameState, notifications);
     }
 
     @Transactional
@@ -179,10 +202,8 @@ public class GameStateService {
         ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = before + request.threat();
-        gameState.setSchemeThreatCurrent(newThreat);
+        int newThreat = increaseMainSchemeThreat(gameState, request.threat(), notifications);
 
-        evaluateThreatMilestones(gameState, notifications);
         if (newThreat >= gameState.getSchemeThreatTarget() && gameState.getSchemeThreatTarget() > 0) {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
@@ -196,6 +217,37 @@ public class GameStateService {
             buildOptionalJustificationNote("Registro delegado de amenaza en nombre de la mesa.", request.justification())
         );
         return persistAndRespond(eventId, "DELEGATE_THREAT", event, gameState, notifications);
+    }
+
+    @Transactional
+    public GameStateOperationResponse delegateRemoveThreat(Long eventId, DelegatedRemoveThreatRequest request) {
+        Event event = findEvent(eventId);
+        accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
+        GameState gameState = findGameState(eventId);
+        EventGroup group = findGroup(eventId, request.groupId());
+        List<String> notifications = new ArrayList<>();
+
+        ensureNotFinished(event);
+        ensureNoPendingAssignments(eventId);
+        markEventAsStarted(event);
+        refreshTimerState(event, gameState, notifications);
+        ensureNotFinished(event);
+        ensureRepresentativeActionsAllowed(gameState);
+
+        int before = gameState.getSchemeThreatCurrent();
+        int newThreat = decreaseMainSchemeThreat(gameState, request.threat());
+
+        eventLogService.appendAuthenticatedLog(
+                event,
+                group,
+                EventActionType.THREAT_REMOVED_DELEGATED,
+                String.valueOf(before),
+                String.valueOf(newThreat),
+                buildOptionalJustificationNote(
+                        "Registro delegado de retirada de amenaza del plan principal en nombre de la mesa.",
+                        request.justification())
+        );
+        return persistAndRespond(eventId, "DELEGATE_REMOVE_THREAT", event, gameState, notifications);
     }
 
     @Transactional
@@ -506,6 +558,19 @@ public class GameStateService {
                 && !notifications.contains("THREAT_100_PERCENT")) {
             notifications.add("THREAT_100_PERCENT");
         }
+    }
+
+    private int increaseMainSchemeThreat(GameState gameState, int amount, List<String> notifications) {
+        int newThreat = gameState.getSchemeThreatCurrent() + amount;
+        gameState.setSchemeThreatCurrent(newThreat);
+        evaluateThreatMilestones(gameState, notifications);
+        return newThreat;
+    }
+
+    private int decreaseMainSchemeThreat(GameState gameState, int amount) {
+        int newThreat = Math.max(0, gameState.getSchemeThreatCurrent() - amount);
+        gameState.setSchemeThreatCurrent(newThreat);
+        return newThreat;
     }
 
     private void evaluateTimerMilestones(GameState gameState, List<String> notifications) {

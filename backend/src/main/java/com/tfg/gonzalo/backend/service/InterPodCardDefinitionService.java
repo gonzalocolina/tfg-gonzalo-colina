@@ -9,6 +9,7 @@ import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardDefinitionType;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
@@ -84,12 +85,14 @@ public class InterPodCardDefinitionService {
 
         String name = request.name().trim();
         validateUniqueName(organizer.getId(), name, null);
+        InterPodCardMetrics metrics = resolveMetrics(request.cardCategory(), request.defaultHpMax(), request.defaultThreatMax());
 
         InterPodCardDefinition definition = new InterPodCardDefinition();
         definition.setName(name);
         definition.setType(InterPodCardDefinitionType.CUSTOM);
         definition.setCardCategory(request.cardCategory());
-        definition.setDefaultHpMax(request.defaultHpMax());
+        definition.setDefaultHpMax(metrics.hpMax());
+        definition.setDefaultThreatMax(metrics.threatMax());
         definition.setDefaultStatus(request.defaultStatus() == null
                 ? InterPodCardStatus.REVELADA
                 : request.defaultStatus());
@@ -97,12 +100,8 @@ public class InterPodCardDefinitionService {
 
         definition = interPodCardDefinitionRepository.save(definition);
 
-        InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(0L, definition.getId(), image);
-        if (storedImage != null) {
-            definition.setImagePath(storedImage.relativePath());
-            definition.setImageContentType(storedImage.contentType());
-            definition = interPodCardDefinitionRepository.save(definition);
-        }
+        replaceDefinitionImage(definition, image, request.imageUrl());
+        definition = interPodCardDefinitionRepository.save(definition);
 
         return toResponse(definition);
     }
@@ -120,22 +119,17 @@ public class InterPodCardDefinitionService {
 
         String name = request.name().trim();
         validateUniqueName(organizer.getId(), name, definition.getId());
+        InterPodCardMetrics metrics = resolveMetrics(request.cardCategory(), request.defaultHpMax(), request.defaultThreatMax());
 
         definition.setName(name);
         definition.setCardCategory(request.cardCategory());
-        definition.setDefaultHpMax(request.defaultHpMax());
+        definition.setDefaultHpMax(metrics.hpMax());
+        definition.setDefaultThreatMax(metrics.threatMax());
         definition.setDefaultStatus(request.defaultStatus() == null
                 ? InterPodCardStatus.REVELADA
                 : request.defaultStatus());
 
-        if (image != null && !image.isEmpty()) {
-            imageStorageService.delete(definition.getImagePath());
-            InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(0L, definition.getId(), image);
-            if (storedImage != null) {
-                definition.setImagePath(storedImage.relativePath());
-                definition.setImageContentType(storedImage.contentType());
-            }
-        }
+        replaceDefinitionImage(definition, image, request.imageUrl());
 
         definition = interPodCardDefinitionRepository.save(definition);
         return toResponse(definition);
@@ -282,14 +276,69 @@ public class InterPodCardDefinitionService {
                 definition.getType(),
                 definition.getCardCategory(),
                 definition.getDefaultHpMax(),
+                definition.getDefaultThreatMax(),
                 definition.getDefaultStatus(),
-                definition.getImagePath() == null ? null
-                        : "/api/inter-pod-card-definitions/%d/image".formatted(definition.getId()),
+                imageStorageService.resolveDefinitionImageUrl(definition.getId(), definition.getImagePath()),
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),
                 definition.getCreatedAt(),
                 definition.getUpdatedAt()
         );
+    }
+
+    private void replaceDefinitionImage(InterPodCardDefinition definition,
+                                        MultipartFile image,
+                                        String imageUrl) {
+        String externalImageUrl = imageStorageService.normalizeExternalUrl(imageUrl);
+        boolean hasUploadedImage = image != null && !image.isEmpty();
+
+        if (hasUploadedImage && externalImageUrl != null) {
+            throw new BusinessRuleException(
+                    "Debes indicar un archivo de imagen o una URL externa, pero no ambas opciones.");
+        }
+
+        if (!hasUploadedImage && externalImageUrl == null) {
+            return;
+        }
+
+        imageStorageService.delete(definition.getImagePath());
+
+        if (hasUploadedImage) {
+            InterPodCardImageStorageService.StoredImage storedImage = imageStorageService.store(0L, definition.getId(), image);
+            if (storedImage != null) {
+                definition.setImagePath(storedImage.relativePath());
+                definition.setImageContentType(storedImage.contentType());
+            }
+            return;
+        }
+
+        definition.setImagePath(externalImageUrl);
+        definition.setImageContentType(imageStorageService.inferContentTypeFromLocation(externalImageUrl));
+    }
+
+    private InterPodCardMetrics resolveMetrics(InterPodCardCategory category,
+                                               Integer requestedHpMax,
+                                               Integer requestedThreatMax) {
+        if (category == null) {
+            throw new BusinessRuleException("Debes indicar una categoría válida para la carta inter-pod.");
+        }
+
+        return switch (category) {
+            case ESBIRRO -> new InterPodCardMetrics(requirePositive(requestedHpMax,
+                    "Los esbirros inter-pod deben tener HP inicial mayor que 0."), 0);
+            case PLAN -> new InterPodCardMetrics(0, requirePositive(requestedThreatMax,
+                    "Los planes inter-pod deben tener amenaza inicial mayor que 0."));
+        };
+    }
+
+    private int requirePositive(Integer value, String message) {
+        if (value == null || value < 1) {
+            throw new BusinessRuleException(message);
+        }
+        return value;
+    }
+
+    private record InterPodCardMetrics(int hpMax, int threatMax) {
     }
 
     private List<InterPodCardDefinition> deduplicateDefinitions(List<InterPodCardDefinition> definitions) {

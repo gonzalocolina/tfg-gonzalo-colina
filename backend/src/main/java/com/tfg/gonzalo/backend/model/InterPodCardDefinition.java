@@ -34,7 +34,10 @@ public class InterPodCardDefinition extends BaseEntity {
     private InterPodCardCategory cardCategory;
 
     @Column(nullable = false)
-    private Integer defaultHpMax;
+    private Integer defaultHpMax = 0;
+
+    @Column(nullable = false)
+    private Integer defaultThreatMax = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

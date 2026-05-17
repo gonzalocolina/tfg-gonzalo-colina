@@ -35,6 +35,34 @@ class EventRolesAndAlertsIntegrationTest {
     }
 
     @Test
+    void organizerCanListAssignedCoOrganizers() throws Exception {
+        long eventId = createEvent("evento-lista-coorg", 4, 180);
+        String organizerToken = loginOrganizer("evento-lista-coorg", "Password123");
+
+        mockMvc.perform(post("/api/events/{eventId}/roles/co-organizers", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "coorg-lista",
+                                  "email": "coorg-lista@example.com",
+                                  "password": "Password123",
+                                  "responsibilities": ["VILLAIN_HP", "TIMER"]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("coorg-lista"));
+
+        mockMvc.perform(get("/api/events/{eventId}/roles/co-organizers", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").value("coorg-lista"))
+                .andExpect(jsonPath("$[0].email").value("coorg-lista@example.com"))
+                .andExpect(jsonPath("$[0].responsibilities[0]").value("VILLAIN_HP"))
+                .andExpect(jsonPath("$[0].responsibilities[1]").value("TIMER"));
+    }
+
+    @Test
     void coOrganizerCanOperateOnlyAssignedResponsibilities() throws Exception {
         long eventId = createEvent("evento-coorg", 4, 180);
         String organizerToken = loginOrganizer("evento-coorg", "Password123");
@@ -112,6 +140,7 @@ class EventRolesAndAlertsIntegrationTest {
         .andExpect(jsonPath("$.cardName").value("THE_MANGOG"))
         .andExpect(jsonPath("$.cardCategory").value("ESBIRRO"))
         .andExpect(jsonPath("$.hpCurrent").value(8))
+        .andExpect(jsonPath("$.threatCurrent").value(0))
         .andReturn();
 
       long cardId = extractId(cardResult.getResponse().getContentAsString());
@@ -162,6 +191,82 @@ class EventRolesAndAlertsIntegrationTest {
           .param("actionType", "INTER_POD_CARD_CREATED"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].actionType").value("INTER_POD_CARD_CREATED"));
+    }
+
+    @Test
+    void interPodPlansTrackThreatAndRejectDamage() throws Exception {
+      long eventId = createEvent("evento-plan-threat", 4, 180);
+      String organizerToken = loginOrganizer("evento-plan-threat", "Password123");
+
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
+      String representativeToken = loginGroup(eventId, group.representativeCode());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                      .header("Authorization", "Bearer " + organizerToken))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+      MockMultipartFile createPayload = new MockMultipartFile(
+              "payload",
+              "payload.json",
+              MediaType.APPLICATION_JSON_VALUE,
+              """
+                {
+                  "representativeCode": "%s",
+                  "cardName": "DOOR_BETWEEN_WORLDS"
+                }
+                """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+      );
+
+      long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+                      .file(createPayload)
+                      .header("Authorization", "Bearer " + representativeToken))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.cardCategory").value("PLAN"))
+              .andExpect(jsonPath("$.hpCurrent").value(0))
+              .andExpect(jsonPath("$.threatCurrent").value(8))
+              .andReturn()
+              .getResponse()
+              .getContentAsString());
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+                      .header("Authorization", "Bearer " + representativeToken)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content("""
+                        {
+                          "representativeCode": "%s",
+                          "damage": 2
+                        }
+                        """.formatted(group.representativeCode())))
+              .andExpect(status().isBadRequest())
+              .andExpect(jsonPath("$.message").value(containsString("retirarles amenaza")));
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
+                      .header("Authorization", "Bearer " + representativeToken)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content("""
+                        {
+                          "representativeCode": "%s",
+                          "threat": 3
+                        }
+                        """.formatted(group.representativeCode())))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.threatCurrent").value(5))
+              .andExpect(jsonPath("$.status").value("REVELADA"));
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
+                      .header("Authorization", "Bearer " + representativeToken)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content("""
+                        {
+                          "representativeCode": "%s",
+                          "threat": 5
+                        }
+                        """.formatted(group.representativeCode())))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.threatCurrent").value(0))
+              .andExpect(jsonPath("$.status").value("DERROTADA"));
     }
 
     @Test

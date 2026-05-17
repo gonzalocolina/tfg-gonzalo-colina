@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { getMyEvents } from '@/api/events'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { eventStatusBadgeClass, formatEventStatus, formatResponsibilities } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
@@ -39,30 +40,6 @@ function accessLabel(event) {
 
 function accessBadgeClass(event) {
   return event.currentUserIsOwner ? 'badge-ready' : 'badge-in-progress'
-}
-
-function formatResponsibilities(responsibilities = []) {
-  return responsibilities.length ? responsibilities.join(', ') : 'Sin responsabilidades delegadas'
-}
-
-function statusBadgeClass(status) {
-  return {
-    DRAFT: 'badge-draft',
-    READY: 'badge-ready',
-    IN_PROGRESS: 'badge-in-progress',
-    FINISHED: 'badge-finished',
-    CANCELLED: 'badge-cancelled',
-  }[status] || 'badge-draft'
-}
-
-function statusLabel(status) {
-  return {
-    DRAFT: 'Borrador',
-    READY: 'Listo',
-    IN_PROGRESS: 'En curso',
-    FINISHED: 'Finalizado',
-    CANCELLED: 'Cancelado',
-  }[status] || status
 }
 
 onMounted(load)
@@ -108,8 +85,8 @@ onMounted(load)
               <span class="badge" :class="accessBadgeClass(event)">
                 {{ accessLabel(event) }}
               </span>
-              <span class="badge" :class="statusBadgeClass(event.status)">
-                {{ statusLabel(event.status) }}
+              <span class="badge" :class="eventStatusBadgeClass(event.status)">
+                {{ formatEventStatus(event.status) }}
               </span>
             </div>
           </div>
@@ -130,7 +107,7 @@ onMounted(load)
         </div>
         <div v-if="!event.currentUserIsOwner" class="shared-responsibilities">
           <span class="stat-label">Responsabilidades delegadas: </span>
-          <span class="stat-value">{{ formatResponsibilities(event.currentUserResponsibilities) }}</span>
+          <span class="stat-value">{{ formatResponsibilities(event.currentUserResponsibilities, 'Sin responsabilidades delegadas') }}</span>
         </div>
         <div class="event-card-footer">
           <small class="text-muted">

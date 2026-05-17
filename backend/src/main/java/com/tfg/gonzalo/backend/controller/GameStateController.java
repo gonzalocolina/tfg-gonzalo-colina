@@ -2,10 +2,12 @@ package com.tfg.gonzalo.backend.controller;
 
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedVillainDamageRequest;
+import com.tfg.gonzalo.backend.dto.gamestate.DelegatedRemoveThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateOperationResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateSnapshotResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.ManualThreatUpdateRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ManualVillainHpUpdateRequest;
+import com.tfg.gonzalo.backend.dto.gamestate.RemoveThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ReportThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ReportVillainDamageRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.TimerAdjustRequest;
@@ -46,6 +48,12 @@ public class GameStateController {
         return gameStateService.reportThreat(eventId, request);
     }
 
+    @PostMapping("/threat/remove")
+    public GameStateOperationResponse removeThreat(@PathVariable Long eventId,
+                                                   @Valid @RequestBody RemoveThreatRequest request) {
+        return gameStateService.removeThreat(eventId, request);
+    }
+
     @PostMapping("/villain-damage/delegated")
     public GameStateOperationResponse delegateVillainDamage(@PathVariable Long eventId,
                                                             @Valid @RequestBody DelegatedVillainDamageRequest request) {
@@ -56,6 +64,12 @@ public class GameStateController {
     public GameStateOperationResponse delegateThreat(@PathVariable Long eventId,
                                                      @Valid @RequestBody DelegatedThreatRequest request) {
         return gameStateService.delegateThreat(eventId, request);
+    }
+
+    @PostMapping("/threat/remove/delegated")
+    public GameStateOperationResponse delegateRemoveThreat(@PathVariable Long eventId,
+                                                           @Valid @RequestBody DelegatedRemoveThreatRequest request) {
+        return gameStateService.delegateRemoveThreat(eventId, request);
     }
 
     @PatchMapping("/villain-hp")
