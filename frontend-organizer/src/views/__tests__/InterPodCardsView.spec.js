@@ -136,7 +136,7 @@ describe('InterPodCardsView', () => {
       { force: false },
     )
 
-    const image = wrapper.find('img[alt="Carta"]')
+    const image = wrapper.find('.image-preview-thumbnail')
     expect(image.exists()).toBe(true)
     expect(image.attributes('src')).toBe('blob:def-10')
   })
@@ -148,9 +148,7 @@ describe('InterPodCardsView', () => {
     await wrapper.find('#new-card-name').setValue('REMOTE_IMAGE_CARD')
     await wrapper.find('#new-card-image-url').setValue('https://marvelcdb.com/bundles/cards/55041.jpg')
 
-    const createButton = wrapper.findAll('button').find((button) => button.text() === 'Crear carta')
-    expect(createButton).toBeDefined()
-    await createButton.trigger('click')
+    await wrapper.find('form').trigger('submit')
     await flushPromises()
 
     expect(createInterPodCardDefinition).toHaveBeenCalledWith(

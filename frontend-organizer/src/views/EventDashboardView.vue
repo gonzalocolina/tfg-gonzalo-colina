@@ -303,6 +303,12 @@ onMounted(loadVillains)
           Ver resumen final
         </router-link>
         <router-link
+          :to="{ name: 'statistics', params: { eventId } }"
+          class="btn btn-primary"
+        >
+          Ver estadísticas
+        </router-link>
+        <router-link
           :to="{ name: 'logs', params: { eventId } }"
           class="btn btn-secondary"
         >
