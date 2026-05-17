@@ -82,7 +82,6 @@ public class InterPodCardService {
             request.interPodCardDefinitionId(),
             request.cardName()
         );
-        int hpMax = request.hpMax() == null ? selectedDefinition.getDefaultHpMax() : request.hpMax();
         InterPodCardStatus initialStatus = request.status() == null
             ? selectedDefinition.getDefaultStatus()
             : request.status();

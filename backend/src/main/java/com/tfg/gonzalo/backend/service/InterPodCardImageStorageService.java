@@ -20,10 +20,14 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class InterPodCardImageStorageService {
 
+    private static final String IMAGE_PNG = "image/png";
+    private static final String IMAGE_JPEG = "image/jpeg";
+    private static final String IMAGE_WEBP = "image/webp";
+
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "image/png",
-            "image/jpeg",
-            "image/webp"
+        IMAGE_PNG,
+        IMAGE_JPEG,
+        IMAGE_WEBP
     );
 
     private final Path rootDirectory;
@@ -101,13 +105,13 @@ public class InterPodCardImageStorageService {
 
         String normalizedLowercaseLocation = normalizedLocation.toLowerCase(Locale.ROOT);
         if (normalizedLowercaseLocation.endsWith(".png")) {
-            return "image/png";
+            return IMAGE_PNG;
         }
         if (normalizedLowercaseLocation.endsWith(".webp")) {
-            return "image/webp";
+            return IMAGE_WEBP;
         }
         if (normalizedLowercaseLocation.endsWith(".jpg") || normalizedLowercaseLocation.endsWith(".jpeg")) {
-            return "image/jpeg";
+            return IMAGE_JPEG;
         }
         return null;
     }
@@ -191,10 +195,10 @@ public class InterPodCardImageStorageService {
                 return "." + originalFilename.substring(idx + 1).toLowerCase();
             }
         }
-        if ("image/png".equals(contentType)) {
+        if (IMAGE_PNG.equals(contentType)) {
             return ".png";
         }
-        if ("image/webp".equals(contentType)) {
+        if (IMAGE_WEBP.equals(contentType)) {
             return ".webp";
         }
         return ".jpg";

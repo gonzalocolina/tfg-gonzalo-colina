@@ -141,6 +141,27 @@ describe('InterPodCardsView', () => {
     expect(image.attributes('src')).toBe('blob:def-10')
   })
 
+  it('allows creating a custom definition with an external image url', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('#new-card-name').setValue('REMOTE_IMAGE_CARD')
+    await wrapper.find('#new-card-image-url').setValue('https://marvelcdb.com/bundles/cards/55041.jpg')
+
+    const createButton = wrapper.findAll('button').find((button) => button.text() === 'Crear carta')
+    expect(createButton).toBeDefined()
+    await createButton.trigger('click')
+    await flushPromises()
+
+    expect(createInterPodCardDefinition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'REMOTE_IMAGE_CARD',
+        imageUrl: 'https://marvelcdb.com/bundles/cards/55041.jpg',
+      }),
+      null,
+    )
+  })
+
   it('lets the organizer choose another image while editing a custom definition', async () => {
     const wrapper = mountView()
     await flushPromises()
