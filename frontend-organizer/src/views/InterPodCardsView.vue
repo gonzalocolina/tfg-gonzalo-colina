@@ -10,6 +10,13 @@ import {
   deleteInterPodCardDefinition,
 } from '@/api/interPodCardDefinitions'
 import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
+import {
+  eventStatusBadgeClass,
+  formatCardCategory,
+  formatCardStatus,
+  formatCatalogItemType,
+  formatEventStatus,
+} from '@/utils/displayLabels'
 
 const route = useRoute()
 const notif = useNotificationsStore()
@@ -47,6 +54,7 @@ const createForm = ref({
   name: '',
   cardCategory: 'ESBIRRO',
   defaultHpMax: 8,
+  defaultThreatMax: 8,
   defaultStatus: 'REVELADA',
 })
 const createImage = ref(null)
@@ -55,6 +63,7 @@ const editForm = ref({
   name: '',
   cardCategory: 'ESBIRRO',
   defaultHpMax: 8,
+  defaultThreatMax: 8,
   defaultStatus: 'REVELADA',
 })
 const editImage = ref(null)
@@ -175,6 +184,7 @@ function resetCreateForm() {
     name: '',
     cardCategory: 'ESBIRRO',
     defaultHpMax: 8,
+    defaultThreatMax: 8,
     defaultStatus: 'REVELADA',
   }
   createImage.value = null
@@ -186,6 +196,20 @@ function prettyCardName(name) {
     .replaceAll('_', ' ')
     .toLowerCase()
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
+}
+
+function isMinionCategory(category) {
+  return category === 'ESBIRRO'
+}
+
+function definitionMetricLabel(definition) {
+  return isMinionCategory(definition.cardCategory) ? 'HP' : 'Amenaza'
+}
+
+function definitionMetricValue(definition) {
+  return isMinionCategory(definition.cardCategory)
+    ? definition.defaultHpMax
+    : definition.defaultThreatMax
 }
 
 function toggleEventDefinition(definitionId) {
@@ -203,6 +227,7 @@ function startEdit(definition) {
     name: definition.name,
     cardCategory: definition.cardCategory,
     defaultHpMax: definition.defaultHpMax,
+    defaultThreatMax: definition.defaultThreatMax,
     defaultStatus: definition.defaultStatus,
   }
   setEditImage(null)
@@ -286,16 +311,6 @@ async function handleDelete(definition) {
   }
 }
 
-function statusBadgeClass(status) {
-  return {
-    DRAFT: 'badge-draft',
-    READY: 'badge-ready',
-    IN_PROGRESS: 'badge-in-progress',
-    FINISHED: 'badge-finished',
-    CANCELLED: 'badge-cancelled',
-  }[status] || 'badge-draft'
-}
-
 watch(eventId, () => {
   void loadPage()
 }, { immediate: true })
@@ -321,28 +336,13 @@ onUnmounted(() => {
             Esta selección es específica del evento y no modifica el catálogo global.
           </p>
         </div>
-        <span v-if="event?.status" class="badge" :class="statusBadgeClass(event.status)">
-          {{ event.status }}
+        <span v-if="event?.status" class="badge" :class="eventStatusBadgeClass(event.status)">
+          {{ formatEventStatus(event.status) }}
         </span>
       </div>
 
       <div v-if="loadingEvent" class="text-muted">Cargando configuración del evento…</div>
       <template v-else-if="event">
-        <div class="summary-grid" style="margin-bottom: 16px">
-          <div class="summary-item">
-            <div class="label">Evento</div>
-            <div class="value" style="font-size: 1rem">{{ event.name }}</div>
-          </div>
-          <div class="summary-item">
-            <div class="label">Seleccionadas</div>
-            <div class="value">{{ selectedDefinitionIds.length }}</div>
-          </div>
-          <div class="summary-item">
-            <div class="label">Villano actual</div>
-            <div class="value" style="font-size: 1rem">{{ event.villainName }}</div>
-          </div>
-        </div>
-
         <div v-if="loading" class="text-muted">Cargando catálogo de cartas inter-nodo…</div>
         <div v-else-if="!definitions.length" class="text-muted">
           No hay cartas inter-nodo disponibles. <router-link :to="{ name: 'inter-pod-cards' }">Créelas aquí</router-link>.
@@ -370,11 +370,11 @@ onUnmounted(() => {
               <div class="selection-card-actions">
                 <div class="selection-card-title">{{ prettyCardName(definition.name) }}</div>
                 <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                  {{ definition.type }}
+                  {{ formatCatalogItemType(definition.type) }}
                 </span>
               </div>
               <div class="selection-card-meta">
-                {{ definition.cardCategory }} · HP {{ definition.defaultHpMax }}
+                {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}
               </div>
               <div class="selection-card-tags">
                 <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
@@ -436,15 +436,27 @@ onUnmounted(() => {
             <label for="new-card-category">Categoría</label>
             <select id="new-card-category" v-model="createForm.cardCategory" class="form-control" required>
               <option v-for="category in CATEGORY_OPTIONS" :key="category" :value="category">
-                {{ category }}
+                {{ formatCardCategory(category) }}
               </option>
             </select>
           </div>
           <div class="form-group">
-            <label for="new-card-hp">HP por defecto</label>
+            <label :for="isMinionCategory(createForm.cardCategory) ? 'new-card-hp' : 'new-card-threat'">
+              {{ isMinionCategory(createForm.cardCategory) ? 'HP por defecto' : 'Amenaza inicial' }}
+            </label>
             <input
+              v-if="isMinionCategory(createForm.cardCategory)"
               id="new-card-hp"
               v-model.number="createForm.defaultHpMax"
+              class="form-control"
+              type="number"
+              min="1"
+              required
+            />
+            <input
+              v-else
+              id="new-card-threat"
+              v-model.number="createForm.defaultThreatMax"
               class="form-control"
               type="number"
               min="1"
@@ -455,7 +467,7 @@ onUnmounted(() => {
             <label for="new-card-status">Estado por defecto</label>
             <select id="new-card-status" v-model="createForm.defaultStatus" class="form-control">
               <option v-for="status in STATUS_OPTIONS" :key="status" :value="status">
-                {{ status }}
+                {{ formatCardStatus(status) }}
               </option>
             </select>
           </div>
@@ -496,7 +508,7 @@ onUnmounted(() => {
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Categoría</th>
-              <th>HP por defecto</th>
+              <th>Valor inicial</th>
               <th>Estado por defecto</th>
               <th>Imagen</th>
               <th>Propietario</th>
@@ -509,19 +521,29 @@ onUnmounted(() => {
                 <td>
                   <input v-model="editForm.name" class="form-control" maxlength="120" required />
                 </td>
-                <td>{{ definition.type }}</td>
+                <td>{{ formatCatalogItemType(definition.type) }}</td>
                 <td>
                   <select v-model="editForm.cardCategory" class="form-control" style="width: 140px">
                     <option v-for="category in CATEGORY_OPTIONS" :key="category" :value="category">
-                      {{ category }}
+                      {{ formatCardCategory(category) }}
                     </option>
                   </select>
                 </td>
                 <td>
                   <input
+                    v-if="isMinionCategory(editForm.cardCategory)"
                     v-model.number="editForm.defaultHpMax"
                     class="form-control"
-                    style="width: 100px"
+                    style="width: 110px"
+                    type="number"
+                    min="1"
+                    required
+                  />
+                  <input
+                    v-else
+                    v-model.number="editForm.defaultThreatMax"
+                    class="form-control"
+                    style="width: 130px"
                     type="number"
                     min="1"
                     required
@@ -530,7 +552,7 @@ onUnmounted(() => {
                 <td>
                   <select v-model="editForm.defaultStatus" class="form-control" style="width: 130px">
                     <option v-for="status in STATUS_OPTIONS" :key="status" :value="status">
-                      {{ status }}
+                      {{ formatCardStatus(status) }}
                     </option>
                   </select>
                 </td>
@@ -567,12 +589,12 @@ onUnmounted(() => {
                 <td>{{ prettyCardName(definition.name) }}</td>
                 <td>
                   <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                    {{ definition.type }}
+                    {{ formatCatalogItemType(definition.type) }}
                   </span>
                 </td>
-                <td>{{ definition.cardCategory }}</td>
-                <td>{{ definition.defaultHpMax }}</td>
-                <td>{{ definition.defaultStatus }}</td>
+                <td>{{ formatCardCategory(definition.cardCategory) }}</td>
+                <td>{{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}</td>
+                <td>{{ formatCardStatus(definition.defaultStatus) }}</td>
                 <td>
                   <img
                     v-if="getProtectedImageUrl(definition.id)"

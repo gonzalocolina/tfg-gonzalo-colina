@@ -9,6 +9,7 @@ import {
   startGame,
   delegateVillainDamage,
   delegateThreat,
+  delegateRemoveThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -21,6 +22,7 @@ import ThreatBar from '@/components/ThreatBar.vue'
 import GameTimer from '@/components/GameTimer.vue'
 import FinalSummary from '@/components/FinalSummary.vue'
 import InterPodAlerts from '@/components/InterPodAlerts.vue'
+import { formatEventStatus } from '@/utils/displayLabels'
 
 const route = useRoute()
 const gs = useGameStateStore()
@@ -40,7 +42,7 @@ const dmgLoading = ref(false)
 const threatGroupId = ref('')
 const threatAmount = ref(1)
 const threatJustification = ref('')
-const threatLoading = ref(false)
+const threatActionLoading = ref('')
 
 // Manual corrections
 const manualHp = ref(0)
@@ -203,7 +205,7 @@ async function handleDelegateThreat() {
 
   const justification = threatJustification.value.trim()
 
-  threatLoading.value = true
+  threatActionLoading.value = 'add'
   try {
     const { data } = await delegateThreat(eventId.value, {
       groupId: group.id,
@@ -218,7 +220,35 @@ async function handleDelegateThreat() {
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al reportar amenaza')
   } finally {
-    threatLoading.value = false
+    threatActionLoading.value = ''
+  }
+}
+
+async function handleDelegateThreatRemoval() {
+  const group = findReportGroup(threatGroupId.value)
+  if (!group) {
+    notif.error('Selecciona una mesa válida antes de retirar amenaza.')
+    return
+  }
+
+  const justification = threatJustification.value.trim()
+
+  threatActionLoading.value = 'remove'
+  try {
+    const { data } = await delegateRemoveThreat(eventId.value, {
+      groupId: group.id,
+      threat: threatAmount.value,
+      justification,
+    })
+    gs.applySnapshot(data.snapshot)
+    syncManualValuesFromState()
+    notif.success(`Amenaza retirada: ${threatAmount.value}`)
+    threatAmount.value = 1
+    threatJustification.value = ''
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al retirar amenaza')
+  } finally {
+    threatActionLoading.value = ''
   }
 }
 
@@ -373,7 +403,7 @@ onUnmounted(() => {
             'badge-draft': gs.eventStatus === 'DRAFT',
           }"
         >
-          {{ gs.eventStatus }}
+          {{ formatEventStatus(gs.eventStatus) }}
         </span>
         <span
           :style="{ color: socketConnected ? 'var(--c-success)' : 'var(--c-danger)', fontSize: '0.82rem' }"
@@ -424,7 +454,7 @@ onUnmounted(() => {
 
         <!-- Threat -->
         <div class="card">
-          <h3 class="mb-1">Amenaza del Esquema</h3>
+          <h3 class="mb-1">Amenaza del Plan Principal</h3>
           <ThreatBar :current="gs.schemeThreatCurrent" :target="gs.schemeThreatTarget" />
         </div>
       </div>
@@ -526,7 +556,7 @@ onUnmounted(() => {
             </form>
 
             <form data-testid="delegated-threat-form" @submit.prevent="handleDelegateThreat">
-              <h4 class="mb-1">Registrar amenaza en nombre de una mesa</h4>
+              <h4 class="mb-1">Gestionar amenaza del plan principal</h4>
               <div class="form-group">
                 <label for="delegated-threat-group">Mesa</label>
                 <select
@@ -565,9 +595,19 @@ onUnmounted(() => {
                   maxlength="300"
                 />
               </div>
-              <button class="btn btn-primary btn-sm" :disabled="threatLoading || !threatGroupId">
-                {{ threatLoading ? 'Enviando…' : 'Registrar amenaza delegada' }}
-              </button>
+              <div class="flex gap-1" style="flex-wrap: wrap">
+                <button class="btn btn-primary btn-sm" :disabled="Boolean(threatActionLoading) || !threatGroupId">
+                  {{ threatActionLoading === 'add' ? 'Enviando…' : 'Registrar amenaza delegada' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="Boolean(threatActionLoading) || !threatGroupId"
+                  @click="handleDelegateThreatRemoval"
+                >
+                  {{ threatActionLoading === 'remove' ? 'Enviando…' : 'Retirar amenaza delegada' }}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -602,7 +642,7 @@ onUnmounted(() => {
 
             <form data-testid="manual-threat-form" @submit.prevent="handleManualThreat">
               <div class="form-group">
-                <label for="manual-threat">Amenaza</label>
+                <label for="manual-threat">Amenaza del plan principal</label>
                 <input
                   id="manual-threat"
                   v-model.number="manualThreat"

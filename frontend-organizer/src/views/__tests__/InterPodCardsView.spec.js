@@ -63,6 +63,7 @@ function buildDefinition(overrides = {}) {
     type: 'CUSTOM',
     cardCategory: 'ESBIRRO',
     defaultHpMax: 8,
+    defaultThreatMax: 0,
     defaultStatus: 'REVELADA',
     imageUrl: '/api/inter-pod-card-definitions/10/image',
     ownerUsername: 'organizer',
@@ -220,5 +221,24 @@ describe('InterPodCardsView', () => {
         interPodCardDefinitionIds: [10, 11],
       }),
     )
+  })
+
+  it('shows threat values for plan definitions', async () => {
+    getInterPodCardDefinitions.mockResolvedValue({
+      data: [
+        buildDefinition({
+          id: 12,
+          name: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          defaultHpMax: 0,
+          defaultThreatMax: 8,
+        }),
+      ],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Amenaza 8')
   })
 })

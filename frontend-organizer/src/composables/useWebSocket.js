@@ -21,6 +21,7 @@ export function useWebSocket(eventId) {
     THREAT_50_PERCENT: '¡Amenaza al 50%!',
     THREAT_75_PERCENT: '¡Amenaza al 75%! ¡Peligro!',
     THREAT_100_PERCENT: '¡Amenaza al 100%! Derrota por amenaza.',
+    INTER_POD_CARD_THREAT_UPDATED: 'Se ha actualizado la amenaza de una carta inter-nodo.',
     TIMER_30_MINUTES: 'Quedan 30 minutos',
     TIMER_15_MINUTES: 'Quedan 15 minutos',
     TIMER_5_MINUTES: '¡Solo quedan 5 minutos!',

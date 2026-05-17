@@ -136,7 +136,10 @@ function mountView() {
         TimerDisplay: { template: '<div class="timer-stub">TIMER</div>' },
         FinalSummary: { template: '<div class="summary-stub" />' },
         ReportDamageDialog: { template: '<div class="damage-dialog-stub" />' },
-        ReportThreatDialog: { template: '<div class="threat-dialog-stub" />' },
+        ReportThreatDialog: {
+          props: ['mode'],
+          template: '<div class="threat-dialog-stub">Threat {{ mode }}</div>',
+        },
         InterPodAlertDialog: {
           props: ['podId', 'podName', 'initialCardId'],
           template: '<div class="inter-pod-dialog-stub">Pod {{ podId }} · {{ podName }} · Card {{ initialCardId ?? "none" }}</div>',
@@ -193,7 +196,9 @@ describe('PlayerGameView', () => {
     const wrapper = mountView()
 
     await flushPromises()
-    await wrapper.get('.action-bar .btn-secondary').trigger('click')
+    const interPodButton = wrapper.findAll('button').find((button) => button.text() === 'Cartas Inter-Nodo')
+    expect(interPodButton).toBeDefined()
+    await interPodButton.trigger('click')
 
     expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod Norte')
 
@@ -208,9 +213,12 @@ describe('PlayerGameView', () => {
         {
           id: 77,
           cardName: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
           status: 'REVELADA',
           hpCurrent: 6,
           hpMax: 8,
+          threatCurrent: 0,
+          threatMax: 0,
           imageUrl: '/api/events/1/inter-pod-cards/77/image',
         },
       ],
@@ -244,9 +252,12 @@ describe('PlayerGameView', () => {
         {
           id: 77,
           cardName: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
           status: 'REVELADA',
           hpCurrent: 6,
           hpMax: 8,
+          threatCurrent: 0,
+          threatMax: 0,
           imageUrl: '/api/events/1/inter-pod-cards/77/image',
         },
       ],
@@ -298,6 +309,25 @@ describe('PlayerGameView', () => {
     expect(wrapper.text()).toContain('Contador pendiente de inicio')
     expect(wrapper.text()).toContain('todavía no ha iniciado el contador')
     expect(wrapper.find('.action-bar').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('offers separate actions to add and remove main-plan threat', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Añadir Amenaza')
+    expect(wrapper.text()).toContain('Quitar Amenaza')
+
+    const removeButton = wrapper.findAll('button').find((button) => button.text() === 'Quitar Amenaza')
+    expect(removeButton).toBeDefined()
+    await removeButton.trigger('click')
+
+    expect(wrapper.find('.threat-dialog-stub').text()).toContain('Threat remove')
 
     wrapper.unmount()
   })

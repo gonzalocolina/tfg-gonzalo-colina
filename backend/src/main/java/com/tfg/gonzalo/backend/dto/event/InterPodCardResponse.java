@@ -16,6 +16,8 @@ public record InterPodCardResponse(
         InterPodCardCategory cardCategory,
         Integer hpMax,
         Integer hpCurrent,
+        Integer threatMax,
+        Integer threatCurrent,
         InterPodCardStatus status,
         String imageUrl,
         Instant createdAt,

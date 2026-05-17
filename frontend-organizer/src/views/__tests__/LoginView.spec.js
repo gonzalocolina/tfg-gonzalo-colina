@@ -51,7 +51,7 @@ describe('LoginView', () => {
     expect(wrapper.find('h1').text()).toContain('Marvel Champions')
     expect(wrapper.find('#username').exists()).toBe(true)
     expect(wrapper.find('#password').exists()).toBe(true)
-    expect(wrapper.find('button').text()).toBe('Iniciar sesión')
+    expect(wrapper.find('button.btn-primary').text()).toBe('Iniciar sesión')
   })
 
   it('shows the link to register', () => {
@@ -134,8 +134,8 @@ describe('LoginView', () => {
 
     // During loading
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('button').text()).toBe('Entrando…')
+    expect(wrapper.find('button.btn-primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('button.btn-primary').text()).toBe('Entrando…')
 
     // Resolve and cleanup
     resolveLogin({ accessToken: 'tok', eventId: 1 })

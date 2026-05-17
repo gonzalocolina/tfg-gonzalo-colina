@@ -107,7 +107,7 @@ async function handleLogin() {
         </div>
         <p v-if="errorMsg" class="form-error">{{ errorMsg }}</p>
         <div class="form-actions">
-          <button class="btn btn-primary" :disabled="loading" style="flex: 1">
+          <button type="submit" class="btn btn-primary" :disabled="loading" style="flex: 1">
             {{ loading ? 'Entrando…' : 'Iniciar sesión' }}
           </button>
         </div>

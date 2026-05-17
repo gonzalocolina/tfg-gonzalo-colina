@@ -3,10 +3,12 @@ package com.tfg.gonzalo.backend.service;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,12 +58,94 @@ public class InterPodCardImageStorageService {
         }
     }
 
+    public String normalizeExternalUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return null;
+        }
+
+        String trimmedUrl = rawUrl.trim();
+        if (!isExternalUrl(trimmedUrl)) {
+            throw new BusinessRuleException(
+                    "La URL externa de la imagen no es válida. Debe empezar por http:// o https://.");
+        }
+        return trimmedUrl;
+    }
+
+    public boolean isExternalUrl(String imageLocation) {
+        if (imageLocation == null || imageLocation.isBlank()) {
+            return false;
+        }
+
+        try {
+            URI uri = URI.create(imageLocation.trim());
+            String scheme = uri.getScheme();
+            return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    public String inferContentTypeFromLocation(String imageLocation) {
+        if (imageLocation == null || imageLocation.isBlank()) {
+            return null;
+        }
+
+        String normalizedLocation = imageLocation.trim();
+        if (isExternalUrl(normalizedLocation)) {
+            try {
+                normalizedLocation = URI.create(normalizedLocation).getPath();
+            } catch (IllegalArgumentException exception) {
+                return null;
+            }
+        }
+
+        String normalizedLowercaseLocation = normalizedLocation.toLowerCase(Locale.ROOT);
+        if (normalizedLowercaseLocation.endsWith(".png")) {
+            return "image/png";
+        }
+        if (normalizedLowercaseLocation.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (normalizedLowercaseLocation.endsWith(".jpg") || normalizedLowercaseLocation.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        return null;
+    }
+
+    public String resolveDefinitionImageUrl(Long definitionId, String imageLocation) {
+        if (imageLocation == null || imageLocation.isBlank()) {
+            return null;
+        }
+        if (isExternalUrl(imageLocation)) {
+            return imageLocation.trim();
+        }
+        return "/api/inter-pod-card-definitions/%d/image".formatted(definitionId);
+    }
+
+    public String resolveCardImageUrl(Long eventId, Long cardId, String imageLocation) {
+        if (imageLocation == null || imageLocation.isBlank()) {
+            return null;
+        }
+        if (isExternalUrl(imageLocation)) {
+            return imageLocation.trim();
+        }
+        return "/api/events/%d/inter-pod-cards/%d/image".formatted(eventId, cardId);
+    }
+
     public Resource loadAsResource(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             throw new BusinessRuleException("La carta inter-pod no tiene imagen asociada.");
         }
 
         try {
+            if (isExternalUrl(relativePath)) {
+                Resource resource = new UrlResource(relativePath.trim());
+                if (!resource.exists() || !resource.isReadable()) {
+                    throw new BusinessRuleException("No se pudo leer la imagen de la carta inter-pod.");
+                }
+                return resource;
+            }
+
             Path imagePath = rootDirectory.resolve(relativePath).normalize();
             Resource resource = new UrlResource(imagePath.toUri());
             if (!resource.exists() || !resource.isReadable()) {
@@ -75,6 +159,10 @@ public class InterPodCardImageStorageService {
 
     public void delete(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+
+        if (isExternalUrl(relativePath)) {
             return;
         }
 

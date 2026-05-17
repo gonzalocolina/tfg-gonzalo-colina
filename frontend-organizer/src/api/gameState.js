@@ -24,6 +24,10 @@ export function delegateThreat(eventId, data) {
   return http.post(`/events/${eventId}/game-state/threat/delegated`, data)
 }
 
+export function delegateRemoveThreat(eventId, data) {
+  return http.post(`/events/${eventId}/game-state/threat/remove/delegated`, data)
+}
+
 export function manualUpdateVillainHp(eventId, valueOrData, justification) {
   const payload = typeof valueOrData === 'object' ? valueOrData : { value: valueOrData, justification }
   return http.patch(`/events/${eventId}/game-state/villain-hp`, payload)

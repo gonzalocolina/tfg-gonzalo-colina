@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { formatTimerStatus } from '@/utils/displayLabels'
 
 const props = defineProps({
   remaining: { type: Number, required: true },
@@ -32,7 +33,7 @@ const timerColor = computed(() => {
       {{ formatted }}
     </div>
     <div class="text-center text-muted" style="font-size: 0.82rem; margin-bottom: 8px">
-      {{ status === 'RUNNING' ? 'En marcha' : status === 'PAUSED' ? 'Pausado' : status }}
+      {{ formatTimerStatus(status) }}
     </div>
     <div v-if="!disabled" class="timer-controls">
       <button

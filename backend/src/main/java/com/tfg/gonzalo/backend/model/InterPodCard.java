@@ -45,10 +45,16 @@ public class InterPodCard extends BaseEntity {
     private InterPodCardCategory cardCategory;
 
     @Column(nullable = false)
-    private Integer hpMax;
+    private Integer hpMax = 0;
 
     @Column(nullable = false)
-    private Integer hpCurrent;
+    private Integer hpCurrent = 0;
+
+    @Column(nullable = false)
+    private Integer threatMax = 0;
+
+    @Column(nullable = false)
+    private Integer threatCurrent = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

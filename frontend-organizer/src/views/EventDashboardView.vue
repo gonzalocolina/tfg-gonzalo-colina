@@ -4,6 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { getEvent, updateEvent, deleteEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
 import { useNotificationsStore } from '@/stores/notifications'
+import {
+  eventStatusBadgeClass,
+  formatCatalogItemType,
+  formatEventStatus,
+  formatResponsibilities,
+  formatRuleType,
+} from '@/utils/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,16 +89,6 @@ async function handleDelete() {
   }
 }
 
-function statusBadgeClass(status) {
-  return {
-    DRAFT: 'badge-draft',
-    READY: 'badge-ready',
-    IN_PROGRESS: 'badge-in-progress',
-    FINISHED: 'badge-finished',
-    CANCELLED: 'badge-cancelled',
-  }[status] || 'badge-draft'
-}
-
 function prettyCardName(name) {
   if (!name) return '-'
   return name
@@ -119,8 +116,8 @@ onMounted(loadVillains)
             <span class="badge" :class="isOwner ? 'badge-ready' : 'badge-in-progress'">
               {{ isOwner ? 'Organizador principal' : 'Co-organizador' }}
             </span>
-            <span class="badge" :class="statusBadgeClass(event.status)">
-              {{ event.status }}
+            <span class="badge" :class="eventStatusBadgeClass(event.status)">
+              {{ formatEventStatus(event.status) }}
             </span>
           </div>
         </div>
@@ -129,7 +126,7 @@ onMounted(loadVillains)
           <p style="margin: 0; font-weight: 600">Acceso delegado</p>
           <p class="text-muted" style="margin-top: 6px; font-size: 0.9rem">
             Estás viendo este evento como co-organizador.
-            Responsabilidades activas: {{ delegatedResponsibilities.length ? delegatedResponsibilities.join(', ') : 'sin permisos globales específicos' }}.
+            Responsabilidades activas: {{ formatResponsibilities(delegatedResponsibilities, 'sin permisos globales específicos') }}.
           </p>
         </div>
 
@@ -163,13 +160,13 @@ onMounted(loadVillains)
           <div class="summary-item">
             <div class="label">Fórmula HP</div>
             <div class="value" style="font-size: 1rem">
-              {{ event.villainHpRuleType }}: {{ event.villainHpRuleValue }}
+              {{ formatRuleType(event.villainHpRuleType) }}: {{ event.villainHpRuleValue }}
             </div>
           </div>
           <div class="summary-item">
             <div class="label">Fórmula Amenaza</div>
             <div class="value" style="font-size: 1rem">
-              {{ event.villainThreatRuleType }}: {{ event.villainThreatRuleValue }}
+              {{ formatRuleType(event.villainThreatRuleType) }}: {{ event.villainThreatRuleValue }}
             </div>
           </div>
           <div class="summary-item">
@@ -225,7 +222,7 @@ onMounted(loadVillains)
                 {{ loadingVillains ? 'Cargando villanos…' : 'Selecciona un villano' }}
               </option>
               <option v-for="v in villains" :key="v.id" :value="v.id">
-                {{ v.name }} ({{ v.type }})
+                {{ v.name }} ({{ formatCatalogItemType(v.type) }})
               </option>
             </select>
           </div>

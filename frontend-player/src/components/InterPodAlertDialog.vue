@@ -8,6 +8,7 @@ import {
   createInterPodCard,
   getInterPodCards,
   reportInterPodCardDamage,
+  reportInterPodCardThreat,
 } from '@/api/interPod'
 import { getEventInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 
@@ -30,7 +31,7 @@ const interPodCardDefinitionId = ref(null)
 const creating = ref(false)
 const cards = ref([])
 const loadingCards = ref(true)
-const damageByCard = ref({})
+const amountByCard = ref({})
 const mutatingCardId = ref(null)
 const cardElements = ref({})
 const highlightedCardId = ref(null)
@@ -119,8 +120,10 @@ function prettyCardName(name) {
 function resolveInterPodCardStatus(card) {
   if (!card) return '-'
 
-  const hpCurrent = Number(card.hpCurrent)
-  if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {
+  const currentValue = card.cardCategory === 'ESBIRRO'
+    ? Number(card.hpCurrent)
+    : Number(card.threatCurrent)
+  if (Number.isFinite(currentValue) && currentValue <= 0) {
     return 'DERROTADA'
   }
 
@@ -129,6 +132,30 @@ function resolveInterPodCardStatus(card) {
   }
 
   return 'REVELADA'
+}
+
+function isMinionCard(card) {
+  return card?.cardCategory === 'ESBIRRO'
+}
+
+function cardMetricLabel(card) {
+  return isMinionCard(card) ? 'HP' : 'Amenaza'
+}
+
+function cardCurrentValue(card) {
+  return isMinionCard(card) ? card.hpCurrent : card.threatCurrent
+}
+
+function cardMaxValue(card) {
+  return isMinionCard(card) ? card.hpMax : card.threatMax
+}
+
+function cardActionPlaceholder(card) {
+  return isMinionCard(card) ? 'Daño' : 'Amenaza'
+}
+
+function cardActionLabel(card) {
+  return isMinionCard(card) ? 'Registrar daño' : 'Quitar amenaza'
 }
 
 async function loadSelectedDefinitions() {
@@ -186,28 +213,35 @@ function mapMutationError(err, fallback) {
   return err.response?.data?.message || fallback
 }
 
-async function handleDamage(card) {
+async function handleCardProgress(card) {
   if (actionsDisabled.value) {
     notif.error(actionsDisabledReason.value)
     return
   }
-  const damage = Number(damageByCard.value[card.id] || 0)
-  if (damage < 1) {
-    notif.error('El daño debe ser mayor que 0.')
+  const amount = Number(amountByCard.value[card.id] || 0)
+  if (amount < 1) {
+    notif.error(isMinionCard(card) ? 'El daño debe ser mayor que 0.' : 'La amenaza debe ser mayor que 0.')
     return
   }
 
   mutatingCardId.value = card.id
   try {
-    await reportInterPodCardDamage(auth.eventId, card.id, {
-      representativeCode: auth.code,
-      damage,
-    })
-    notif.success('Daño reportado')
-    damageByCard.value[card.id] = ''
+    if (isMinionCard(card)) {
+      await reportInterPodCardDamage(auth.eventId, card.id, {
+        representativeCode: auth.code,
+        damage: amount,
+      })
+    } else {
+      await reportInterPodCardThreat(auth.eventId, card.id, {
+        representativeCode: auth.code,
+        threat: amount,
+      })
+    }
+    notif.success(isMinionCard(card) ? 'Daño reportado' : 'Amenaza retirada')
+    amountByCard.value[card.id] = ''
     await loadCards()
   } catch (err) {
-    notif.error(mapMutationError(err, 'Error al reportar daño'))
+    notif.error(mapMutationError(err, isMinionCard(card) ? 'Error al reportar daño' : 'Error al retirar amenaza'))
   } finally {
     mutatingCardId.value = null
   }
@@ -555,7 +589,7 @@ onUnmounted(() => {
               </span>
               <span class="text-muted" style="font-size: 0.8rem">{{ a.cardCategory }} · Mesa: {{ a.sourceGroupIdentifier }}</span>
               <div style="font-size: 0.95rem; margin-top: 2px">
-                <strong>HP {{ a.hpCurrent }} / {{ a.hpMax }}</strong>
+                <strong>{{ cardMetricLabel(a) }} {{ cardCurrentValue(a) }} / {{ cardMaxValue(a) }}</strong>
                 <span class="text-muted" style="margin-left: 8px">{{ prettyCardName(resolveInterPodCardStatus(a)) }}</span>
               </div>
               <span class="text-muted" style="font-size: 0.72rem">{{ formatTime(a.createdAt) }}</span>
@@ -564,15 +598,15 @@ onUnmounted(() => {
 
           <div class="interpod-card-actions">
             <input
-              v-model.number="damageByCard[a.id]"
+              v-model.number="amountByCard[a.id]"
               class="form-control"
               type="number"
               min="1"
-              placeholder="Daño"
+              :placeholder="cardActionPlaceholder(a)"
               style="width: 90px"
             />
-            <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleDamage(a)">
-              Registrar daño
+            <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleCardProgress(a)">
+              {{ cardActionLabel(a) }}
             </button>
           </div>
         </div>

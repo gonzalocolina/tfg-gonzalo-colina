@@ -55,7 +55,14 @@ describe('CreateEventView', () => {
     })
     getInterPodCardDefinitions.mockResolvedValue({
       data: [
-        { id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultStatus: 'REVELADA' },
+        {
+          id: 10,
+          name: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
+          defaultHpMax: 8,
+          defaultThreatMax: 0,
+          defaultStatus: 'REVELADA',
+        },
       ],
     })
     pinia = createPinia()

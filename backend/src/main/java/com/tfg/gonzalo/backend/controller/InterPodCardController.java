@@ -3,6 +3,7 @@ package com.tfg.gonzalo.backend.controller;
 import com.tfg.gonzalo.backend.dto.event.CreateInterPodCardRequest;
 import com.tfg.gonzalo.backend.dto.event.InterPodCardResponse;
 import com.tfg.gonzalo.backend.dto.event.ReportInterPodCardDamageRequest;
+import com.tfg.gonzalo.backend.dto.event.ReportInterPodCardThreatRequest;
 import com.tfg.gonzalo.backend.dto.event.UpdateInterPodCardStatusRequest;
 import com.tfg.gonzalo.backend.service.InterPodCardService;
 import jakarta.validation.Valid;
@@ -53,6 +54,13 @@ public class InterPodCardController {
                                              @PathVariable Long cardId,
                                              @Valid @RequestBody ReportInterPodCardDamageRequest request) {
         return interPodCardService.reportDamage(eventId, cardId, request);
+    }
+
+    @PostMapping("/{cardId}/threat")
+    public InterPodCardResponse reportThreat(@PathVariable Long eventId,
+                                             @PathVariable Long cardId,
+                                             @Valid @RequestBody ReportInterPodCardThreatRequest request) {
+        return interPodCardService.reportThreat(eventId, cardId, request);
     }
 
     @PatchMapping("/{cardId}/status")

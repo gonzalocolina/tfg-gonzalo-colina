@@ -73,6 +73,7 @@ public class EventRoleService {
         return toResponse(user, coOrganizerAssignmentRepository.findByEventIdAndUserId(eventId, user.getId()));
     }
 
+    @Transactional(readOnly = true)
     public List<CoOrganizerResponse> listCoOrganizers(Long eventId) {
         Event event = findEvent(eventId);
         accessControlService.requireReadAccessToEvent(event);

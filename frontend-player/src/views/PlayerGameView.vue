@@ -31,6 +31,7 @@ const structureLoading = ref(false)
 
 const showDamageDialog = ref(false)
 const showThreatDialog = ref(false)
+const showThreatRemovalDialog = ref(false)
 const showInterPodDialog = ref(false)
 const selectedInterPodCardId = ref(null)
 const interPodRefreshTick = ref(0)
@@ -197,8 +198,10 @@ function prettyCardName(name) {
 function resolveInterPodCardStatus(card) {
   if (!card) return '-'
 
-  const hpCurrent = Number(card.hpCurrent)
-  if (Number.isFinite(hpCurrent) && hpCurrent <= 0) {
+  const currentValue = card?.cardCategory === 'ESBIRRO'
+    ? Number(card.hpCurrent)
+    : Number(card.threatCurrent)
+  if (Number.isFinite(currentValue) && currentValue <= 0) {
     return 'DERROTADA'
   }
 
@@ -207,6 +210,17 @@ function resolveInterPodCardStatus(card) {
   }
 
   return 'REVELADA'
+}
+
+function isMinionCard(card) {
+  return card?.cardCategory === 'ESBIRRO'
+}
+
+function cardMetricText(card) {
+  if (!card) return '-'
+  return isMinionCard(card)
+    ? `HP ${card.hpCurrent}/${card.hpMax}`
+    : `Amenaza ${card.threatCurrent}/${card.threatMax}`
 }
 
 function handleImageLoadError(event) {
@@ -246,6 +260,7 @@ watch(showActions, (nextValue) => {
   if (!nextValue) {
     showDamageDialog.value = false
     showThreatDialog.value = false
+    showThreatRemovalDialog.value = false
     showInterPodDialog.value = false
   }
 })
@@ -370,7 +385,7 @@ onUnmounted(() => {
                 <strong>{{ prettyCardName(card.cardName) }}</strong>
                 <span class="text-muted" style="font-size: 0.8rem">
                   {{ prettyCardName(resolveInterPodCardStatus(card)) }}
-                  <template v-if="card.hpMax"> · HP {{ card.hpCurrent }}/{{ card.hpMax }}</template>
+                  <template> · {{ cardMetricText(card) }}</template>
                 </span>
                 <span class="interpod-inline-link text-muted">Pulsa para ver su detalle</span>
               </div>
@@ -421,7 +436,8 @@ onUnmounted(() => {
     <!-- Action bar (representative only, in progress only) -->
     <div v-if="showActions" class="action-bar">
       <button class="btn btn-primary" @click="showDamageDialog = true">Reportar Daño</button>
-      <button class="btn btn-danger" @click="showThreatDialog = true">Reportar Amenaza</button>
+      <button class="btn btn-danger" @click="showThreatDialog = true">Añadir Amenaza</button>
+      <button class="btn btn-secondary" @click="showThreatRemovalDialog = true">Quitar Amenaza</button>
       <button
         class="btn btn-secondary"
         style="flex: 0 0 auto; padding: 10px 14px"
@@ -433,7 +449,8 @@ onUnmounted(() => {
 
     <!-- Dialogs -->
     <ReportDamageDialog v-if="showDamageDialog" @close="showDamageDialog = false" />
-    <ReportThreatDialog v-if="showThreatDialog" @close="showThreatDialog = false" />
+    <ReportThreatDialog v-if="showThreatDialog" mode="add" @close="showThreatDialog = false" />
+    <ReportThreatDialog v-if="showThreatRemovalDialog" mode="remove" @close="showThreatRemovalDialog = false" />
     <InterPodAlertDialog
       v-if="showInterPodDialog"
       :pod-id="currentPodId"

@@ -3,6 +3,7 @@ package com.tfg.gonzalo.backend.service;
 import com.tfg.gonzalo.backend.dto.event.CreateInterPodCardRequest;
 import com.tfg.gonzalo.backend.dto.event.InterPodCardResponse;
 import com.tfg.gonzalo.backend.dto.event.ReportInterPodCardDamageRequest;
+import com.tfg.gonzalo.backend.dto.event.ReportInterPodCardThreatRequest;
 import com.tfg.gonzalo.backend.dto.event.UpdateInterPodCardStatusRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ForbiddenOperationException;
@@ -14,6 +15,7 @@ import com.tfg.gonzalo.backend.model.InterPodCard;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
@@ -92,8 +94,9 @@ public class InterPodCardService {
         card.setInterPodCardDefinition(selectedDefinition);
         card.setCardName(selectedDefinition.getName());
         card.setCardCategory(selectedDefinition.getCardCategory());
-        card.setHpMax(hpMax);
-        card.setHpCurrent(hpMax);
+        card.setHpMax(resolveHpMax(selectedDefinition, request));
+        card.setThreatMax(resolveThreatMax(selectedDefinition));
+        initializeProgress(card, initialStatus);
         card.setStatus(initialStatus);
         card = interPodCardRepository.save(card);
 
@@ -119,6 +122,8 @@ public class InterPodCardService {
         Event event = findEvent(eventId);
         ensureEventAcceptsChanges(event);
         InterPodCard card = findCard(eventId, cardId);
+        ensureCategory(card, InterPodCardCategory.ESBIRRO,
+            "Los planes inter-pod no reciben daño; debes retirarles amenaza.");
 
         EventGroup actingGroup = authorizeMutation(event, card, request.representativeCode());
 
@@ -143,6 +148,38 @@ public class InterPodCardService {
     }
 
     @Transactional
+    public InterPodCardResponse reportThreat(Long eventId,
+                                             Long cardId,
+                                             ReportInterPodCardThreatRequest request) {
+        Event event = findEvent(eventId);
+        ensureEventAcceptsChanges(event);
+        InterPodCard card = findCard(eventId, cardId);
+        ensureCategory(card, InterPodCardCategory.PLAN,
+                "Los esbirros inter-pod no tienen amenaza propia; debes aplicarles daño.");
+
+        EventGroup actingGroup = authorizeMutation(event, card, request.representativeCode());
+
+        int previousThreat = card.getThreatCurrent();
+        int updatedThreat = Math.max(0, previousThreat - request.threat());
+        card.setThreatCurrent(updatedThreat);
+        if (updatedThreat == 0) {
+            card.setStatus(InterPodCardStatus.DERROTADA);
+        }
+        card = interPodCardRepository.save(card);
+
+        eventLogService.appendOrganizerLog(event,
+                resolveLogGroup(actingGroup, card),
+                EventActionType.INTER_POD_CARD_THREAT_REDUCED,
+                String.valueOf(previousThreat),
+                String.valueOf(updatedThreat),
+                "Amenaza retirada de plan inter-pod.");
+
+        publishCardRealtime(eventId, "INTER_POD_CARD_THREAT_UPDATED");
+
+        return toResponse(card);
+    }
+
+    @Transactional
     public InterPodCardResponse updateStatus(Long eventId,
                                              Long cardId,
                                              UpdateInterPodCardStatusRequest request) {
@@ -155,7 +192,11 @@ public class InterPodCardService {
         InterPodCardStatus previousStatus = card.getStatus();
         card.setStatus(request.status());
         if (request.status() == InterPodCardStatus.DERROTADA) {
-            card.setHpCurrent(0);
+            if (card.getCardCategory() == InterPodCardCategory.ESBIRRO) {
+                card.setHpCurrent(0);
+            } else {
+                card.setThreatCurrent(0);
+            }
         }
         card = interPodCardRepository.save(card);
 
@@ -264,6 +305,40 @@ public class InterPodCardService {
         }
     }
 
+    private int resolveHpMax(InterPodCardDefinition definition, CreateInterPodCardRequest request) {
+        if (definition.getCardCategory() != InterPodCardCategory.ESBIRRO) {
+            return 0;
+        }
+        return request.hpMax() == null ? definition.getDefaultHpMax() : request.hpMax();
+    }
+
+    private int resolveThreatMax(InterPodCardDefinition definition) {
+        if (definition.getCardCategory() != InterPodCardCategory.PLAN) {
+            return 0;
+        }
+        return definition.getDefaultThreatMax();
+    }
+
+    private void initializeProgress(InterPodCard card, InterPodCardStatus initialStatus) {
+        boolean defeated = initialStatus == InterPodCardStatus.DERROTADA;
+        if (card.getCardCategory() == InterPodCardCategory.ESBIRRO) {
+            card.setHpCurrent(defeated ? 0 : card.getHpMax());
+            card.setThreatCurrent(0);
+            return;
+        }
+
+        card.setHpCurrent(0);
+        card.setThreatCurrent(defeated ? 0 : card.getThreatMax());
+    }
+
+    private void ensureCategory(InterPodCard card,
+                                InterPodCardCategory expectedCategory,
+                                String message) {
+        if (card.getCardCategory() != expectedCategory) {
+            throw new BusinessRuleException(message);
+        }
+    }
+
     private void publishCardRealtime(Long eventId, String operation) {
         realtimeEventPublisher.publishGameStateUpdate(eventId, operation, null, List.of(operation));
     }
@@ -301,9 +376,11 @@ public class InterPodCardService {
     private InterPodCardResponse toResponse(InterPodCard card) {
         String imageUrl = null;
         if (card.getImagePath() != null) {
-            imageUrl = "/api/events/%d/inter-pod-cards/%d/image".formatted(card.getEvent().getId(), card.getId());
+            imageUrl = imageStorageService.resolveCardImageUrl(card.getEvent().getId(), card.getId(), card.getImagePath());
         } else if (card.getInterPodCardDefinition() != null && card.getInterPodCardDefinition().getImagePath() != null) {
-            imageUrl = "/api/inter-pod-card-definitions/%d/image".formatted(card.getInterPodCardDefinition().getId());
+            imageUrl = imageStorageService.resolveDefinitionImageUrl(
+                    card.getInterPodCardDefinition().getId(),
+                    card.getInterPodCardDefinition().getImagePath());
         }
 
         return new InterPodCardResponse(
@@ -318,6 +395,8 @@ public class InterPodCardService {
                 card.getCardCategory(),
                 card.getHpMax(),
                 card.getHpCurrent(),
+                card.getThreatMax(),
+                card.getThreatCurrent(),
                 card.getStatus(),
                 imageUrl,
                 card.getCreatedAt(),

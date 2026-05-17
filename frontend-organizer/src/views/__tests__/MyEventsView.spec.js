@@ -68,7 +68,7 @@ describe('MyEventsView', () => {
     expect(getMyEvents).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Evento Compartido')
     expect(wrapper.text()).toContain('Co-organizador')
-    expect(wrapper.text()).toContain('THREAT, TIMER')
+    expect(wrapper.text()).toContain('Amenaza, Temporizador')
     expect(wrapper.find('a[href="/invitations"]').exists()).toBe(true)
   })
 

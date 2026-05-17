@@ -10,6 +10,7 @@ const {
   startGame,
   delegateVillainDamage,
   delegateThreat,
+  delegateRemoveThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -26,6 +27,7 @@ const {
   startGame: vi.fn(),
   delegateVillainDamage: vi.fn(),
   delegateThreat: vi.fn(),
+  delegateRemoveThreat: vi.fn(),
   manualUpdateVillainHp: vi.fn(),
   manualUpdateThreat: vi.fn(),
   startTimer: vi.fn(),
@@ -53,6 +55,7 @@ vi.mock('@/api/gameState', () => ({
   startGame,
   delegateVillainDamage,
   delegateThreat,
+  delegateRemoveThreat,
   manualUpdateVillainHp,
   manualUpdateThreat,
   startTimer,
@@ -157,6 +160,7 @@ describe('GameView', () => {
     startGame.mockResolvedValue({ data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS' }) } })
     delegateVillainDamage.mockResolvedValue({ data: { snapshot: buildSnapshot({ villainHpCurrent: 39 }) } })
     delegateThreat.mockResolvedValue({ data: { snapshot: buildSnapshot({ schemeThreatCurrent: 4 }) } })
+    delegateRemoveThreat.mockResolvedValue({ data: { snapshot: buildSnapshot({ schemeThreatCurrent: 2 }) } })
     manualUpdateVillainHp.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
     manualUpdateThreat.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
     startTimer.mockResolvedValue({ data: { snapshot: buildSnapshot() } })
@@ -223,6 +227,9 @@ describe('GameView', () => {
     delegateThreat.mockResolvedValue({
       data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', schemeThreatCurrent: 4 }) },
     })
+    delegateRemoveThreat.mockResolvedValue({
+      data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', schemeThreatCurrent: 1 }) },
+    })
     manualUpdateVillainHp.mockResolvedValue({
       data: { snapshot: buildSnapshot({ eventStatus: 'IN_PROGRESS', villainHpCurrent: 35 }) },
     })
@@ -264,6 +271,18 @@ describe('GameView', () => {
       justification: '',
     })
 
+    await wrapper.find('#delegated-threat-amount').setValue('2')
+    const removeThreatButton = wrapper.findAll('button').find((button) => button.text().includes('Retirar amenaza delegada'))
+    expect(removeThreatButton).toBeDefined()
+    await removeThreatButton.trigger('click')
+    await flushPromises()
+
+    expect(delegateRemoveThreat).toHaveBeenCalledWith(42, {
+      groupId: 21,
+      threat: 2,
+      justification: '',
+    })
+
     await wrapper.find('#manual-hp').setValue('35')
     await wrapper.find('[data-testid="manual-hp-form"]').trigger('submit')
     await flushPromises()
@@ -272,6 +291,17 @@ describe('GameView', () => {
       value: 35,
       justification: '',
     })
+
+    wrapper.unmount()
+  })
+
+  it('labels the shared scheme as the main plan', async () => {
+    getGameState.mockResolvedValue({ data: buildSnapshot({ eventStatus: 'IN_PROGRESS' }) })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Amenaza del Plan Principal')
 
     wrapper.unmount()
   })

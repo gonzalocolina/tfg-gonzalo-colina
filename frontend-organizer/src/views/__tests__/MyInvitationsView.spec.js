@@ -74,7 +74,7 @@ describe('MyInvitationsView', () => {
     expect(getMyCoOrganizerInvitations).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Evento Compartido')
     expect(wrapper.text()).toContain('owner-user')
-    expect(wrapper.text()).toContain('THREAT, TIMER')
+    expect(wrapper.text()).toContain('Amenaza, Temporizador')
   })
 
   it('accepts an invitation and redirects to the dashboard', async () => {
