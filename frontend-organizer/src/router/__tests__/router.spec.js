@@ -15,21 +15,35 @@ function createTestRouter() {
       },
       { path: '/event/:eventId', name: 'dashboard', component: { template: '<div/>' } },
       { path: '/event/:eventId/setup', name: 'setup', component: { template: '<div/>' } },
+      { path: '/event/:eventId/statistics', name: 'statistics', component: { template: '<div/>' } },
     ],
   })
 
   // Replicate the guard from the real router
-  router.beforeEach((to) => {
-    if (to.meta.public) return true
+  router.beforeEach((to, _from, next) => {
+    if (to.meta.public) {
+      next()
+      return
+    }
+
     const raw = sessionStorage.getItem('auth')
-    if (!raw) return { name: 'login' }
+    if (!raw) {
+      next({ name: 'login' })
+      return
+    }
+
     try {
       const { accessToken } = JSON.parse(raw)
-      if (!accessToken) return { name: 'login' }
+      if (!accessToken) {
+        next({ name: 'login' })
+        return
+      }
     } catch {
-      return { name: 'login' }
+      next({ name: 'login' })
+      return
     }
-    return true
+
+    next()
   })
 
   return router
@@ -83,5 +97,13 @@ describe('Router Guard', () => {
     await router.push('/event/1')
     await router.isReady()
     expect(router.currentRoute.value.name).toBe('login')
+  })
+
+  it('allows access to statistics route with valid auth', async () => {
+    sessionStorage.setItem('auth', JSON.stringify({ accessToken: 'valid-token' }))
+    const router = createTestRouter()
+    await router.push('/event/1/statistics')
+    await router.isReady()
+    expect(router.currentRoute.value.name).toBe('statistics')
   })
 })
