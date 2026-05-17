@@ -17,6 +17,9 @@ export function createInterPodCardDefinition(data, imageFile) {
   if (data.defaultStatus) {
     formData.append('defaultStatus', data.defaultStatus)
   }
+  if (data.imageUrl?.trim()) {
+    formData.append('imageUrl', data.imageUrl.trim())
+  }
   if (imageFile) {
     formData.append('image', imageFile)
   }
@@ -31,6 +34,9 @@ export function updateInterPodCardDefinition(definitionId, data, imageFile) {
   formData.append('defaultThreatMax', String(data.defaultThreatMax ?? 0))
   if (data.defaultStatus) {
     formData.append('defaultStatus', data.defaultStatus)
+  }
+  if (data.imageUrl?.trim()) {
+    formData.append('imageUrl', data.imageUrl.trim())
   }
   if (imageFile) {
     formData.append('image', imageFile)

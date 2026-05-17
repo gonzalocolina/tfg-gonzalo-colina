@@ -56,6 +56,7 @@ const createForm = ref({
   defaultHpMax: 8,
   defaultThreatMax: 8,
   defaultStatus: 'REVELADA',
+  imageUrl: '',
 })
 const createImage = ref(null)
 
@@ -65,6 +66,7 @@ const editForm = ref({
   defaultHpMax: 8,
   defaultThreatMax: 8,
   defaultStatus: 'REVELADA',
+  imageUrl: '',
 })
 const editImage = ref(null)
 const editImagePreviewUrl = ref(null)
@@ -117,6 +119,18 @@ function sameIdSelection(left, right) {
   return normalizedLeft.length === normalizedRight.length && normalizedLeft.every((id, index) => id === normalizedRight[index])
 }
 
+function normalizeImageUrl(value) {
+  return value?.trim() || ''
+}
+
+function isExternalImageUrl(url) {
+  return /^https?:\/\//i.test(normalizeImageUrl(url))
+}
+
+function getDefinitionImagePreviewUrl(definition) {
+  return editImagePreviewUrl.value || normalizeImageUrl(editForm.value.imageUrl) || getProtectedImageUrl(definition.id)
+}
+
 function clearEditImagePreview() {
   if (editImagePreviewUrl.value) {
     URL.revokeObjectURL(editImagePreviewUrl.value)
@@ -130,6 +144,34 @@ function setEditImage(file) {
 
   if (editImage.value) {
     editImagePreviewUrl.value = URL.createObjectURL(editImage.value)
+  }
+}
+
+function handleCreateImageChange(file) {
+  createImage.value = file || null
+  if (createImage.value) {
+    createForm.value.imageUrl = ''
+  }
+}
+
+function handleCreateImageUrlInput(value) {
+  createForm.value.imageUrl = value
+  if (normalizeImageUrl(value)) {
+    createImage.value = null
+  }
+}
+
+function handleEditImageChange(file) {
+  setEditImage(file || null)
+  if (editImage.value) {
+    editForm.value.imageUrl = ''
+  }
+}
+
+function handleEditImageUrlInput(value) {
+  editForm.value.imageUrl = value
+  if (normalizeImageUrl(value)) {
+    setEditImage(null)
   }
 }
 
@@ -186,6 +228,7 @@ function resetCreateForm() {
     defaultHpMax: 8,
     defaultThreatMax: 8,
     defaultStatus: 'REVELADA',
+    imageUrl: '',
   }
   createImage.value = null
 }
@@ -229,6 +272,7 @@ function startEdit(definition) {
     defaultHpMax: definition.defaultHpMax,
     defaultThreatMax: definition.defaultThreatMax,
     defaultStatus: definition.defaultStatus,
+    imageUrl: isExternalImageUrl(definition.imageUrl) ? definition.imageUrl : '',
   }
   setEditImage(null)
 }
@@ -354,29 +398,35 @@ onUnmounted(() => {
             class="selection-card"
             :class="{ 'is-selected': selectedDefinitionIds.includes(definition.id) }"
           >
-            <input
-              type="checkbox"
-              :checked="selectedDefinitionIds.includes(definition.id)"
-              :disabled="!canEditEventSelection || savingSelection"
-              @change="toggleEventDefinition(definition.id)"
-            />
-            <img
-              v-if="getProtectedImageUrl(definition.id)"
-              :src="getProtectedImageUrl(definition.id)"
-              alt="Carta"
-              class="selection-card-image"
-            />
-            <div class="selection-card-content">
-              <div class="selection-card-actions">
-                <div class="selection-card-title">{{ prettyCardName(definition.name) }}</div>
-                <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                  {{ formatCatalogItemType(definition.type) }}
-                </span>
+            <div class="selection-card-image-wrap">
+              <img
+                v-if="getProtectedImageUrl(definition.id)"
+                :src="getProtectedImageUrl(definition.id)"
+                alt="Carta"
+                class="selection-card-image"
+              />
+              <div v-else class="selection-card-image-placeholder">Sin imagen</div>
+              <div class="selection-card-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="selectedDefinitionIds.includes(definition.id)"
+                  :disabled="!canEditEventSelection || savingSelection"
+                  @change="toggleEventDefinition(definition.id)"
+                />
               </div>
+              <div v-if="selectedDefinitionIds.includes(definition.id)" class="selection-card-selected-overlay">
+                <span class="badge badge-ready" style="font-size: 0.7rem">✓</span>
+              </div>
+            </div>
+            <div class="selection-card-content">
+              <div class="selection-card-title">{{ prettyCardName(definition.name) }}</div>
               <div class="selection-card-meta">
                 {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}
               </div>
               <div class="selection-card-tags">
+                <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
+                  {{ formatCatalogItemType(definition.type) }}
+                </span>
                 <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
                   {{ definition.ownerUsername ? `Personalizada · ${definition.ownerUsername}` : 'Sistema' }}
                 </span>
@@ -474,13 +524,28 @@ onUnmounted(() => {
         </div>
 
         <div class="form-group">
-          <label for="new-card-image">Imagen (opcional)</label>
+          <label for="new-card-image-url">URL de imagen (opcional)</label>
+          <input
+            id="new-card-image-url"
+            v-model="createForm.imageUrl"
+            class="form-control"
+            type="url"
+            placeholder="https://ejemplo.com/carta.jpg"
+            @input="handleCreateImageUrlInput($event.target.value)"
+          />
+          <div class="text-muted" style="font-size: 0.75rem; margin-top: 4px">
+            Puedes pegar una URL pública o subir un archivo en el campo siguiente.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="new-card-image">Subir imagen (opcional)</label>
           <input
             id="new-card-image"
             class="form-control"
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            @change="createImage = $event.target.files?.[0] || null"
+            @change="handleCreateImageChange($event.target.files?.[0] || null)"
           />
         </div>
 
@@ -558,20 +623,32 @@ onUnmounted(() => {
                 </td>
                 <td>
                   <img
-                    v-if="editImagePreviewUrl || getProtectedImageUrl(definition.id)"
-                    :src="editImagePreviewUrl || getProtectedImageUrl(definition.id)"
+                    v-if="getDefinitionImagePreviewUrl(definition)"
+                    :src="getDefinitionImagePreviewUrl(definition)"
                     alt=""
                     style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-bottom: 4px; display: block"
+                  />
+                  <input
+                    v-model="editForm.imageUrl"
+                    class="form-control"
+                    type="url"
+                    placeholder="https://ejemplo.com/carta.jpg"
+                    style="width: 180px; margin-bottom: 6px"
+                    @input="handleEditImageUrlInput($event.target.value)"
                   />
                   <input
                     class="form-control"
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
                     style="width: 180px"
-                    @change="setEditImage($event.target.files?.[0] || null)"
+                    @change="handleEditImageChange($event.target.files?.[0] || null)"
                   />
                   <div class="text-muted" style="font-size: 0.75rem; margin-top: 4px">
-                    {{ editImage ? `Nueva imagen: ${editImage.name}` : 'Elige otra imagen para reemplazar la actual.' }}
+                    {{ editImage
+                      ? `Nueva imagen: ${editImage.name}`
+                      : normalizeImageUrl(editForm.imageUrl)
+                        ? 'Usando URL externa.'
+                        : 'Elige otra imagen o pega una URL pública para reemplazar la actual.' }}
                   </div>
                 </td>
                 <td>{{ definition.ownerUsername || 'Sistema' }}</td>

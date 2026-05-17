@@ -11,6 +11,10 @@ function readAccessToken(sessionStorageKey) {
   }
 }
 
+function isExternalImageUrl(sourceUrl) {
+  return /^https?:\/\//i.test(sourceUrl || '')
+}
+
 export function useProtectedImageUrls(sessionStorageKey) {
   const protectedImageUrls = reactive({})
   const objectUrlsById = new Map()
@@ -46,8 +50,23 @@ export function useProtectedImageUrls(sessionStorageKey) {
       return protectedImageUrls[normalizedId]
     }
 
-    if (inflightLoadsById.has(normalizedId)) {
+    const previousRequestedSource = requestedUrlsById.get(normalizedId)
+    if (inflightLoadsById.has(normalizedId) && previousRequestedSource === sourceUrl) {
       return inflightLoadsById.get(normalizedId)
+    }
+
+    requestedUrlsById.set(normalizedId, sourceUrl)
+
+    if (isExternalImageUrl(sourceUrl)) {
+      const previousObjectUrl = objectUrlsById.get(normalizedId)
+      if (previousObjectUrl) {
+        URL.revokeObjectURL(previousObjectUrl)
+        objectUrlsById.delete(normalizedId)
+      }
+
+      sourceUrlsById.set(normalizedId, sourceUrl)
+      protectedImageUrls[normalizedId] = sourceUrl
+      return sourceUrl
     }
 
     const accessToken = readAccessToken(sessionStorageKey)
@@ -55,8 +74,6 @@ export function useProtectedImageUrls(sessionStorageKey) {
       revokeImage(normalizedId)
       return null
     }
-
-    requestedUrlsById.set(normalizedId, sourceUrl)
 
     const request = fetch(sourceUrl, {
       headers: {

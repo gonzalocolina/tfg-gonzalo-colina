@@ -55,4 +55,16 @@ describe('useProtectedImageUrls', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:secure-image')
     expect(composableApi.getProtectedImageUrl(7)).toBe(null)
   })
+
+  it('keeps external image urls as-is without requiring an authenticated fetch', async () => {
+    sessionStorage.removeItem('auth-player')
+    const { composableApi } = mountComposable()
+    const externalImageUrl = 'https://marvelcdb.com/bundles/cards/55041.jpg'
+
+    await composableApi.syncImageUrls([{ id: 9, url: externalImageUrl }])
+
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(composableApi.getProtectedImageUrl(9)).toBe(externalImageUrl)
+  })
 })
