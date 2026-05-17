@@ -70,6 +70,8 @@ const editForm = ref({
 })
 const editImage = ref(null)
 const editImagePreviewUrl = ref(null)
+const modalImageUrl = ref('')
+const modalImageAlt = ref('')
 const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth')
 
 const canEditEventSelection = computed(() => {
@@ -129,6 +131,25 @@ function isExternalImageUrl(url) {
 
 function getDefinitionImagePreviewUrl(definition) {
   return editImagePreviewUrl.value || normalizeImageUrl(editForm.value.imageUrl) || getProtectedImageUrl(definition.id)
+}
+
+function openImageModal(imageUrl, imageAlt = 'Carta inter-nodo') {
+  const normalizedUrl = normalizeImageUrl(imageUrl)
+  if (!normalizedUrl) return
+
+  modalImageUrl.value = normalizedUrl
+  modalImageAlt.value = imageAlt
+}
+
+function closeImageModal() {
+  modalImageUrl.value = ''
+  modalImageAlt.value = ''
+}
+
+function handleModalKeydown(event) {
+  if (event.key === 'Escape') {
+    closeImageModal()
+  }
 }
 
 function clearEditImagePreview() {
@@ -355,11 +376,31 @@ async function handleDelete(definition) {
   }
 }
 
+watch(modalImageUrl, (imageUrl) => {
+  if (globalThis.window === undefined || globalThis.document === undefined) return
+
+  if (imageUrl) {
+    globalThis.addEventListener('keydown', handleModalKeydown)
+    globalThis.document.body.style.overflow = 'hidden'
+    return
+  }
+
+  globalThis.removeEventListener('keydown', handleModalKeydown)
+  globalThis.document.body.style.overflow = ''
+})
+
 watch(eventId, () => {
   void loadPage()
 }, { immediate: true })
 
 onUnmounted(() => {
+  closeImageModal()
+  if (globalThis.window !== undefined) {
+    globalThis.removeEventListener('keydown', handleModalKeydown)
+  }
+  if (globalThis.document !== undefined) {
+    globalThis.document.body.style.overflow = ''
+  }
   clearEditImagePreview()
 })
 </script>
@@ -462,7 +503,7 @@ onUnmounted(() => {
       <div v-else class="text-muted">No se pudo cargar la configuración del evento.</div>
     </div>
 
-    <div class="card">
+    <div v-if="!isEventScoped" class="card">
       <h3 style="margin-bottom: 8px">
         {{ isEventScoped ? 'Crear carta y añadirla al catálogo' : 'Crear carta inter-nodo personalizada' }}
       </h3>
@@ -557,7 +598,7 @@ onUnmounted(() => {
       </form>
     </div>
 
-    <div class="card mt-2">
+    <div v-if="!isEventScoped" class="card mt-2">
       <h3 style="margin-bottom: 8px">
         {{ isEventScoped ? 'Catálogo disponible para este evento' : 'Catálogo de cartas inter-nodo' }}
       </h3>
@@ -622,12 +663,19 @@ onUnmounted(() => {
                   </select>
                 </td>
                 <td>
-                  <img
+                  <button
                     v-if="getDefinitionImagePreviewUrl(definition)"
-                    :src="getDefinitionImagePreviewUrl(definition)"
-                    alt=""
-                    style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-bottom: 4px; display: block"
-                  />
+                    type="button"
+                    class="image-preview-trigger image-preview-trigger--edit"
+                    :aria-label="`Ampliar imagen de ${prettyCardName(editForm.name || definition.name)}`"
+                    @click="openImageModal(getDefinitionImagePreviewUrl(definition), prettyCardName(editForm.name || definition.name))"
+                  >
+                    <img
+                      :src="getDefinitionImagePreviewUrl(definition)"
+                      :alt="`Vista previa de ${prettyCardName(editForm.name || definition.name)}`"
+                      class="image-preview-thumbnail"
+                    />
+                  </button>
                   <input
                     v-model="editForm.imageUrl"
                     class="form-control"
@@ -673,12 +721,19 @@ onUnmounted(() => {
                 <td>{{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}</td>
                 <td>{{ formatCardStatus(definition.defaultStatus) }}</td>
                 <td>
-                  <img
+                  <button
                     v-if="getProtectedImageUrl(definition.id)"
-                    :src="getProtectedImageUrl(definition.id)"
-                    alt="Carta"
-                    style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px"
-                  />
+                    type="button"
+                    class="image-preview-trigger"
+                    :aria-label="`Ampliar imagen de ${prettyCardName(definition.name)}`"
+                    @click="openImageModal(getProtectedImageUrl(definition.id), prettyCardName(definition.name))"
+                  >
+                    <img
+                      :src="getProtectedImageUrl(definition.id)"
+                      :alt="`Miniatura de ${prettyCardName(definition.name)}`"
+                      class="image-preview-thumbnail"
+                    />
+                  </button>
                   <span v-else class="text-muted">-</span>
                 </td>
                 <td>{{ definition.ownerUsername || 'Sistema' }}</td>
@@ -701,5 +756,128 @@ onUnmounted(() => {
         </table>
       </div>
     </div>
+
+    <Teleport to="body">
+      <dialog
+        v-if="modalImageUrl"
+        class="image-modal-backdrop"
+        open
+        aria-modal="true"
+        :aria-label="modalImageAlt ? `Vista ampliada de ${modalImageAlt}` : 'Vista ampliada'"
+        @cancel.prevent="closeImageModal"
+        @click.self="closeImageModal"
+      >
+        <button
+          type="button"
+          class="image-modal-close"
+          aria-label="Cerrar imagen ampliada"
+          @click="closeImageModal"
+        >
+          ×
+        </button>
+        <div class="image-modal-content" @click.stop>
+          <img
+            :src="modalImageUrl"
+            alt=""
+            class="image-modal-image"
+          />
+        </div>
+      </dialog>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.image-preview-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.image-preview-trigger--edit {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.image-preview-trigger:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+.image-preview-thumbnail {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.image-preview-trigger:hover .image-preview-thumbnail,
+.image-preview-trigger:focus-visible .image-preview-thumbnail {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-primary) 45%, transparent);
+}
+
+.image-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  background: rgba(3, 7, 18, 0.9);
+}
+
+.image-modal-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(96vw, 1500px);
+  max-height: calc(100vh - 48px);
+}
+
+.image-modal-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.45);
+}
+
+.image-modal-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.image-modal-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+</style>

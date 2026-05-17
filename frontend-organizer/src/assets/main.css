@@ -614,9 +614,6 @@ tr:hover td {
   transition: transform 0.25s ease;
 }
 
-.selection-card:hover .selection-card-image {
-  transform: scale(1.04);
-}
 
 .selection-card-image-placeholder {
   width: 100%;
