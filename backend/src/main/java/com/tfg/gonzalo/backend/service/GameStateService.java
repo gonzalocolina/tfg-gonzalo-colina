@@ -72,8 +72,9 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse reportVillainDamage(Long eventId, ReportVillainDamageRequest request) {
-        Event event = findEvent(eventId);
-        GameState gameState = findGameState(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
+        GameState gameState = context.gameState();
         EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
         accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
         List<String> notifications = new ArrayList<>();
@@ -102,8 +103,9 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse reportThreat(Long eventId, ReportThreatRequest request) {
-        Event event = findEvent(eventId);
-        GameState gameState = findGameState(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
+        GameState gameState = context.gameState();
         EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
         accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
         List<String> notifications = new ArrayList<>();
@@ -129,8 +131,9 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse removeThreat(Long eventId, RemoveThreatRequest request) {
-        Event event = findEvent(eventId);
-        GameState gameState = findGameState(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
+        GameState gameState = context.gameState();
         EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
         accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
         List<String> notifications = new ArrayList<>();
@@ -152,9 +155,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateVillainDamage(Long eventId, DelegatedVillainDamageRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
@@ -188,9 +192,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateThreat(Long eventId, DelegatedThreatRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
@@ -221,9 +226,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateRemoveThreat(Long eventId, DelegatedRemoveThreatRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
@@ -252,9 +258,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse updateVillainHp(Long eventId, ManualVillainHpUpdateRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -281,9 +288,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse updateThreat(Long eventId, ManualThreatUpdateRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -310,9 +318,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse startGame(Long eventId) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireOrganizerOrCoOrganizerForEvent(event);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -327,9 +336,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse startTimer(Long eventId) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -355,9 +365,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse pauseTimer(Long eventId) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -381,9 +392,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse resumeTimer(Long eventId) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -411,9 +423,10 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse adjustTimer(Long eventId, TimerAdjustRequest request) {
-        Event event = findEvent(eventId);
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
-        GameState gameState = findGameState(eventId);
+        GameState gameState = context.gameState();
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -451,6 +464,12 @@ public class GameStateService {
     private GameState findGameState(Long eventId) {
         return gameStateRepository.findByEventId(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
+    }
+
+    private MutableGameStateContext findMutableGameStateContext(Long eventId) {
+        GameState gameState = gameStateRepository.findByEventIdForUpdate(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
+        return new MutableGameStateContext(gameState.getEvent(), gameState);
     }
 
     private EventGroup findRepresentativeGroup(Long eventId, String representativeCode) {
@@ -680,5 +699,8 @@ public class GameStateService {
                                        GameStateSnapshotResponse snapshot,
                                        List<String> notifications) {
         realtimeEventPublisher.publishGameStateUpdate(eventId, operation, snapshot, notifications);
+    }
+
+    private record MutableGameStateContext(Event event, GameState gameState) {
     }
 }

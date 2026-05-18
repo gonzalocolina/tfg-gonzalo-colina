@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, unref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { assignGroupToPod, createPod, getEventStructure } from '@/api/setup'
+import { useWebSocket } from '@/composables/useWebSocket'
 import GroupItem from '@/components/GroupItem.vue'
 import PodCard from '@/components/PodCard.vue'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -9,6 +10,8 @@ import { useNotificationsStore } from '@/stores/notifications'
 const route = useRoute()
 const notif = useNotificationsStore()
 const eventId = computed(() => route.params.eventId)
+const { connected, realtimeEvent, connect } = useWebSocket(eventId.value)
+const socketConnected = computed(() => Boolean(unref(connected)))
 
 const structure = ref(null)
 const loading = ref(true)
@@ -163,8 +166,24 @@ async function handlePodDrop(pod) {
   await moveActiveGroup(pod?.id ?? null, pod?.name || 'este pod')
 }
 
+watch(
+  () => realtimeEvent?.value,
+  (nextRealtimeEvent) => {
+    if (nextRealtimeEvent?.operation === 'EVENT_STRUCTURE_UPDATED') {
+      void load({ silent: true })
+    }
+  },
+)
+
+watch(socketConnected, (isNowConnected) => {
+  if (isNowConnected) {
+    void load({ silent: true })
+  }
+})
+
 onMounted(() => {
   load()
+  connect()
 })
 </script>
 

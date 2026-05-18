@@ -1,0 +1,21 @@
+{
+  "name": "load-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node src/index.js",
+    "scenario:smoke": "node src/index.js --scenario smoke",
+    "scenario:nominal-100-10writers": "node src/index.js --scenario nominal-100-10writers",
+    "scenario:burst-100writers": "node src/index.js --scenario burst-100writers",
+    "scenario:connect-100": "node src/index.js --scenario connect-100"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "axios": "^1.15.0",
+    "sockjs-client": "^1.6.1"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}
