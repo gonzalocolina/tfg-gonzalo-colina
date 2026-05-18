@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import EventSetupView from '@/views/EventSetupView.vue'
+import { __websocketState } from '@/composables/useWebSocket'
 
 const { getEventStructure, createPod, assignGroupToPod, updateGroup, updatePod, deletePod } = vi.hoisted(() => ({
   getEventStructure: vi.fn(),
@@ -27,7 +28,22 @@ vi.mock('@/api/setup', () => ({
   deletePod,
 }))
 
-function buildStructure() {
+vi.mock('@/composables/useWebSocket', async () => {
+  const { ref } = await import('vue')
+
+  const websocketState = {
+    connected: ref(false),
+    realtimeEvent: ref(null),
+    connect: vi.fn(),
+  }
+
+  return {
+    __websocketState: websocketState,
+    useWebSocket: () => websocketState,
+  }
+})
+
+function buildStructure(overrides = {}) {
   return {
     eventId: 42,
     eventName: 'Evento Setup',
@@ -54,6 +70,7 @@ function buildStructure() {
     unassignedGroups: [
       { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
     ],
+    ...overrides,
   }
 }
 
@@ -79,6 +96,9 @@ describe('EventSetupView', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    __websocketState.connected.value = false
+    __websocketState.realtimeEvent.value = null
+    __websocketState.connect.mockClear()
     getEventStructure.mockResolvedValue({ data: buildStructure() })
     createPod.mockResolvedValue({ data: { id: 8, name: 'Pod 2' } })
     assignGroupToPod.mockResolvedValue({ data: { id: 20, podId: 7 } })
@@ -97,6 +117,7 @@ describe('EventSetupView', () => {
     await flushPromises()
 
     expect(getEventStructure).toHaveBeenCalledWith(42)
+    expect(__websocketState.connect).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Nuevo pod')
     expect(wrapper.text()).toContain('Reparto de mesas')
     expect(wrapper.text()).toContain('Sin asignar')
@@ -120,6 +141,41 @@ describe('EventSetupView', () => {
     await flushPromises()
 
     expect(getEventStructure).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('refreshes the structure when a websocket update arrives', async () => {
+    getEventStructure
+      .mockResolvedValueOnce({ data: buildStructure() })
+      .mockResolvedValueOnce({
+        data: buildStructure({
+          currentGroupCount: 4,
+          configuredPlayerCount: 10,
+          assignedPlayerCount: 5,
+          unassignedGroupCount: 2,
+          unassignedPlayerCount: 5,
+          unassignedGroups: [
+            { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
+            { id: 22, podId: null, identifier: 'Mesa Delta', playerCount: 2, representativeCode: 'REP4', observerCode: 'OBS4' },
+          ],
+        }),
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    __websocketState.realtimeEvent.value = {
+      operation: 'EVENT_STRUCTURE_UPDATED',
+      notifications: [],
+      emittedAt: Date.now(),
+    }
+    await flushPromises()
+    await flushPromises()
+
+    expect(getEventStructure).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Mesa Delta')
+    expect(wrapper.text()).toContain('10')
 
     wrapper.unmount()
   })

@@ -8,6 +8,7 @@
 # ============================================================
 
 $root = $PSScriptRoot
+$seedOrganizerPassword = "organizer"
 
 # Limpia compilados previos del backend
 $backendTarget = Join-Path $root "backend\target"
@@ -19,7 +20,7 @@ if (Test-Path $backendTarget) {
 # --- Backend ---
 Write-Host "Iniciando backend..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "Set-Location '$root\backend'; .\mvnw.cmd clean spring-boot:run" `
+    "Set-Location '$root\backend'; `$env:APP_SEED_ORGANIZER_PASSWORD='$seedOrganizerPassword'; .\mvnw.cmd clean spring-boot:run" `
     -WindowStyle Normal
 
 # Espera a que el backend esté listo antes de lanzar el frontend
