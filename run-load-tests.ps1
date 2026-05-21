@@ -26,6 +26,7 @@ $script:TotalSteps = 0
 $script:BackendStartedByScript = $false
 $script:BackendProcess = $null
 $script:BackendLogFile = $null
+$script:LastNativeExitCode = 0
 
 $ScenarioArgs = @($ScenarioArgs)
 
@@ -444,7 +445,8 @@ function Invoke-NativeCommand {
         [string]$FilePath,
         [string[]]$Arguments,
         [string]$WorkingDirectory,
-        [string]$FailureMessage
+        [string]$FailureMessage,
+        [switch]$IgnoreExitCode
     )
 
     $displayCommand = Format-DisplayCommand ([System.IO.Path]::GetFileName($FilePath)) $Arguments
@@ -455,7 +457,14 @@ function Invoke-NativeCommand {
     try {
         & $FilePath @Arguments
         $exitCode = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+        $script:LastNativeExitCode = $exitCode
         if ($exitCode -ne 0) {
+            $stopwatch.Stop()
+            if ($IgnoreExitCode) {
+                Write-StepWarning ("Terminó en {0:N1}s con código {1}" -f $stopwatch.Elapsed.TotalSeconds, $exitCode)
+                return
+            }
+
             throw ("{0} (código {1})" -f $FailureMessage, $exitCode)
         }
     } finally {
@@ -615,10 +624,16 @@ try {
         -FilePath "npm" `
         -Arguments $scenarioCommandArguments `
         -WorkingDirectory $root `
-        -FailureMessage ("La ejecución del escenario '{0}' terminó con error" -f $Scenario)
+        -FailureMessage ("La ejecución del escenario '{0}' terminó con error" -f $Scenario) `
+        -IgnoreExitCode
+    $scenarioExitCode = $script:LastNativeExitCode
 
     $resultDirectory = Get-NewResultDirectory -BeforePaths $resultDirectoriesBeforeRun
     Show-RunSummary -ResultDirectory $resultDirectory
+
+    if ($scenarioExitCode -ne 0) {
+        throw ("La ejecución del escenario '{0}' terminó con error (código {1})" -f $Scenario, $scenarioExitCode)
+    }
 
     if ($script:BackendStartedByScript) {
         if ($cleanupBackendWhenDone) {

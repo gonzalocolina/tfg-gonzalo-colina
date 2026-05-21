@@ -141,8 +141,8 @@ function mountView() {
           template: '<div class="threat-dialog-stub">Threat {{ mode }}</div>',
         },
         InterPodAlertDialog: {
-          props: ['podId', 'podName', 'initialCardId'],
-          template: '<div class="inter-pod-dialog-stub">Pod {{ podId }} · {{ podName }} · Card {{ initialCardId ?? "none" }}</div>',
+          props: ['podId', 'podName', 'initialCardId', 'cards', 'cardsLoading', 'realtimeConnected'],
+          template: '<div class="inter-pod-dialog-stub">Pod {{ podId }} · {{ podName }} · Card {{ initialCardId ?? "none" }} · Cards {{ cards.length }} · {{ realtimeConnected }}</div>',
         },
       },
     },
@@ -215,6 +215,7 @@ describe('PlayerGameView', () => {
           cardName: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
           status: 'REVELADA',
+          sourceGroupIdentifier: 'A1',
           hpCurrent: 6,
           hpMax: 8,
           threatCurrent: 0,
@@ -234,12 +235,13 @@ describe('PlayerGameView', () => {
       { id: 77, url: '/api/events/1/inter-pod-cards/77/image' },
     ])
     expect(wrapper.text()).toContain('The Mangog')
+    expect(wrapper.text()).toContain('Mesa A1')
 
     const image = wrapper.find('.interpod-inline-img')
     expect(image.exists()).toBe(true)
     expect(image.attributes('src')).toBe('blob:player-card-77')
     expect(wrapper.html().indexOf('THREAT')).toBeLessThan(wrapper.html().indexOf('Cartas Inter-Nodo activas'))
-    expect(wrapper.html().indexOf('Cartas Inter-Nodo activas')).toBeLessThan(wrapper.html().indexOf('Pods y mesas'))
+    expect(wrapper.html().indexOf('Cartas Inter-Nodo activas')).toBeLessThan(wrapper.html().indexOf('Nodos y mesas'))
 
     wrapper.unmount()
   })
@@ -254,6 +256,7 @@ describe('PlayerGameView', () => {
           cardName: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
           status: 'REVELADA',
+          sourceGroupIdentifier: 'Mesa Alfa',
           hpCurrent: 6,
           hpMax: 8,
           threatCurrent: 0,
@@ -270,6 +273,57 @@ describe('PlayerGameView', () => {
     await wrapper.get('[data-testid="player-interpod-card-77"]').trigger('click')
 
     expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod Norte · Card 77')
+    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Cards 1')
+
+    wrapper.unmount()
+  })
+
+  it('shows only active inter-pod cards inline while keeping defeated cards in the detail dialog', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+    getInterPodCards.mockResolvedValue({
+      data: [
+        {
+          id: 77,
+          cardName: 'THE_MANGOG',
+          cardCategory: 'ESBIRRO',
+          status: 'REVELADA',
+          sourceGroupIdentifier: 'Mesa Alfa',
+          hpCurrent: 6,
+          hpMax: 8,
+          threatCurrent: 0,
+          threatMax: 0,
+          imageUrl: '/api/events/1/inter-pod-cards/77/image',
+        },
+        {
+          id: 78,
+          cardName: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          status: 'DERROTADA',
+          sourceGroupIdentifier: 'Mesa Alfa',
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 0,
+          threatMax: 8,
+          imageUrl: null,
+        },
+      ],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('The Mangog')
+    expect(wrapper.text()).not.toContain('Door Between Worlds')
+    expect(wrapper.find('[data-testid="player-interpod-card-77"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="player-interpod-card-78"]').exists()).toBe(false)
+
+    const interPodButton = wrapper.findAll('button').find((button) => button.text() === 'Cartas Inter-Nodo')
+    expect(interPodButton).toBeDefined()
+    await interPodButton.trigger('click')
+
+    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Cards 2')
 
     wrapper.unmount()
   })
@@ -313,18 +367,22 @@ describe('PlayerGameView', () => {
     wrapper.unmount()
   })
 
-  it('offers separate actions to add and remove main-plan threat', async () => {
+  it('groups the main-plan threat actions behind a single button', async () => {
     seedAuthSession('GROUP_REPRESENTATIVE')
     getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
 
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Añadir Amenaza')
-    expect(wrapper.text()).toContain('Quitar Amenaza')
+    const actionBarButtons = wrapper.findAll('.action-bar button').map((button) => button.text())
+    expect(actionBarButtons).toEqual(['Reportar Daño', 'Amenaza', 'Cartas Inter-Nodo'])
 
-    const removeButton = wrapper.findAll('button').find((button) => button.text() === 'Quitar Amenaza')
-    expect(removeButton).toBeDefined()
+    const triggerButton = wrapper.get('[data-testid="threat-actions-trigger"]')
+    await triggerButton.trigger('click')
+
+    expect(wrapper.get('[data-testid="threat-action-sheet"]').text()).toContain('Gestionar Amenaza')
+
+    const removeButton = wrapper.get('[data-testid="threat-action-remove"]')
     await removeButton.trigger('click')
 
     expect(wrapper.find('.threat-dialog-stub').text()).toContain('Threat remove')

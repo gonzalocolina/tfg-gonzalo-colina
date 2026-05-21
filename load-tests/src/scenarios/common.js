@@ -3,11 +3,65 @@ import { bootstrapEvent } from '../bootstrap/eventBootstrap.js'
 import { fetchResolvedStructure } from '../bootstrap/fetchStructure.js'
 import { bootstrapGameStart } from '../bootstrap/startGame.js'
 import { bootstrapStructure } from '../bootstrap/structureBootstrap.js'
-import { assertCompleteFanout, summarizeFanout, waitForCompleteFanout } from '../assertions/consistency.js'
+import {
+  assertCompleteFanout,
+  buildIncompleteFanoutMessage,
+  summarizeFanout,
+  waitForCompleteFanout,
+} from '../assertions/consistency.js'
 import { hashSnapshot } from '../assertions/snapshotHash.js'
 import { OrganizerControlClient } from '../clients/organizerControlClient.js'
 import { VirtualRepresentativeClient } from '../clients/virtualRepresentativeClient.js'
 import { nowMs, sleep } from '../runtime/clock.js'
+
+function finalizeFanoutObservation({
+  metrics,
+  opId,
+  result,
+  label,
+  strict = true,
+  scope = 'fanout',
+  operationType,
+  waveId,
+  actorClientId,
+  actorGroupId,
+}) {
+  const summary = summarizeFanout(result)
+  const message = result.complete ? '' : buildIncompleteFanoutMessage(label, result.missingClientIds)
+
+  metrics.completeOperation(opId, {
+    fanoutComplete: result.complete,
+    fanoutDeliveredClients: summary.deliveredClients,
+    fanoutMissingCount: result.missingClientIds.length,
+    fanoutMinLatencyMs: summary.minFanoutLatencyMs,
+    fanoutMaxLatencyMs: summary.maxFanoutLatencyMs,
+    fanoutFailureMessage: message,
+  })
+  metrics.linkDeliveriesToOperation(opId, [...result.matches.values()].map((match) => match.messageId))
+
+  if (!result.complete) {
+    if (strict) {
+      assertCompleteFanout(result, label)
+    }
+
+    metrics.recordError({
+      scope,
+      waveId,
+      operationType,
+      actorClientId,
+      actorGroupId,
+      message,
+      missingClientCount: result.missingClientIds.length,
+      missingClientIdsSample: result.missingClientIds.slice(0, 12),
+    })
+  }
+
+  return {
+    fanout: summary,
+    fanoutComplete: result.complete,
+    missingClientIds: result.missingClientIds,
+  }
+}
 
 export async function prepareEnvironment({ config, metrics }) {
   const organizer = new OrganizerControlClient({
@@ -96,13 +150,19 @@ export async function runOrganizerThreatPulse({ organizer, clients, eventId, val
         message.snapshotThreat === snapshot?.schemeThreatCurrent,
     })
 
-    assertCompleteFanout(fanout, `Pulse organizer ${waveId}`)
-    metrics.linkDeliveriesToOperation(opId, [...fanout.matches.values()].map((match) => match.messageId))
-
     return {
       opId,
       response,
-      fanout: summarizeFanout(fanout),
+      ...finalizeFanoutObservation({
+        metrics,
+        opId,
+        result: fanout,
+        label: `Pulse organizer ${waveId}`,
+        operationType: 'MANUAL_THREAT_UPDATE',
+        waveId,
+        actorClientId: organizer.clientId,
+        actorGroupId: '',
+      }),
     }
   } catch (error) {
     const finishedAtMs = nowMs()
@@ -155,13 +215,19 @@ export async function runOrganizerVillainHpPulse({ organizer, clients, eventId, 
         message.snapshotVillainHp === snapshot?.villainHpCurrent,
     })
 
-    assertCompleteFanout(fanout, `Pulse organizer HP ${waveId}`)
-    metrics.linkDeliveriesToOperation(opId, [...fanout.matches.values()].map((match) => match.messageId))
-
     return {
       opId,
       response,
-      fanout: summarizeFanout(fanout),
+      ...finalizeFanoutObservation({
+        metrics,
+        opId,
+        result: fanout,
+        label: `Pulse organizer HP ${waveId}`,
+        operationType: 'MANUAL_VILLAIN_HP_UPDATE',
+        waveId,
+        actorClientId: organizer.clientId,
+        actorGroupId: '',
+      }),
     }
   } catch (error) {
     const finishedAtMs = nowMs()
@@ -176,7 +242,7 @@ export async function runOrganizerVillainHpPulse({ organizer, clients, eventId, 
   }
 }
 
-export async function runRepresentativeDamagePulse({ actorClient, clients, metrics, damage, timeoutMs, waveId }) {
+export async function runRepresentativeDamagePulse({ actorClient, clients, metrics, damage, timeoutMs, waveId, strictFanout = true }) {
   const cursors = new Map(clients.map((client) => [client.clientId, client.getMessageCursor()]))
   const { opId, response } = await actorClient.reportVillainDamage(damage, { waveId })
   const snapshot = response.snapshot || null
@@ -191,17 +257,24 @@ export async function runRepresentativeDamagePulse({ actorClient, clients, metri
       message.snapshotVillainHp === snapshot?.villainHpCurrent,
   })
 
-  assertCompleteFanout(fanout, `Daño representante ${waveId}`)
-  metrics.linkDeliveriesToOperation(opId, [...fanout.matches.values()].map((match) => match.messageId))
-
   return {
     opId,
     response,
-    fanout: summarizeFanout(fanout),
+    ...finalizeFanoutObservation({
+      metrics,
+      opId,
+      result: fanout,
+      label: `Daño representante ${waveId}`,
+      strict: strictFanout,
+      operationType: 'REPORT_VILLAIN_DAMAGE',
+      waveId,
+      actorClientId: actorClient.clientId,
+      actorGroupId: actorClient.group.id,
+    }),
   }
 }
 
-export async function runRepresentativeThreatPulse({ actorClient, clients, metrics, threat, timeoutMs, waveId }) {
+export async function runRepresentativeThreatPulse({ actorClient, clients, metrics, threat, timeoutMs, waveId, strictFanout = true }) {
   const cursors = new Map(clients.map((client) => [client.clientId, client.getMessageCursor()]))
   const { opId, response } = await actorClient.reportThreat(threat, { waveId })
   const snapshot = response.snapshot || null
@@ -216,12 +289,51 @@ export async function runRepresentativeThreatPulse({ actorClient, clients, metri
       message.snapshotThreat === snapshot?.schemeThreatCurrent,
   })
 
-  assertCompleteFanout(fanout, `Amenaza representante ${waveId}`)
-  metrics.linkDeliveriesToOperation(opId, [...fanout.matches.values()].map((match) => match.messageId))
+  return {
+    opId,
+    response,
+    ...finalizeFanoutObservation({
+      metrics,
+      opId,
+      result: fanout,
+      label: `Amenaza representante ${waveId}`,
+      strict: strictFanout,
+      operationType: 'REPORT_THREAT',
+      waveId,
+      actorClientId: actorClient.clientId,
+      actorGroupId: actorClient.group.id,
+    }),
+  }
+}
+
+export async function runRepresentativeRemoveThreatPulse({ actorClient, clients, metrics, threat, timeoutMs, waveId, strictFanout = true }) {
+  const cursors = new Map(clients.map((client) => [client.clientId, client.getMessageCursor()]))
+  const { opId, response } = await actorClient.removeThreat(threat, { waveId })
+  const snapshot = response.snapshot || null
+
+  const fanout = await waitForCompleteFanout({
+    clients,
+    cursors,
+    timeoutMs,
+    predicate: (message) =>
+      message.topic.endsWith('/game-state')
+      && message.payloadOperation === 'REMOVE_THREAT'
+      && message.snapshotThreat === snapshot?.schemeThreatCurrent,
+  })
 
   return {
     opId,
     response,
-    fanout: summarizeFanout(fanout),
+    ...finalizeFanoutObservation({
+      metrics,
+      opId,
+      result: fanout,
+      label: `Retirada de amenaza representante ${waveId}`,
+      strict: strictFanout,
+      operationType: 'REMOVE_THREAT',
+      waveId,
+      actorClientId: actorClient.clientId,
+      actorGroupId: actorClient.group.id,
+    }),
   }
 }

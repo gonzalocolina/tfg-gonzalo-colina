@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FinalSummary from '@/components/FinalSummary.vue'
+import StatisticsTrendChart from '@/components/StatisticsTrendChart.vue'
 import { getEventLogs } from '@/api/logs'
 import { getEventStructure } from '@/api/setup'
 import { useGameStateStore } from '@/stores/gameState'
@@ -31,6 +32,7 @@ const highlights = computed(() => stats.value?.highlights || {})
 const totals = computed(() => stats.value?.totals || {})
 const operationalSummary = computed(() => stats.value?.operationalSummary || {})
 const interPodSummary = computed(() => stats.value?.interPodSummary || {})
+const progressionSeries = computed(() => stats.value?.progression?.series || [])
 
 function formatDateTime(isoValue) {
   if (!isoValue) return '-'
@@ -114,6 +116,9 @@ async function load() {
       logs: logsData || [],
       structure: structureData,
       finalSummary: gs.finalSummary,
+      gameState: {
+        villainHpMax: gs.villainHpMax,
+      },
     })
   } catch (err) {
     loadError.value = err.response?.data?.message || 'No se pudieron cargar las estadísticas de la partida.'
@@ -193,6 +198,23 @@ onMounted(load)
             <div class="value">{{ formatSignedSeconds(operationalSummary.timerNetAdjustmentSeconds || 0) }}</div>
           </div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header chart-card-header">
+          <div>
+            <h2>Evolución de daño y amenaza</h2>
+            <p class="text-muted chart-card__subtitle">
+              Ejes independientes: daño acumulado a la izquierda y amenaza actual a la derecha.
+            </p>
+          </div>
+          <span class="text-muted">{{ progressionSeries.length }} hitos</span>
+        </div>
+
+        <div v-if="!progressionSeries.length" class="text-muted">
+          No hay suficiente actividad registrada para dibujar la evolución temporal.
+        </div>
+        <StatisticsTrendChart v-else :series="progressionSeries" />
       </div>
 
       <div class="stats-two-columns">
@@ -370,6 +392,15 @@ onMounted(load)
   gap: 16px;
 }
 
+.chart-card-header {
+  align-items: flex-start;
+}
+
+.chart-card__subtitle {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+}
+
 .leader-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -445,6 +476,10 @@ onMounted(load)
   .timeline-entry {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .chart-card-header {
+    gap: 10px;
   }
 
   .stats-page-header {

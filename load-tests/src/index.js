@@ -4,7 +4,7 @@ import { MetricsCollector } from './metrics/metricsCollector.js'
 import { scenarios } from './scenarios/index.js'
 
 function printHelp() {
-  console.log(`Uso: node src/index.js [opciones]\n\nOpciones:\n  --scenario <nombre>         Escenario a ejecutar (${Object.keys(scenarioDefaults).join(', ')})\n  --clients <n>               Sobrescribe el número de clientes\n  --pods <n>                  Número de pods a crear\n  --groups-per-pod <n>        Número de grupos por pod\n  --ramp-step <n>             Tamaño de cada lote de conexión\n  --ramp-interval-ms <ms>     Pausa entre lotes de conexión\n  --hold-ms <ms>              Duración total o espera principal del escenario\n  --writer-count <n>          Número de escritores activos en escenarios nominales\n  --operation-interval-ms <ms> Intervalo entre operaciones nominales\n  --damage-value <n>          Valor usado para reportes de daño\n  --threat-value <n>          Valor usado para reportes de amenaza\n  --wave-count <n>            Número de olas en escenarios burst\n  --wave-cooldown-ms <ms>     Enfriamiento entre olas burst\n  --delivery-timeout-ms <ms>  Timeout para fan-out y convergencia\n  --start-timer               Fuerza arranque del temporizador\n  --no-start-timer            Desactiva arranque del temporizador\n  --base-url <url>            URL base del backend (por defecto http://localhost:8080)\n  --run-label <texto>         Etiqueta adicional para la carpeta de resultados\n  --dry-run                   Muestra la configuración resuelta y sale\n  --list-scenarios            Lista escenarios disponibles\n  --help                      Muestra esta ayuda\n`)
+  console.log(`Uso: node src/index.js [opciones]\n\nOpciones:\n  --scenario <nombre>         Escenario a ejecutar (${Object.keys(scenarioDefaults).join(', ')})\n  --clients <n>               Sobrescribe el número de clientes\n  --pods <n>                  Número de pods a crear\n  --groups-per-pod <n>        Número de grupos por pod\n  --ramp-step <n>             Tamaño de cada lote de conexión\n  --ramp-interval-ms <ms>     Pausa entre lotes de conexión\n  --hold-ms <ms>              Duración total o espera principal del escenario\n  --writer-count <n>          Número de escritores activos en escenarios nominales\n  --operation-interval-ms <ms> Intervalo entre operaciones nominales por escritor\n  --damage-value <n>          Valor usado para reportes de daño\n  --threat-value <n>          Valor usado para reportes de amenaza\n  --wave-count <n>            Número de olas en escenarios burst\n  --wave-cooldown-ms <ms>     Enfriamiento entre olas burst\n  --delivery-timeout-ms <ms>  Timeout para fan-out y convergencia\n  --start-timer               Fuerza arranque del temporizador\n  --no-start-timer            Desactiva arranque del temporizador\n  --base-url <url>            URL base del backend (por defecto http://localhost:8080)\n  --run-label <texto>         Etiqueta adicional para la carpeta de resultados\n  --dry-run                   Muestra la configuración resuelta y sale\n  --list-scenarios            Lista escenarios disponibles\n  --help                      Muestra esta ayuda\n`)
 }
 
 async function main() {
@@ -37,11 +37,25 @@ async function main() {
   try {
     await metrics.initialize()
     const result = await scenario.run({ config, metrics })
+    const recordedErrors = [...metrics.errors]
+    const hasRecordedErrors = recordedErrors.length > 0
+    const failureMessage = hasRecordedErrors
+      ? `Se registraron ${recordedErrors.length} incidencias durante la ejecución. Primera: ${recordedErrors[0].message}`
+      : null
+
     await metrics.finalize({
-      status: 'passed',
+      status: hasRecordedErrors ? 'failed' : 'passed',
       scenarioDescription: scenario.description,
       result,
+      failureMessage,
     })
+
+    if (hasRecordedErrors) {
+      console.error(failureMessage)
+      console.log(`Resultados: ${metrics.runDir}`)
+      process.exitCode = 1
+      return
+    }
 
     console.log(`Escenario '${config.scenarioName}' completado.`)
     console.log(`Resultados: ${metrics.runDir}`)
@@ -64,4 +78,4 @@ async function main() {
   }
 }
 
-main()
+await main()

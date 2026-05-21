@@ -3,6 +3,11 @@ const DAMAGE_ACTION_TYPES = new Set([
   'VILLAIN_DAMAGE_DELEGATED',
 ])
 
+const DAMAGE_PROGRESS_ACTION_TYPES = new Set([
+  ...DAMAGE_ACTION_TYPES,
+  'VILLAIN_HP_CORRECTED',
+])
+
 const THREAT_ADDED_ACTION_TYPES = new Set([
   'THREAT_REPORTED',
   'THREAT_DELEGATED',
@@ -11,6 +16,12 @@ const THREAT_ADDED_ACTION_TYPES = new Set([
 const THREAT_REMOVED_ACTION_TYPES = new Set([
   'THREAT_REMOVED',
   'THREAT_REMOVED_DELEGATED',
+])
+
+const THREAT_PROGRESS_ACTION_TYPES = new Set([
+  ...THREAT_ADDED_ACTION_TYPES,
+  ...THREAT_REMOVED_ACTION_TYPES,
+  'THREAT_CORRECTED',
 ])
 
 const DELEGATED_ACTION_TYPES = new Set([
@@ -50,6 +61,13 @@ const STATISTICS_ACTION_TYPES = new Set([
   ...INTER_POD_THREAT_ACTION_TYPES,
   ...INTER_POD_STATUS_ACTION_TYPES,
   ...INTER_POD_DELETED_ACTION_TYPES,
+])
+
+const PROGRESSION_ACTION_TYPES = new Set([
+  'EVENT_STARTED',
+  'EVENT_FINISHED',
+  ...DAMAGE_PROGRESS_ACTION_TYPES,
+  ...THREAT_PROGRESS_ACTION_TYPES,
 ])
 
 const TIMER_COUNTER_FIELDS = Object.freeze({
@@ -106,7 +124,7 @@ function buildGroupStats(group = {}) {
   return {
     id: group.id ?? null,
     identifier: group.identifier || 'Mesa desconocida',
-    podName: group.podName || 'Sin pod asignado',
+    podName: group.podName || 'Sin nodo asignado',
     playerCount: group.playerCount || 0,
     damageToVillain: 0,
     threatAdded: 0,
@@ -129,7 +147,7 @@ function mergeGroupMetadata(target, source = {}) {
   if (target.id == null && source.id != null) {
     target.id = source.id
   }
-  if ((!target.podName || target.podName === 'Sin pod asignado') && source.podName) {
+  if ((!target.podName || target.podName === 'Sin nodo asignado') && source.podName) {
     target.podName = source.podName
   }
   if (!target.playerCount && source.playerCount) {
@@ -227,6 +245,155 @@ function createInterPodSummary() {
     threatReducedTotal: 0,
     statusUpdates: 0,
     deleted: 0,
+  }
+}
+
+function createProgressionSummary(gameState = null) {
+  return {
+    series: [],
+    currentDamage: 0,
+    currentThreat: 0,
+    villainHpMax: parseNumericValue(gameState?.villainHpMax),
+    damageInitialized: false,
+    threatInitialized: false,
+  }
+}
+
+function syncInitialProgressionPoint(context, metric) {
+  const initialPoint = context.progression.series[0]
+  if (!initialPoint) {
+    return
+  }
+
+  initialPoint[metric] = context.progression[`current${metric === 'villainDamage' ? 'Damage' : 'Threat'}`]
+}
+
+function buildProgressionPoint(log, villainDamage, threat) {
+  return {
+    id: `progression-${log.id ?? 'unknown'}-${log.actionType}`,
+    timestamp: log.timestamp,
+    actionType: log.actionType,
+    villainDamage,
+    threat,
+  }
+}
+
+function seedProgressionState(context, log, previousValue) {
+  if (context.progression.series.length > 0 || !log.timestamp) {
+    return
+  }
+
+  if (THREAT_PROGRESS_ACTION_TYPES.has(log.actionType) && previousValue !== null) {
+    context.progression.currentThreat = Math.max(0, previousValue)
+    context.progression.threatInitialized = true
+  }
+
+  if (
+    DAMAGE_PROGRESS_ACTION_TYPES.has(log.actionType)
+    && previousValue !== null
+    && context.progression.villainHpMax !== null
+  ) {
+    context.progression.currentDamage = Math.max(0, context.progression.villainHpMax - previousValue)
+    context.progression.damageInitialized = true
+  }
+
+  context.progression.series.push({
+    id: `${log.actionType === 'EVENT_STARTED' ? 'event-started' : 'initial-state'}-${log.id ?? 0}`,
+    timestamp: log.timestamp,
+    actionType: log.actionType === 'EVENT_STARTED' ? 'EVENT_STARTED' : 'INITIAL_STATE',
+    villainDamage: context.progression.currentDamage,
+    threat: context.progression.currentThreat,
+  })
+}
+
+function maybeBackfillProgressionBaseline(context, log, previousValue) {
+  if (
+    THREAT_PROGRESS_ACTION_TYPES.has(log.actionType)
+    && !context.progression.threatInitialized
+    && previousValue !== null
+  ) {
+    context.progression.currentThreat = Math.max(0, previousValue)
+    context.progression.threatInitialized = true
+    syncInitialProgressionPoint(context, 'threat')
+  }
+
+  if (
+    DAMAGE_PROGRESS_ACTION_TYPES.has(log.actionType)
+    && !context.progression.damageInitialized
+    && previousValue !== null
+    && context.progression.villainHpMax !== null
+  ) {
+    context.progression.currentDamage = Math.max(0, context.progression.villainHpMax - previousValue)
+    context.progression.damageInitialized = true
+    syncInitialProgressionPoint(context, 'villainDamage')
+  }
+}
+
+function appendProgressionPoint(context, log) {
+  if (!log.timestamp) {
+    return
+  }
+
+  const previousPoint = context.progression.series[context.progression.series.length - 1]
+  const nextPoint = buildProgressionPoint(
+    log,
+    context.progression.currentDamage,
+    context.progression.currentThreat,
+  )
+
+  if (
+    previousPoint
+    && previousPoint.timestamp === nextPoint.timestamp
+    && previousPoint.villainDamage === nextPoint.villainDamage
+    && previousPoint.threat === nextPoint.threat
+    && previousPoint.actionType === nextPoint.actionType
+  ) {
+    return
+  }
+
+  context.progression.series.push(nextPoint)
+}
+
+function updateProgression(context, log, previousValue, newValue) {
+  if (!PROGRESSION_ACTION_TYPES.has(log.actionType) || !log.timestamp) {
+    return
+  }
+
+  seedProgressionState(context, log, previousValue)
+
+  if (log.actionType === 'EVENT_STARTED') {
+    return
+  }
+
+  maybeBackfillProgressionBaseline(context, log, previousValue)
+
+  if (DAMAGE_PROGRESS_ACTION_TYPES.has(log.actionType) && newValue !== null) {
+    if (context.progression.villainHpMax !== null) {
+      context.progression.currentDamage = Math.max(0, context.progression.villainHpMax - newValue)
+    } else if (previousValue !== null) {
+      context.progression.currentDamage = Math.max(
+        0,
+        context.progression.currentDamage + (previousValue - newValue),
+      )
+    }
+    context.progression.damageInitialized = true
+  }
+
+  if (THREAT_PROGRESS_ACTION_TYPES.has(log.actionType) && newValue !== null) {
+    context.progression.currentThreat = Math.max(0, newValue)
+    context.progression.threatInitialized = true
+  }
+
+  appendProgressionPoint(context, log)
+}
+
+function buildProgressionResult(context) {
+  const series = context.progression.series
+
+  return {
+    series,
+    maxDamage: series.reduce((maxValue, point) => Math.max(maxValue, point.villainDamage), 0),
+    maxThreat: series.reduce((maxValue, point) => Math.max(maxValue, point.threat), 0),
   }
 }
 
@@ -395,6 +562,7 @@ function processLog(context, log) {
   }
 
   applyCommonCounters(context, log, group, previousValue, newValue)
+  updateProgression(context, log, previousValue, newValue)
 
   const handler = LOG_HANDLERS[log.actionType]
   const effectiveChange = handler
@@ -454,10 +622,16 @@ function buildResult(context, relevantLogs, structure, finalSummary) {
     },
     operationalSummary: context.operationalSummary,
     interPodSummary: context.interPodSummary,
+    progression: buildProgressionResult(context),
   }
 }
 
-export function buildEventStatistics({ logs = [], structure = null, finalSummary = null } = {}) {
+export function buildEventStatistics({
+  logs = [],
+  structure = null,
+  finalSummary = null,
+  gameState = null,
+} = {}) {
   const groupStatsByIdentifier = new Map()
   const flattenedGroups = flattenGroups(structure)
 
@@ -473,6 +647,7 @@ export function buildEventStatistics({ logs = [], structure = null, finalSummary
     groupStatsByIdentifier,
     operationalSummary: createOperationalSummary(),
     interPodSummary: createInterPodSummary(),
+    progression: createProgressionSummary(gameState),
     timelineEntries: [],
     firstContributionGroupIdentifier: null,
     finalBlowGroupIdentifier: null,

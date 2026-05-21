@@ -3,18 +3,15 @@ import { buildEventStatistics } from '@/utils/eventStatistics'
 
 function buildStructure() {
   return {
-    configuredPlayerCount: 8,
     pods: [
       {
-        id: 1,
         name: 'Pod Norte',
         groups: [
-          { id: 11, identifier: 'Mesa Alfa', playerCount: 4 },
-          { id: 12, identifier: 'Mesa Beta', playerCount: 4 },
+          { identifier: 'Mesa Alfa' },
+          { identifier: 'Mesa Beta' },
         ],
       },
     ],
-    unassignedGroups: [],
   }
 }
 
@@ -33,6 +30,9 @@ describe('buildEventStatistics', () => {
     const statistics = buildEventStatistics({
       structure: buildStructure(),
       finalSummary: buildFinalSummary(),
+      gameState: {
+        villainHpMax: 40,
+      },
       logs: [
         {
           id: 1,
@@ -160,6 +160,159 @@ describe('buildEventStatistics', () => {
     expect(beta?.threatAdded).toBe(3)
     expect(beta?.interPodThreatReduced).toBe(3)
     expect(beta?.delegatedActionCount).toBe(1)
+
+    expect(statistics.progression.maxDamage).toBe(40)
+    expect(statistics.progression.maxThreat).toBe(3)
+    expect(statistics.progression.series.map((point) => ({
+      actionType: point.actionType,
+      villainDamage: point.villainDamage,
+      threat: point.threat,
+    }))).toEqual([
+      {
+        actionType: 'EVENT_STARTED',
+        villainDamage: 0,
+        threat: 0,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_REPORTED',
+        villainDamage: 6,
+        threat: 0,
+      },
+      {
+        actionType: 'THREAT_REPORTED',
+        villainDamage: 6,
+        threat: 3,
+      },
+      {
+        actionType: 'THREAT_REMOVED_DELEGATED',
+        villainDamage: 6,
+        threat: 1,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_DELEGATED',
+        villainDamage: 10,
+        threat: 1,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_REPORTED',
+        villainDamage: 40,
+        threat: 1,
+      },
+      {
+        actionType: 'EVENT_FINISHED',
+        villainDamage: 40,
+        threat: 1,
+      },
+    ])
+  })
+
+  it('tracks manual corrections in the temporal progression', () => {
+    const statistics = buildEventStatistics({
+      structure: buildStructure(),
+      finalSummary: buildFinalSummary(),
+      gameState: {
+        villainHpMax: 40,
+      },
+      logs: [
+        {
+          id: 1,
+          timestamp: '2026-05-18T10:00:00Z',
+          actor: 'organizer',
+          groupIdentifier: null,
+          actionType: 'EVENT_STARTED',
+          previousValue: null,
+          newValue: 'IN_PROGRESS',
+          notes: 'Partida iniciada manualmente.',
+        },
+        {
+          id: 2,
+          timestamp: '2026-05-18T10:01:00Z',
+          actor: 'rep-a',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'VILLAIN_DAMAGE_REPORTED',
+          previousValue: '40',
+          newValue: '30',
+          notes: 'Daño fuerte.',
+        },
+        {
+          id: 3,
+          timestamp: '2026-05-18T10:02:00Z',
+          actor: 'rep-b',
+          groupIdentifier: 'Mesa Beta',
+          actionType: 'THREAT_REPORTED',
+          previousValue: '0',
+          newValue: '4',
+          notes: 'Amenaza añadida.',
+        },
+        {
+          id: 4,
+          timestamp: '2026-05-18T10:03:00Z',
+          actor: 'coorg',
+          groupIdentifier: null,
+          actionType: 'VILLAIN_HP_CORRECTED',
+          previousValue: '30',
+          newValue: '32',
+          notes: 'Corrección manual de HP.',
+        },
+        {
+          id: 5,
+          timestamp: '2026-05-18T10:04:00Z',
+          actor: 'coorg',
+          groupIdentifier: null,
+          actionType: 'THREAT_CORRECTED',
+          previousValue: '4',
+          newValue: '1',
+          notes: 'Corrección manual de amenaza.',
+        },
+        {
+          id: 6,
+          timestamp: '2026-05-18T10:05:00Z',
+          actor: null,
+          groupIdentifier: null,
+          actionType: 'EVENT_FINISHED',
+          previousValue: null,
+          newValue: 'PLAYERS_VICTORY',
+          notes: 'Partida finalizada.',
+        },
+      ],
+    })
+
+    expect(statistics.progression.series.map((point) => ({
+      actionType: point.actionType,
+      villainDamage: point.villainDamage,
+      threat: point.threat,
+    }))).toEqual([
+      {
+        actionType: 'EVENT_STARTED',
+        villainDamage: 0,
+        threat: 0,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_REPORTED',
+        villainDamage: 10,
+        threat: 0,
+      },
+      {
+        actionType: 'THREAT_REPORTED',
+        villainDamage: 10,
+        threat: 4,
+      },
+      {
+        actionType: 'VILLAIN_HP_CORRECTED',
+        villainDamage: 8,
+        threat: 4,
+      },
+      {
+        actionType: 'THREAT_CORRECTED',
+        villainDamage: 8,
+        threat: 1,
+      },
+      {
+        actionType: 'EVENT_FINISHED',
+        villainDamage: 8,
+        threat: 1,
+      },
+    ])
   })
 
   it('ignores setup-only logs when counting gameplay actions', () => {

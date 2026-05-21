@@ -6,41 +6,24 @@ import { useGameStateStore } from '@/stores/gameState'
 
 const {
   createInterPodCard,
-  getInterPodCards,
   reportInterPodCardDamage,
   reportInterPodCardThreat,
   getEventInterPodCardDefinitions,
-  syncImageUrls,
-  protectedImagesById,
 } = vi.hoisted(() => ({
   createInterPodCard: vi.fn(),
-  getInterPodCards: vi.fn(),
   reportInterPodCardDamage: vi.fn(),
   reportInterPodCardThreat: vi.fn(),
   getEventInterPodCardDefinitions: vi.fn(),
-  syncImageUrls: vi.fn(),
-  protectedImagesById: {},
 }))
 
 vi.mock('@/api/interPod', () => ({
   createInterPodCard,
-  getInterPodCards,
   reportInterPodCardDamage,
   reportInterPodCardThreat,
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
   getEventInterPodCardDefinitions,
-}))
-
-vi.mock('@/composables/useProtectedImageUrls', () => ({
-  useProtectedImageUrls: () => ({
-    protectedImageUrls: {},
-    getProtectedImageUrl: (id) => protectedImagesById[String(id)] || null,
-    syncImageUrls,
-    revokeImage: vi.fn(),
-    revokeAll: vi.fn(),
-  }),
 }))
 
 function seedAuthSession() {
@@ -57,9 +40,27 @@ function seedAuthSession() {
   )
 }
 
+function buildCard(overrides = {}) {
+  return {
+    id: 42,
+    cardName: 'THE_MANGOG',
+    cardCategory: 'ESBIRRO',
+    hpCurrent: 7,
+    hpMax: 8,
+    threatCurrent: 0,
+    threatMax: 0,
+    status: 'REVELADA',
+    sourceGroupIdentifier: 'Mesa Beta',
+    createdAt: '2026-03-31T12:00:00Z',
+    imageUrl: null,
+    ...overrides,
+  }
+}
+
 function mountDialog(props = {}) {
   const pinia = createPinia()
   setActivePinia(pinia)
+
   const gs = useGameStateStore()
   gs.applySnapshot({
     eventId: 1,
@@ -80,7 +81,16 @@ function mountDialog(props = {}) {
   })
 
   return mount(InterPodAlertDialog, {
-    props,
+    props: {
+      podId: 7,
+      podName: 'Pod Norte',
+      initialCardId: null,
+      cards: [],
+      cardsLoading: false,
+      getImageUrl: () => null,
+      realtimeConnected: true,
+      ...props,
+    },
     global: {
       plugins: [pinia],
     },
@@ -92,17 +102,16 @@ describe('InterPodAlertDialog', () => {
     vi.useFakeTimers()
     seedAuthSession()
     createInterPodCard.mockReset()
-    getInterPodCards.mockReset()
     reportInterPodCardDamage.mockReset()
     reportInterPodCardThreat.mockReset()
     getEventInterPodCardDefinitions.mockReset()
-    syncImageUrls.mockReset()
-    Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
-    getInterPodCards.mockResolvedValue({ data: [] })
+
+    createInterPodCard.mockResolvedValue({ data: { id: 99 } })
+    reportInterPodCardDamage.mockResolvedValue({ data: {} })
+    reportInterPodCardThreat.mockResolvedValue({ data: {} })
     getEventInterPodCardDefinitions.mockResolvedValue({
       data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultThreatMax: 0, defaultStatus: 'REVELADA' }],
     })
-    syncImageUrls.mockResolvedValue()
   })
 
   afterEach(() => {
@@ -111,117 +120,92 @@ describe('InterPodAlertDialog', () => {
     sessionStorage.clear()
   })
 
-  it('loads cards using the current pod id when it becomes available', async () => {
-    const wrapper = mountDialog({ podId: null, podName: '' })
+  it('renders the cards provided by the parent for the current pod', async () => {
+    const wrapper = mountDialog({ cards: [buildCard()] })
 
     await flushPromises()
-    expect(getInterPodCards).not.toHaveBeenCalled()
 
-    await wrapper.setProps({ podId: 7, podName: 'Pod Norte' })
-    await flushPromises()
-
-    expect(getInterPodCards).toHaveBeenCalledWith(1, 7)
-    expect(wrapper.text()).toContain('Pod actual: Pod Norte')
+    expect(wrapper.text()).toContain('Nodo actual: Pod Norte')
+    expect(wrapper.get('[data-testid="interpod-detail-card-42"]').text()).toContain('The Mangog')
 
     wrapper.unmount()
   })
 
-  it('does not auto-refresh the pod cards on a timer', async () => {
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+  it('separates active and defeated cards and only renders actions for active ones', async () => {
+    const wrapper = mountDialog({
+      cards: [
+        buildCard(),
+        buildCard({
+          id: 43,
+          cardName: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 0,
+          threatMax: 8,
+          status: 'DERROTADA',
+          sourceGroupIdentifier: 'Mesa Alfa',
+        }),
+      ],
+    })
 
     await flushPromises()
 
-    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+    const activeSection = wrapper.get('[data-testid="interpod-active-section"]')
+    const defeatedSection = wrapper.get('[data-testid="interpod-defeated-section"]')
 
-    await vi.advanceTimersByTimeAsync(12000)
-    await flushPromises()
+    expect(activeSection.text()).toContain('Cartas activas del nodo')
+    expect(activeSection.text()).toContain('The Mangog')
+    expect(activeSection.text()).not.toContain('Door Between Worlds')
 
-    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+    expect(defeatedSection.text()).toContain('Cartas derrotadas del nodo')
+    expect(defeatedSection.text()).toContain('Door Between Worlds')
+    expect(defeatedSection.text()).toContain('Derrotada')
+
+    expect(activeSection.findAll('input[type="number"]')).toHaveLength(1)
+    expect(defeatedSection.findAll('input[type="number"]')).toHaveLength(0)
+    expect(defeatedSection.findAll('button').some((button) => ['Registrar daño', 'Quitar amenaza'].includes(button.text()))).toBe(false)
 
     wrapper.unmount()
   })
 
-  it('reloads pod cards when a realtime refresh tick arrives', async () => {
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte', refreshTick: 0 })
+  it('creates a card with the minimal payload required without forcing a manual refresh when realtime is connected', async () => {
+    const wrapper = mountDialog()
 
     await flushPromises()
-    expect(getInterPodCards).toHaveBeenCalledTimes(1)
-
-    await wrapper.setProps({ refreshTick: 1 })
-    await flushPromises()
-
-    expect(getInterPodCards).toHaveBeenCalledTimes(2)
-
-    wrapper.unmount()
-  })
-
-  it('creates a card with the minimal payload required by the player flow', async () => {
-    createInterPodCard.mockResolvedValue({ data: { id: 99 } })
-
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
-    await flushPromises()
-
     await wrapper.get('.btn.btn-primary').trigger('click')
 
     expect(createInterPodCard).toHaveBeenCalledWith(1, {
       representativeCode: 'REP001',
       interPodCardDefinitionId: 10,
     })
+    expect(wrapper.emitted('refresh-requested')).toBeUndefined()
 
     wrapper.unmount()
   })
 
-  it('renders protected image thumbnails for active inter-pod cards', async () => {
-    protectedImagesById['42'] = 'blob:dialog-card-42'
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
-          id: 42,
-          cardName: 'THE_MANGOG',
-          cardCategory: 'ESBIRRO',
-          hpCurrent: 7,
-          hpMax: 8,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: '/api/events/1/inter-pod-cards/42/image',
-        },
-      ],
+  it('requests a fallback refresh after creating a card when realtime is disconnected', async () => {
+    const wrapper = mountDialog({ realtimeConnected: false })
+
+    await flushPromises()
+    await wrapper.get('.btn.btn-primary').trigger('click')
+
+    expect(wrapper.emitted('refresh-requested')).toHaveLength(1)
+
+    wrapper.unmount()
+  })
+
+  it('renders provided image thumbnails and opens the in-app viewer', async () => {
+    const getImageUrl = vi.fn((cardId) => (cardId === 42 ? 'blob:dialog-card-42' : null))
+    const wrapper = mountDialog({
+      cards: [buildCard({ imageUrl: '/api/events/1/inter-pod-cards/42/image' })],
+      getImageUrl,
     })
 
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
     await flushPromises()
 
-    expect(syncImageUrls).toHaveBeenCalledWith([
-      { id: 42, url: '/api/events/1/inter-pod-cards/42/image' },
-    ])
     expect(wrapper.find('.interpod-card-thumb').attributes('src')).toBe('blob:dialog-card-42')
-    expect(wrapper.find('.interpod-card-thumb-button').exists()).toBe(true)
     expect(wrapper.find('[target="_blank"]').exists()).toBe(false)
-
-    wrapper.unmount()
-  })
-
-  it('opens the image in an in-app viewer and allows closing it', async () => {
-    protectedImagesById['42'] = 'blob:dialog-card-42'
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
-          id: 42,
-          cardName: 'THE_MANGOG',
-          cardCategory: 'ESBIRRO',
-          hpCurrent: 7,
-          hpMax: 8,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: '/api/events/1/inter-pod-cards/42/image',
-        },
-      ],
-    })
-
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
-    await flushPromises()
 
     await wrapper.get('.interpod-card-thumb-button').trigger('click')
 
@@ -236,27 +220,14 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('closes the fullscreen image when the browser back event is triggered', async () => {
-    protectedImagesById['42'] = 'blob:dialog-card-42'
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
-          id: 42,
-          cardName: 'THE_MANGOG',
-          cardCategory: 'ESBIRRO',
-          hpCurrent: 7,
-          hpMax: 8,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: '/api/events/1/inter-pod-cards/42/image',
-        },
-      ],
+    const wrapper = mountDialog({
+      cards: [buildCard({ imageUrl: '/api/events/1/inter-pod-cards/42/image' })],
+      getImageUrl: (cardId) => (cardId === 42 ? 'blob:dialog-card-42' : null),
     })
 
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
     await flushPromises()
-
     await wrapper.get('.interpod-card-thumb-button').trigger('click')
+
     expect(wrapper.find('.image-preview-overlay').exists()).toBe(true)
 
     globalThis.dispatchEvent(new PopStateEvent('popstate'))
@@ -269,9 +240,10 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('highlights the requested card when opened from the summary view', async () => {
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
+    const wrapper = mountDialog({
+      initialCardId: 42,
+      cards: [
+        buildCard({
           id: 41,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
@@ -279,28 +251,12 @@ describe('InterPodAlertDialog', () => {
           hpMax: 0,
           threatCurrent: 8,
           threatMax: 8,
-          status: 'REVELADA',
           sourceGroupIdentifier: 'Mesa Alfa',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: null,
-        },
-        {
-          id: 42,
-          cardName: 'THE_MANGOG',
-          cardCategory: 'ESBIRRO',
-          hpCurrent: 7,
-          hpMax: 8,
-          threatCurrent: 0,
-          threatMax: 0,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: null,
-        },
+        }),
+        buildCard(),
       ],
     })
 
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte', initialCardId: 42 })
     await flushPromises()
 
     const highlightedCard = wrapper.find('.interpod-card-item--highlighted')
@@ -311,25 +267,8 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('does not render manual status controls for player cards', async () => {
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
-          id: 42,
-          cardName: 'THE_MANGOG',
-          cardCategory: 'ESBIRRO',
-          hpCurrent: 7,
-          hpMax: 8,
-          threatCurrent: 0,
-          threatMax: 0,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: null,
-        },
-      ],
-    })
+    const wrapper = mountDialog({ cards: [buildCard()] })
 
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
     await flushPromises()
 
     expect(wrapper.findAll('select').length).toBe(1)
@@ -340,9 +279,9 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('uses the threat endpoint for plan cards', async () => {
-    getInterPodCards.mockResolvedValue({
-      data: [
-        {
+    const wrapper = mountDialog({
+      cards: [
+        buildCard({
           id: 52,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
@@ -350,15 +289,10 @@ describe('InterPodAlertDialog', () => {
           hpMax: 0,
           threatCurrent: 5,
           threatMax: 8,
-          status: 'REVELADA',
-          sourceGroupIdentifier: 'Mesa Beta',
-          createdAt: '2026-03-31T12:00:00Z',
-          imageUrl: null,
-        },
+        }),
       ],
     })
 
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
     await flushPromises()
 
     await wrapper.find('input[type="number"]').setValue('2')
@@ -371,12 +305,35 @@ describe('InterPodAlertDialog', () => {
       threat: 2,
     })
     expect(reportInterPodCardDamage).not.toHaveBeenCalled()
+    expect(wrapper.emitted('refresh-requested')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('requests a fallback refresh after mutating a card when realtime is disconnected', async () => {
+    const wrapper = mountDialog({
+      realtimeConnected: false,
+      cards: [buildCard()],
+    })
+
+    await flushPromises()
+
+    await wrapper.find('input[type="number"]').setValue('2')
+    const damageButton = wrapper.findAll('button').find((button) => button.text() === 'Registrar daño')
+    expect(damageButton).toBeDefined()
+    await damageButton.trigger('click')
+
+    expect(reportInterPodCardDamage).toHaveBeenCalledWith(1, 42, {
+      representativeCode: 'REP001',
+      damage: 2,
+    })
+    expect(wrapper.emitted('refresh-requested')).toHaveLength(1)
 
     wrapper.unmount()
   })
 
   it('disables inter-pod actions while the game is paused', async () => {
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+    const wrapper = mountDialog({ cards: [buildCard()] })
     const gs = useGameStateStore()
     gs.applySnapshot({
       eventId: 1,
@@ -405,7 +362,7 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('disables inter-pod actions while the timer has not started yet', async () => {
-    const wrapper = mountDialog({ podId: 7, podName: 'Pod Norte' })
+    const wrapper = mountDialog({ cards: [buildCard()] })
     const gs = useGameStateStore()
     gs.applySnapshot({
       eventId: 1,

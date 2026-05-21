@@ -34,7 +34,6 @@ const showThreatActionSheet = ref(false)
 const threatDialogMode = ref(null)
 const showInterPodDialog = ref(false)
 const selectedInterPodCardId = ref(null)
-const interPodRefreshTick = ref(0)
 
 const interPodCards = ref([])
 const interPodCardsLoading = ref(false)
@@ -67,6 +66,7 @@ const eventName = computed(() => eventStructure.value?.eventName || '')
 const currentGroupLabel = computed(() => normalizeGroupLabel(currentGroup.value?.identifier || auth.groupLabel))
 const hasAssignedPod = computed(() => Boolean(currentPod.value))
 const currentGroupPendingAssignment = computed(() => Boolean(currentGroup.value && !currentGroup.value.podId))
+const activeInterPodCards = computed(() => interPodCards.value.filter((card) => !isInterPodCardDefeated(card)))
 const playerActionNotice = computed(() => {
   if (isFinished.value) return null
 
@@ -103,9 +103,9 @@ const podSummary = computed(() => {
   const pendingCount = eventStructure.value.unassignedGroupCount || 0
 
   const pieces = [
-    `${podCount} ${podCount === 1 ? 'pod' : 'pods'}`,
+    `${podCount} ${podCount === 1 ? 'nodo' : 'nodos'}`,
     `${groupCount} ${groupCount === 1 ? 'mesa' : 'mesas'}`,
-    `${playerCount} ${playerCount === 1 ? 'jugador en pod' : 'jugadores en pods'}`,
+    `${playerCount} ${playerCount === 1 ? 'jugador' : 'jugadores'}`,
   ]
 
   if (pendingCount > 0) {
@@ -120,6 +120,10 @@ function normalizeGroupLabel(label) {
   if (/^mesa\b/i.test(label)) return label
   if (/^jugador\b/i.test(label)) return label.replace(/^jugador\b/i, 'Mesa')
   return `Mesa ${label}`
+}
+
+function interPodSourceGroupLabel(card) {
+  return normalizeGroupLabel(card?.sourceGroupIdentifier)
 }
 
 function buildInterPodImageEntries(entries) {
@@ -213,6 +217,10 @@ function resolveInterPodCardStatus(card) {
   return 'REVELADA'
 }
 
+function isInterPodCardDefeated(card) {
+  return resolveInterPodCardStatus(card) === 'DERROTADA'
+}
+
 function isMinionCard(card) {
   return card?.cardCategory === 'ESBIRRO'
 }
@@ -257,6 +265,14 @@ function openInterPodDialog(cardId = null) {
 function closeInterPodDialog() {
   showInterPodDialog.value = false
   selectedInterPodCardId.value = null
+}
+
+function handleInterPodRefreshRequest() {
+  if (socketConnected.value) {
+    return
+  }
+
+  void loadInterPodCards({ silent: true })
 }
 
 function closeThreatActionSheet() {
@@ -328,7 +344,6 @@ watch(
     }
 
     if (operation.startsWith('INTER_POD_CARD_')) {
-      interPodRefreshTick.value += 1
       void loadInterPodCards({ silent: true })
     }
   },
@@ -404,11 +419,11 @@ onUnmounted(() => {
         />
         <ThreatCard :current="gs.schemeThreatCurrent" :target="gs.schemeThreatTarget" />
 
-        <div v-if="interPodCards.length" class="card">
+        <div v-if="activeInterPodCards.length" class="card">
           <div class="card-title">Cartas Inter-Nodo activas</div>
           <div class="interpod-inline-flex">
             <button
-              v-for="card in interPodCards"
+              v-for="card in activeInterPodCards"
               :key="card.id"
               type="button"
               class="interpod-inline-card"
@@ -423,20 +438,22 @@ onUnmounted(() => {
                 @error="handleImageLoadError"
               />
               <div class="interpod-inline-info">
-                <strong class="interpod-inline-name">{{ prettyCardName(card.cardName) }}</strong>
-                <span
-                  v-if="resolveInterPodCardStatus(card) !== 'REVELADA'"
-                  class="interpod-status-badge"
-                  :class="`interpod-status--${resolveInterPodCardStatus(card).toLowerCase()}`"
-                >{{ prettyCardName(resolveInterPodCardStatus(card)) }}</span>
+                <div class="interpod-inline-header">
+                  <strong class="interpod-inline-name">{{ prettyCardName(card.cardName) }}</strong>
+                  <span
+                    v-if="resolveInterPodCardStatus(card) !== 'REVELADA'"
+                    class="interpod-status-badge"
+                    :class="`interpod-status--${resolveInterPodCardStatus(card).toLowerCase()}`"
+                  >{{ prettyCardName(resolveInterPodCardStatus(card)) }}</span>
+                </div>
+                <span class="interpod-inline-link text-muted">{{ interPodSourceGroupLabel(card) }}</span>
+                <span class="interpod-metric-label">{{ cardMetricText(card) }}</span>
                 <div class="interpod-progress-track">
                   <div
                     class="interpod-progress-fill"
                     :style="{ width: cardProgressPercent(card) + '%', background: cardProgressColor(card) }"
                   />
                 </div>
-                <span class="interpod-metric-label">{{ cardMetricText(card) }}</span>
-                <span class="interpod-inline-link text-muted">Pulsa para ver su detalle</span>
               </div>
             </button>
           </div>
@@ -553,8 +570,12 @@ onUnmounted(() => {
       :pod-id="currentPodId"
       :pod-name="currentPodName"
       :initial-card-id="selectedInterPodCardId"
-      :refresh-tick="interPodRefreshTick"
+      :cards="interPodCards"
+      :cards-loading="interPodCardsLoading"
+      :get-image-url="getProtectedImageUrl"
+      :realtime-connected="socketConnected"
       @close="closeInterPodDialog"
+      @refresh-requested="handleInterPodRefreshRequest"
     />
   </div>
 </template>
@@ -616,7 +637,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color, #3a3c44);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 5px 10px 5px 5px;
   color: inherit;
   cursor: pointer;
   text-align: left;
@@ -636,9 +657,9 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 .interpod-inline-img {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
+  width: 80px;
+  height: 80px;
+  object-fit: scale-down;
   border-radius: 6px;
   flex-shrink: 0;
   margin-top: 2px;
@@ -651,7 +672,15 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
 }
+.interpod-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .interpod-inline-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -663,7 +692,7 @@ onUnmounted(() => {
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
-  align-self: flex-start;
+  flex-shrink: 0;
   letter-spacing: 0.02em;
 }
 .interpod-status--derrotada {
@@ -676,7 +705,7 @@ onUnmounted(() => {
 }
 .interpod-progress-track {
   height: 5px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(128, 128, 128, 0.2);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -691,8 +720,7 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 .interpod-inline-link {
-  font-size: 0.7rem;
-  margin-top: 1px;
+  font-size: 0.8rem;
 }
 .threat-action-sheet__message {
   margin-bottom: 16px;

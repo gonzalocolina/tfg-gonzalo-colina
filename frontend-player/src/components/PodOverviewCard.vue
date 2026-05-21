@@ -17,7 +17,6 @@ function formatPlayerCount(count) {
   <section class="card pod-overview-card">
     <div class="pod-overview-card__header">
       <div>
-        <div class="card-title" style="margin-bottom: 4px">Pod</div>
         <h2 class="pod-overview-card__name">{{ pod.name }}</h2>
       </div>
 

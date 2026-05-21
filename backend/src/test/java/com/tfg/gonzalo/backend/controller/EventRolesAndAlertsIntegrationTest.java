@@ -180,6 +180,18 @@ class EventRolesAndAlertsIntegrationTest {
         .andExpect(jsonPath("$.status").value("DERROTADA"))
         .andExpect(jsonPath("$.hpCurrent").value(0));
 
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+          .header("Authorization", "Bearer " + representativeAToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("""
+            {
+              "representativeCode": "%s",
+              "damage": 1
+            }
+            """.formatted(groupA.representativeCode())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("ya está derrotada")));
+
       mockMvc.perform(get("/api/events/{eventId}/inter-pod-cards", eventId)
           .header("Authorization", "Bearer " + organizerToken))
         .andExpect(status().isOk())
@@ -267,6 +279,18 @@ class EventRolesAndAlertsIntegrationTest {
               .andExpect(status().isOk())
               .andExpect(jsonPath("$.threatCurrent").value(0))
               .andExpect(jsonPath("$.status").value("DERROTADA"));
+
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
+                      .header("Authorization", "Bearer " + representativeToken)
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content("""
+                        {
+                          "representativeCode": "%s",
+                          "threat": 1
+                        }
+                        """.formatted(group.representativeCode())))
+              .andExpect(status().isBadRequest())
+              .andExpect(jsonPath("$.message").value(containsString("ya está derrotada")));
     }
 
     @Test
