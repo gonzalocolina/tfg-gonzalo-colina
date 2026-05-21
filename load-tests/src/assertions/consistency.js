@@ -1,21 +1,22 @@
 import { sleep } from '../runtime/clock.js'
 import { ScenarioAssertionError } from '../runtime/errors.js'
 
-export async function waitForCompleteFanout({ clients, cursors, predicate, timeoutMs }) {
+export async function waitForCompleteFanout({ clients, cursors, predicate, timeoutMs, pollIntervalMs = 25 }) {
   const deadline = Date.now() + timeoutMs
   const matches = new Map()
+  const pendingClients = new Map(clients.map((client) => [client.clientId, client]))
 
-  while (Date.now() < deadline) {
-    for (const client of clients) {
-      if (matches.has(client.clientId)) continue
-      const cursor = cursors.get(client.clientId) ?? 0
+  while (Date.now() < deadline && pendingClients.size > 0) {
+    for (const [clientId, client] of pendingClients) {
+      const cursor = cursors.get(clientId) ?? 0
       const match = client.findMessageAfter(cursor, predicate)
       if (match) {
-        matches.set(client.clientId, match)
+        matches.set(clientId, match)
+        pendingClients.delete(clientId)
       }
     }
 
-    if (matches.size === clients.length) {
+    if (pendingClients.size === 0) {
       return {
         complete: true,
         matches,
@@ -23,23 +24,30 @@ export async function waitForCompleteFanout({ clients, cursors, predicate, timeo
       }
     }
 
-    await sleep(25)
+    await sleep(pollIntervalMs)
   }
 
   return {
     complete: false,
     matches,
-    missingClientIds: clients
-      .filter((client) => !matches.has(client.clientId))
-      .map((client) => client.clientId),
+    missingClientIds: [...pendingClients.keys()],
   }
+}
+
+export function buildIncompleteFanoutMessage(label, missingClientIds, sampleSize = 12) {
+  const sample = missingClientIds.slice(0, sampleSize)
+  const suffix = missingClientIds.length > sample.length
+    ? `, ... (${missingClientIds.length} clientes en total)`
+    : ''
+
+  return `${label}: no todos los clientes recibieron la actualización. Faltan ${sample.join(', ')}${suffix}`
 }
 
 export function assertCompleteFanout(result, label) {
   if (result.complete) return
 
   throw new ScenarioAssertionError(
-    `${label}: no todos los clientes recibieron la actualización. Faltan ${result.missingClientIds.join(', ')}`,
+    buildIncompleteFanoutMessage(label, result.missingClientIds),
     {
       missingClientIds: result.missingClientIds,
     },
@@ -52,10 +60,23 @@ export function summarizeFanout(result) {
     .map((delivery) => delivery.fanoutLatencyMs)
     .filter((value) => Number.isFinite(value))
 
+  let minLatencyMs = null
+  let maxLatencyMs = null
+
+  for (const latency of latencies) {
+    if (minLatencyMs == null || latency < minLatencyMs) {
+      minLatencyMs = latency
+    }
+
+    if (maxLatencyMs == null || latency > maxLatencyMs) {
+      maxLatencyMs = latency
+    }
+  }
+
   return {
     deliveredClients: deliveries.length,
     missingClientIds: result.missingClientIds,
-    minFanoutLatencyMs: latencies.length ? Math.min(...latencies) : null,
-    maxFanoutLatencyMs: latencies.length ? Math.max(...latencies) : null,
+    minFanoutLatencyMs: minLatencyMs,
+    maxFanoutLatencyMs: maxLatencyMs,
   }
 }

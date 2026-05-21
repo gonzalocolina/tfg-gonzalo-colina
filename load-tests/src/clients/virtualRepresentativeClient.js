@@ -143,7 +143,14 @@ export class VirtualRepresentativeClient {
   }
 
   findMessageAfter(cursor, predicate) {
-    return this.messages.find((message) => message.localMessageId > cursor && predicate(message)) || null
+    for (let index = Math.max(0, cursor); index < this.messages.length; index += 1) {
+      const message = this.messages[index]
+      if (message.localMessageId > cursor && predicate(message)) {
+        return message
+      }
+    }
+
+    return null
   }
 
   async reportVillainDamage(damage, { waveId = '' } = {}) {

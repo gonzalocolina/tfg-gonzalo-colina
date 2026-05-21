@@ -55,7 +55,7 @@ async function handleJoin() {
             v-model="groupIdentifier"
             class="form-control"
             type="text"
-            placeholder="Ej. Mesa Asgard"
+            placeholder="Ej. Mesa 1"
             autocomplete="organization"
             maxlength="40"
           />

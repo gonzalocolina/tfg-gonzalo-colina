@@ -169,7 +169,9 @@ describe('EventStatisticsView', () => {
     expect(wrapper.text()).toContain('Estadísticas de la partida')
     expect(wrapper.text()).toContain('Evento Loki')
     expect(wrapper.text()).toContain('Mesa Alfa')
+    expect(wrapper.text()).toContain('Ejes independientes')
     expect(wrapper.find('[data-testid="statistics-groups-table"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="statistics-trend-chart"]').exists()).toBe(true)
     expect(wrapper.find('.final-summary-stub').exists()).toBe(true)
 
     wrapper.unmount()

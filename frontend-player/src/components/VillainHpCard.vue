@@ -20,9 +20,11 @@ function barColor(current, max) {
 
 <template>
   <div class="card">
-    <div class="card-title">HP del Villano</div>
-    <div v-if="name" class="text-muted" style="font-size: 0.82rem; margin-bottom: 8px">
-      {{ name }}
+    <div class="villain-hp-card__header">
+      <div class="card-title">HP del Villano</div>
+      <div v-if="name" class="text-muted villain-hp-card__name">
+        {{ name }}
+      </div>
     </div>
     <div class="big-value" :style="{ color: barColor(props.current, props.max) }">
       {{ current }} <small>/ {{ max }}</small>
@@ -40,3 +42,25 @@ function barColor(current, max) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.villain-hp-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.villain-hp-card__header .card-title {
+  margin-bottom: 0;
+}
+
+.villain-hp-card__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-align: right;
+}
+</style>

@@ -123,6 +123,7 @@ public class InterPodCardService {
         InterPodCard card = findCard(eventId, cardId);
         ensureCategory(card, InterPodCardCategory.ESBIRRO,
             "Los planes inter-pod no reciben daño; debes retirarles amenaza.");
+        ensureCardCanReceiveProgress(card);
 
         EventGroup actingGroup = authorizeMutation(event, card, request.representativeCode());
 
@@ -155,6 +156,7 @@ public class InterPodCardService {
         InterPodCard card = findCard(eventId, cardId);
         ensureCategory(card, InterPodCardCategory.PLAN,
                 "Los esbirros inter-pod no tienen amenaza propia; debes aplicarles daño.");
+        ensureCardCanReceiveProgress(card);
 
         EventGroup actingGroup = authorizeMutation(event, card, request.representativeCode());
 
@@ -335,6 +337,15 @@ public class InterPodCardService {
                                 String message) {
         if (card.getCardCategory() != expectedCategory) {
             throw new BusinessRuleException(message);
+        }
+    }
+
+    private void ensureCardCanReceiveProgress(InterPodCard card) {
+        int currentValue = card.getCardCategory() == InterPodCardCategory.ESBIRRO
+                ? card.getHpCurrent()
+                : card.getThreatCurrent();
+        if (card.getStatus() == InterPodCardStatus.DERROTADA || currentValue <= 0) {
+            throw new BusinessRuleException("La carta inter-pod ya está derrotada y no admite más cambios.");
         }
     }
 

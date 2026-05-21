@@ -168,7 +168,7 @@ onMounted(async () => {
               <span>
                 <strong>{{ prettyCardName(definition.name) }}</strong>
                 <span class="text-muted" style="font-size: 0.85rem">
-                  · {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricText(definition) }} · {{ formatCardStatus(definition.defaultStatus) }}
+                  · {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricText(definition) }}
                 </span>
               </span>
             </label>

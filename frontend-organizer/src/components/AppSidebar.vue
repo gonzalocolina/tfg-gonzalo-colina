@@ -97,7 +97,7 @@ const navItems = computed(() => {
 
   if (currentEventIsOwner.value) {
     items.splice(1, 0,
-      { label: 'Pods y Mesas', icon: 'tag', to: { name: 'setup', params: { eventId: eventId.value } } },
+      { label: 'Nodos y Mesas', icon: 'tag', to: { name: 'setup', params: { eventId: eventId.value } } },
       { label: 'Co-organizadores', icon: 'users', to: { name: 'roles', params: { eventId: eventId.value } } },
     )
   }

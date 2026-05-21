@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process'
+import { once } from 'node:events'
+import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -14,15 +16,12 @@ function quoteCsv(value) {
   return `"${serialized.replaceAll('"', '""')}"`
 }
 
-function toCsv(rows, columns) {
-  const header = columns.join(',')
-  const lines = rows.map((row) => columns.map((column) => quoteCsv(row[column])).join(','))
-  return `${header}\n${lines.join('\n')}`
+function toCsvRow(row, columns) {
+  return columns.map((column) => quoteCsv(row[column])).join(',')
 }
 
-function percentile(values, ratio) {
-  if (!values.length) return null
-  const sorted = [...values].sort((left, right) => left - right)
+function percentileFromSorted(sorted, ratio) {
+  if (!sorted.length) return null
   const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))
   return sorted[index]
 }
@@ -40,13 +39,42 @@ function latencyStats(values) {
     }
   }
 
+  filtered.sort((left, right) => left - right)
+
   return {
     count: filtered.length,
-    min: Math.min(...filtered),
-    p50: percentile(filtered, 0.5),
-    p95: percentile(filtered, 0.95),
-    p99: percentile(filtered, 0.99),
-    max: Math.max(...filtered),
+    min: filtered[0],
+    p50: percentileFromSorted(filtered, 0.5),
+    p95: percentileFromSorted(filtered, 0.95),
+    p99: percentileFromSorted(filtered, 0.99),
+    max: filtered[filtered.length - 1],
+  }
+}
+
+async function writeCsvFile(filePath, rows, columns, chunkSize = 5000) {
+  const stream = createWriteStream(filePath, { encoding: 'utf8' })
+  const handleError = (error) => {
+    stream.destroy(error)
+  }
+
+  try {
+    stream.write(`${columns.join(',')}\n`)
+
+    for (let index = 0; index < rows.length; index += chunkSize) {
+      const chunkRows = rows.slice(index, index + chunkSize)
+      const chunk = chunkRows.map((row) => toCsvRow(row, columns)).join('\n')
+      const suffix = index + chunkSize < rows.length ? '\n' : ''
+
+      if (!stream.write(chunk + suffix)) {
+        await once(stream, 'drain')
+      }
+    }
+
+    stream.end()
+    await once(stream, 'finish')
+  } catch (error) {
+    handleError(error)
+    throw error
   }
 }
 
@@ -91,7 +119,9 @@ export class MetricsCollector {
     this.clientSessions = []
     this.clientSessionIndex = new Map()
     this.operations = []
+    this.operationIndex = new Map()
     this.deliveries = []
+    this.deliveryIndex = new Map()
     this.resourceSamples = []
     this.errors = []
     this.operationCounter = 0
@@ -131,7 +161,7 @@ export class MetricsCollector {
 
   recordOperationStart(record) {
     const opId = `op-${String(++this.operationCounter).padStart(5, '0')}`
-    this.operations.push({
+    const operationRecord = {
       opId,
       scenario: this.scenarioName,
       waveId: '',
@@ -147,16 +177,26 @@ export class MetricsCollector {
       responseSnapshotHash: '',
       responseSnapshotVillainHp: '',
       responseSnapshotThreat: '',
+      fanoutComplete: '',
+      fanoutDeliveredClients: '',
+      fanoutMissingCount: '',
+      fanoutMinLatencyMs: '',
+      fanoutMaxLatencyMs: '',
+      fanoutFailureMessage: '',
       timeoutFlag: false,
       failureMessage: '',
       ...record,
-      opId,
-    })
+    }
+
+    this.operationIndex.set(opId, this.operations.length)
+    this.operations.push(operationRecord)
     return opId
   }
 
   completeOperation(opId, patch) {
-    const target = this.operations.find((operation) => operation.opId === opId)
+    const operationIndex = this.operationIndex.get(opId)
+    if (operationIndex == null) return null
+    const target = this.operations[operationIndex]
     if (!target) return null
     Object.assign(target, patch)
     return target
@@ -164,7 +204,7 @@ export class MetricsCollector {
 
   recordDelivery(record) {
     const messageId = `msg-${String(++this.deliveryCounter).padStart(6, '0')}`
-    this.deliveries.push({
+    const deliveryRecord = {
       messageId,
       opId: '',
       clientId: '',
@@ -180,15 +220,22 @@ export class MetricsCollector {
       isDuplicate: false,
       isOutOfOrder: false,
       ...record,
-      messageId,
-    })
+    }
+
+    this.deliveryIndex.set(messageId, this.deliveries.length)
+    this.deliveries.push(deliveryRecord)
     return messageId
   }
 
   linkDeliveriesToOperation(opId, messageIds) {
-    const expected = new Set(messageIds)
-    for (const delivery of this.deliveries) {
-      if (expected.has(delivery.messageId)) {
+    for (const messageId of messageIds) {
+      const deliveryIndex = this.deliveryIndex.get(messageId)
+      if (deliveryIndex == null) {
+        continue
+      }
+
+      const delivery = this.deliveries[deliveryIndex]
+      if (delivery) {
         delivery.opId = opId
       }
     }
@@ -248,6 +295,13 @@ export class MetricsCollector {
     const fanoutLatencies = this.deliveries
       .filter((delivery) => delivery.opId)
       .map((delivery) => Number(delivery.fanoutLatencyMs))
+    const operationsWithFanout = this.operations.filter((operation) => typeof operation.fanoutComplete === 'boolean')
+    const incompleteFanoutOperations = operationsWithFanout.filter((operation) => operation.fanoutComplete === false)
+    const completeFanoutOperations = operationsWithFanout.filter((operation) => operation.fanoutComplete === true)
+    const maxMissingClients = incompleteFanoutOperations.reduce(
+      (currentMax, operation) => Math.max(currentMax, Number(operation.fanoutMissingCount) || 0),
+      0,
+    )
 
     return {
       runId: this.runId,
@@ -269,6 +323,12 @@ export class MetricsCollector {
         httpMs: latencyStats(httpLatencies),
         fanoutMs: latencyStats(fanoutLatencies),
       },
+      fanoutQuality: {
+        observedOperations: operationsWithFanout.length,
+        completeOperations: completeFanoutOperations.length,
+        incompleteOperations: incompleteFanoutOperations.length,
+        maxMissingClients,
+      },
       result,
     }
   }
@@ -279,9 +339,10 @@ export class MetricsCollector {
 
     await writeFile(path.join(this.runDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
     await writeFile(path.join(this.runDir, 'summary.json'), JSON.stringify(summary, null, 2))
-    await writeFile(
+    await writeCsvFile(
       path.join(this.runDir, 'client-sessions.csv'),
-      toCsv(this.clientSessions, [
+      this.clientSessions,
+      [
         'clientId',
         'groupId',
         'groupLabel',
@@ -296,11 +357,12 @@ export class MetricsCollector {
         'disconnectCount',
         'reconnectCount',
         'finalStatus',
-      ]),
+      ],
     )
-    await writeFile(
+    await writeCsvFile(
       path.join(this.runDir, 'operations.csv'),
-      toCsv(this.operations, [
+      this.operations,
+      [
         'opId',
         'scenario',
         'waveId',
@@ -316,13 +378,20 @@ export class MetricsCollector {
         'responseSnapshotHash',
         'responseSnapshotVillainHp',
         'responseSnapshotThreat',
+        'fanoutComplete',
+        'fanoutDeliveredClients',
+        'fanoutMissingCount',
+        'fanoutMinLatencyMs',
+        'fanoutMaxLatencyMs',
+        'fanoutFailureMessage',
         'timeoutFlag',
         'failureMessage',
-      ]),
+      ],
     )
-    await writeFile(
+    await writeCsvFile(
       path.join(this.runDir, 'deliveries.csv'),
-      toCsv(this.deliveries, [
+      this.deliveries,
+      [
         'messageId',
         'opId',
         'clientId',
@@ -337,11 +406,12 @@ export class MetricsCollector {
         'eventFinished',
         'isDuplicate',
         'isOutOfOrder',
-      ]),
+      ],
     )
-    await writeFile(
+    await writeCsvFile(
       path.join(this.runDir, 'resource-samples.csv'),
-      toCsv(this.resourceSamples, [
+      this.resourceSamples,
+      [
         'timestamp',
         'backendCpuPct',
         'backendRssMb',
@@ -352,7 +422,7 @@ export class MetricsCollector {
         'nodeHeapUsedMb',
         'systemCpuPct',
         'systemMemoryUsedMb',
-      ]),
+      ],
     )
 
     if (this.errors.length) {

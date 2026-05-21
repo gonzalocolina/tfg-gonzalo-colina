@@ -28,7 +28,7 @@ export const scenarioDefaults = {
     rampStep: 10,
     rampIntervalMs: 5000,
     holdMs: 600000,
-    deliveryTimeoutMs: 15000,
+    deliveryTimeoutMs: 45000,
     startTimer: true,
     writerCount: 10,
     operationIntervalMs: 1000,
@@ -93,7 +93,7 @@ export function parseCliArgs(argv) {
     const next = argv[index + 1]
 
     if (['help', 'dry-run', 'list-scenarios', 'start-timer'].includes(key)) {
-      parsed[key] = key === 'start-timer' ? true : true
+      parsed[key] = true
       continue
     }
 

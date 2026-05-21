@@ -78,10 +78,10 @@ async function handleCreatePod() {
       sortOrder: computeNextSortOrder(),
     })
     newPodName.value = ''
-    notif.success('Pod creado')
+    notif.success('Nodo creado')
     await load({ silent: true })
   } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al crear pod')
+    notif.error(err.response?.data?.message || 'Error al crear el nodo')
   } finally {
     creatingPod.value = false
   }
@@ -146,7 +146,7 @@ async function moveActiveGroup(targetPodId, targetLabel) {
     await assignGroupToPod(eventId.value, draggedGroup.id, nextPodId)
     notif.success(
       nextPodId == null
-        ? `${draggedGroup.identifier} ha quedado sin pod asignado.`
+        ? `${draggedGroup.identifier} ha quedado sin nodo asignado.`
         : `${draggedGroup.identifier} se ha movido a ${targetLabel}.`,
     )
     await load({ silent: true })
@@ -163,7 +163,7 @@ async function handleUnassignedDrop() {
 }
 
 async function handlePodDrop(pod) {
-  await moveActiveGroup(pod?.id ?? null, pod?.name || 'este pod')
+  await moveActiveGroup(pod?.id ?? null, pod?.name || 'este nodo')
 }
 
 watch(
@@ -189,7 +189,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1 class="page-title">Configuración - Pods y Mesas</h1>
+    <h1 class="page-title">Configuración - Nodos y Mesas</h1>
 
     <div v-if="loading" class="text-muted">Cargando…</div>
 
@@ -217,14 +217,14 @@ onMounted(() => {
             <span v-if="structure.unassignedGroupCount > 0" class="text-muted">
               {{ structure.unassignedGroupCount }} mesa{{ structure.unassignedGroupCount !== 1 ? 's' : '' }} sin asignar
             </span>
-            <span v-else class="status-metric__sub--ok">Todas las mesas están en un pod</span>
+            <span v-else class="status-metric__sub--ok">Todas las mesas están en un nodo</span>
           </div>
         </div>
 
         <!-- Jugadores -->
         <div class="status-metric">
           <div class="status-metric__header">
-            <span class="status-metric__label">Jugadores en pods</span>
+            <span class="status-metric__label">Jugadores en nodos</span>
             <span class="badge" :class="playersReady ? 'badge-ready' : 'badge-finished'">{{ playersReady ? 'Listo' : 'Pendientes' }}</span>
           </div>
           <div class="status-metric__fraction">
@@ -241,9 +241,9 @@ onMounted(() => {
           </div>
           <div class="status-metric__sub">
             <span v-if="structure.unassignedPlayerCount > 0" class="text-muted">
-              {{ structure.unassignedPlayerCount }} jugador{{ structure.unassignedPlayerCount !== 1 ? 'es' : '' }} sin pod
+              {{ structure.unassignedPlayerCount }} jugador{{ structure.unassignedPlayerCount !== 1 ? 'es' : '' }} sin nodo
             </span>
-            <span v-else class="status-metric__sub--ok">Todos los jugadores están en pods</span>
+            <span v-else class="status-metric__sub--ok">Todos los jugadores están en nodos</span>
           </div>
         </div>
 
@@ -258,27 +258,27 @@ onMounted(() => {
       <section class="card create-pod-card" data-testid="create-pod-card">
         <div class="card-header create-pod-card__header">
           <div>
-            <h3>Nuevo pod</h3>
+            <h3>Nuevo nodo</h3>
             <p class="text-muted create-pod-card__copy">
-              Crea los pods primero y luego reparte las mesas arrastrándolas entre columnas.
+              Crea los nodos primero y luego reparte las mesas arrastrándolas entre columnas.
             </p>
           </div>
         </div>
 
         <form class="create-pod-card__form" @submit.prevent="handleCreatePod">
           <div class="form-group" style="margin-bottom: 0">
-            <label for="newPodName">Nombre del pod</label>
+            <label for="newPodName">Nombre del nodo</label>
             <input
               id="newPodName"
               v-model="newPodName"
               class="form-control"
               maxlength="80"
-              :placeholder="structure.suggestedPodName || 'Pod 1'"
+              :placeholder="structure.suggestedPodName || 'Nodo 1'"
             />
           </div>
 
           <button class="btn btn-primary create-pod-card__button" :disabled="creatingPod">
-            {{ creatingPod ? 'Creando…' : 'Crear pod' }}
+            {{ creatingPod ? 'Creando…' : 'Crear nodo' }}
           </button>
         </form>
       </section>
@@ -288,7 +288,7 @@ onMounted(() => {
           <div>
             <h3>Reparto de mesas</h3>
             <p class="text-muted board-card__copy">
-              Arrastra cada mesa entre columnas para distribuirla en pods. Si la sueltas en
+              Arrastra cada mesa entre columnas para distribuirla en nodos. Si la sueltas en
               <strong>Sin asignar</strong>, quedará desasignada.
             </p>
           </div>
@@ -319,7 +319,7 @@ onMounted(() => {
             </div>
 
             <p class="setup-column__description text-muted">
-              Estas mesas aún no pertenecen a ningún pod. Mientras exista alguna pendiente, la partida no debería iniciarse.
+              Estas mesas aún no pertenecen a ningún nodo. Mientras exista alguna pendiente, la partida no debería iniciarse.
             </p>
 
             <div v-if="pendingGroups.length" class="setup-column__groups">
@@ -340,7 +340,7 @@ onMounted(() => {
               class="setup-column__empty"
               :class="{ 'setup-column__empty--active': activeDropColumn === 'unassigned' }"
             >
-              <span class="text-muted">No hay mesas pendientes. Todo está ya repartido en pods.</span>
+              <span class="text-muted">No hay mesas pendientes. Todo está ya repartido en los nodos.</span>
             </div>
           </section>
 
@@ -361,7 +361,7 @@ onMounted(() => {
         </div>
 
         <p v-if="!pods.length" class="text-muted mt-2">
-          Aún no hay pods creados. Crea el primero para empezar a repartir mesas.
+          Aún no hay nodos creados. Crea el primero para empezar a repartir mesas.
         </p>
       </section>
     </template>
@@ -414,7 +414,7 @@ onMounted(() => {
 
 .setup-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 16px;
   align-items: start;
 }
