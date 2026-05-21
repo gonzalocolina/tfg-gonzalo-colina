@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { getEventLogs } from '@/api/logs'
+import { getEventLogs, revertEventLog } from '@/api/logs'
 import { getEventStructure } from '@/api/setup'
 import { useNotificationsStore } from '@/stores/notifications'
 import { LOG_ACTION_TYPES, formatLogActionType } from '@/utils/displayLabels'
@@ -12,6 +12,7 @@ const eventId = computed(() => route.params.eventId)
 
 const logs = ref([])
 const loading = ref(true)
+const revertingLogId = ref(null)
 
 // Filters
 const filterGroupId = ref('')
@@ -19,6 +20,18 @@ const filterActionType = ref('')
 const groups = ref([])
 
 const ACTION_TYPES = LOG_ACTION_TYPES
+const REVERTIBLE_ACTION_TYPES = new Set([
+  'VILLAIN_DAMAGE_REPORTED',
+  'VILLAIN_DAMAGE_DELEGATED',
+  'THREAT_REPORTED',
+  'THREAT_DELEGATED',
+  'THREAT_REMOVED',
+  'THREAT_REMOVED_DELEGATED',
+  'VILLAIN_HP_CORRECTED',
+  'THREAT_CORRECTED',
+])
+
+const revertedLogIds = computed(() => new Set(logs.value.map((log) => log.revertedLogId).filter(Boolean)))
 
 async function loadGroups() {
   try {
@@ -50,6 +63,23 @@ async function loadLogs() {
     notif.error('Error al cargar los logs')
   } finally {
     loading.value = false
+  }
+}
+
+function canRevert(log) {
+  return REVERTIBLE_ACTION_TYPES.has(log.actionType) && !revertedLogIds.value.has(log.id)
+}
+
+async function handleRevert(log) {
+  revertingLogId.value = log.id
+  try {
+    await revertEventLog(eventId.value, log.id, {})
+    notif.success('Registro revertido correctamente')
+    await loadLogs()
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al revertir el log')
+  } finally {
+    revertingLogId.value = null
   }
 }
 
@@ -110,6 +140,7 @@ onMounted(() => {
               <th>Antes</th>
               <th>Después</th>
               <th>Notas</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -123,6 +154,20 @@ onMounted(() => {
               <td>{{ log.previousValue || '-' }}</td>
               <td>{{ log.newValue || '-' }}</td>
               <td>{{ log.notes || '-' }}</td>
+              <td style="white-space: nowrap">
+                <button
+                  v-if="canRevert(log)"
+                  :data-testid="`revert-log-${log.id}`"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="revertingLogId === log.id"
+                  @click="handleRevert(log)"
+                >
+                  {{ revertingLogId === log.id ? 'Revirtiendo…' : 'Revertir' }}
+                </button>
+                <span v-else-if="revertedLogIds.has(log.id)" class="text-muted">Ya revertido</span>
+                <span v-else-if="log.revertedLogId" class="text-muted">Revierte #{{ log.revertedLogId }}</span>
+                <span v-else class="text-muted">-</span>
+              </td>
             </tr>
           </tbody>
         </table>

@@ -159,18 +159,38 @@ public class CoOrganizerInvitationService {
         Event event = findManageableEvent(eventId);
         CoOrganizerInvitation invitation = coOrganizerInvitationRepository.findByIdAndEventId(invitationId, eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la invitación solicitada para este evento."));
-        ensurePending(invitation);
 
-        invitation.setStatus(CoOrganizerInvitationStatus.REVOKED);
-        coOrganizerInvitationRepository.save(invitation);
+        if (invitation.getStatus() == CoOrganizerInvitationStatus.PENDING) {
+            invitation.setStatus(CoOrganizerInvitationStatus.REVOKED);
+            coOrganizerInvitationRepository.save(invitation);
 
-        eventLogService.appendOrganizerLog(
+            eventLogService.appendOrganizerLog(
                 event,
                 EventActionType.CO_ORGANIZER_INVITATION_REVOKED,
                 CoOrganizerInvitationStatus.PENDING.name(),
                 CoOrganizerInvitationStatus.REVOKED.name(),
                 "Invitación revocada para el usuario " + invitation.getInvitee().getUsername()
-        );
+            );
+            return;
+        }
+
+        if (invitation.getStatus() == CoOrganizerInvitationStatus.ACCEPTED) {
+            eventRoleService.removeCoOrganizer(event, invitation.getInvitee());
+            invitation.setStatus(CoOrganizerInvitationStatus.REVOKED);
+            coOrganizerInvitationRepository.save(invitation);
+
+            eventLogService.appendOrganizerLog(
+                event,
+                EventActionType.CO_ORGANIZER_INVITATION_REVOKED,
+                CoOrganizerInvitationStatus.ACCEPTED.name(),
+                CoOrganizerInvitationStatus.REVOKED.name(),
+                "Co-organización revocada para el usuario " + invitation.getInvitee().getUsername()
+                    + " antes de iniciar la partida."
+            );
+            return;
+        }
+
+        throw new BusinessRuleException("La invitación ya no puede revocarse.");
     }
 
     private Event findEvent(Long eventId) {

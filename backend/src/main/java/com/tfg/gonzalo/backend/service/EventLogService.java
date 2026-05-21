@@ -62,45 +62,63 @@ public class EventLogService {
             eventLog.getActor() == null ? null : eventLog.getActor().getUsername(),
                 eventLog.getGroup() == null ? null : eventLog.getGroup().getIdentifier(),
                 eventLog.getActionType(),
+                eventLog.getRevertedLog() == null ? null : eventLog.getRevertedLog().getId(),
                 eventLog.getPreviousValue(),
                 eventLog.getNewValue(),
                 eventLog.getNotes()
         );
     }
 
-    public void appendLog(Event event,
-                          AppUser actor,
-                          EventGroup group,
-                          EventActionType actionType,
-                          String previousValue,
-                          String newValue,
-                          String notes) {
+    public EventLog appendLog(Event event,
+                              AppUser actor,
+                              EventGroup group,
+                              EventActionType actionType,
+                              String previousValue,
+                              String newValue,
+                              String notes) {
+        return appendLog(event, new LogAppendData(actor, group, actionType, previousValue, newValue, notes, null));
+    }
+
+    public EventLog appendLog(Event event,
+                              LogAppendData logAppendData) {
         EventLog eventLog = new EventLog();
         eventLog.setEvent(event);
-        eventLog.setActor(actor);
-        eventLog.setGroup(group);
-        eventLog.setActionType(actionType);
-        eventLog.setPreviousValue(previousValue);
-        eventLog.setNewValue(newValue);
-        eventLog.setNotes(notes);
-        eventLogRepository.save(eventLog);
+        eventLog.setActor(logAppendData.actor());
+        eventLog.setGroup(logAppendData.group());
+        eventLog.setRevertedLog(logAppendData.revertedLog());
+        eventLog.setActionType(logAppendData.actionType());
+        eventLog.setPreviousValue(logAppendData.previousValue());
+        eventLog.setNewValue(logAppendData.newValue());
+        eventLog.setNotes(logAppendData.notes());
+        return eventLogRepository.save(eventLog);
     }
 
-    public void appendAuthenticatedLog(Event event,
-                                       EventGroup group,
-                                       EventActionType actionType,
-                                       String previousValue,
-                                       String newValue,
-                                       String notes) {
-        appendLog(event, resolveAuthenticatedActor(), group, actionType, previousValue, newValue, notes);
+    public EventLog appendAuthenticatedLog(Event event,
+                                           EventGroup group,
+                                           EventActionType actionType,
+                                           String previousValue,
+                                           String newValue,
+                                           String notes) {
+        return appendLog(event, resolveAuthenticatedActor(), group, actionType, previousValue, newValue, notes);
     }
 
-    public void appendAuthenticatedLog(Event event,
-                                       EventActionType actionType,
-                                       String previousValue,
-                                       String newValue,
-                                       String notes) {
-        appendAuthenticatedLog(event, null, actionType, previousValue, newValue, notes);
+    public EventLog appendAuthenticatedLog(Event event,
+                                           EventGroup group,
+                                           EventActionType actionType,
+                                           String previousValue,
+                                           String newValue,
+                                           String notes,
+                                           EventLog revertedLog) {
+        return appendLog(event, new LogAppendData(resolveAuthenticatedActor(), group, actionType, previousValue,
+            newValue, notes, revertedLog));
+    }
+
+    public EventLog appendAuthenticatedLog(Event event,
+                                           EventActionType actionType,
+                                           String previousValue,
+                                           String newValue,
+                                           String notes) {
+        return appendAuthenticatedLog(event, null, actionType, previousValue, newValue, notes);
     }
 
     public void appendSystemLog(Event event,
@@ -147,5 +165,14 @@ public class EventLogService {
         } catch (ForbiddenOperationException ex) {
             return null;
         }
+    }
+
+    private record LogAppendData(AppUser actor,
+                                 EventGroup group,
+                                 EventActionType actionType,
+                                 String previousValue,
+                                 String newValue,
+                                 String notes,
+                                 EventLog revertedLog) {
     }
 }

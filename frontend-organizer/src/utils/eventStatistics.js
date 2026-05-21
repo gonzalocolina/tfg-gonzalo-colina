@@ -3,8 +3,11 @@ const DAMAGE_ACTION_TYPES = new Set([
   'VILLAIN_DAMAGE_DELEGATED',
 ])
 
+const DAMAGE_REVERTED_ACTION_TYPES = new Set(['VILLAIN_DAMAGE_REVERTED'])
+
 const DAMAGE_PROGRESS_ACTION_TYPES = new Set([
   ...DAMAGE_ACTION_TYPES,
+  ...DAMAGE_REVERTED_ACTION_TYPES,
   'VILLAIN_HP_CORRECTED',
 ])
 
@@ -18,9 +21,14 @@ const THREAT_REMOVED_ACTION_TYPES = new Set([
   'THREAT_REMOVED_DELEGATED',
 ])
 
+const THREAT_ADDITION_REVERTED_ACTION_TYPES = new Set(['THREAT_ADDITION_REVERTED'])
+const THREAT_REMOVAL_REVERTED_ACTION_TYPES = new Set(['THREAT_REMOVAL_REVERTED'])
+
 const THREAT_PROGRESS_ACTION_TYPES = new Set([
   ...THREAT_ADDED_ACTION_TYPES,
   ...THREAT_REMOVED_ACTION_TYPES,
+  ...THREAT_ADDITION_REVERTED_ACTION_TYPES,
+  ...THREAT_REMOVAL_REVERTED_ACTION_TYPES,
   'THREAT_CORRECTED',
 ])
 
@@ -52,8 +60,11 @@ const STATISTICS_ACTION_TYPES = new Set([
   'EVENT_STARTED',
   'EVENT_FINISHED',
   ...DAMAGE_ACTION_TYPES,
+  ...DAMAGE_REVERTED_ACTION_TYPES,
   ...THREAT_ADDED_ACTION_TYPES,
   ...THREAT_REMOVED_ACTION_TYPES,
+  ...THREAT_ADDITION_REVERTED_ACTION_TYPES,
+  ...THREAT_REMOVAL_REVERTED_ACTION_TYPES,
   ...MANUAL_CORRECTION_ACTION_TYPES,
   ...TIMER_ACTION_TYPES,
   ...INTER_POD_CREATED_ACTION_TYPES,
@@ -452,6 +463,16 @@ function handleDamage(context, group, log, previousValue, newValue) {
   return effectiveChange
 }
 
+function handleDamageReverted(context, group, _log, previousValue, newValue) {
+  const effectiveChange = increase(previousValue, newValue)
+
+  if (group) {
+    group.damageToVillain = Math.max(0, group.damageToVillain - effectiveChange)
+  }
+
+  return -effectiveChange
+}
+
 function handleThreatAdded(context, group, log, previousValue, newValue) {
   const effectiveChange = increase(previousValue, newValue)
 
@@ -463,6 +484,16 @@ function handleThreatAdded(context, group, log, previousValue, newValue) {
   return effectiveChange
 }
 
+function handleThreatAddedReverted(_context, group, _log, previousValue, newValue) {
+  const effectiveChange = decrease(previousValue, newValue)
+
+  if (group) {
+    group.threatAdded = Math.max(0, group.threatAdded - effectiveChange)
+  }
+
+  return -effectiveChange
+}
+
 function handleThreatRemoved(context, group, log, previousValue, newValue) {
   const effectiveChange = decrease(previousValue, newValue)
 
@@ -472,6 +503,16 @@ function handleThreatRemoved(context, group, log, previousValue, newValue) {
 
   registerContribution(context, group, log.timestamp, effectiveChange)
   return effectiveChange
+}
+
+function handleThreatRemovedReverted(_context, group, _log, previousValue, newValue) {
+  const effectiveChange = increase(previousValue, newValue)
+
+  if (group) {
+    group.threatRemoved = Math.max(0, group.threatRemoved - effectiveChange)
+  }
+
+  return -effectiveChange
 }
 
 function handleInterPodCreated(context, group, log) {
@@ -541,10 +582,13 @@ function handleInterPodDeleted(context, group, log) {
 const LOG_HANDLERS = Object.freeze({
   VILLAIN_DAMAGE_REPORTED: handleDamage,
   VILLAIN_DAMAGE_DELEGATED: handleDamage,
+  VILLAIN_DAMAGE_REVERTED: handleDamageReverted,
   THREAT_REPORTED: handleThreatAdded,
   THREAT_DELEGATED: handleThreatAdded,
+  THREAT_ADDITION_REVERTED: handleThreatAddedReverted,
   THREAT_REMOVED: handleThreatRemoved,
   THREAT_REMOVED_DELEGATED: handleThreatRemoved,
+  THREAT_REMOVAL_REVERTED: handleThreatRemovedReverted,
   INTER_POD_CARD_CREATED: handleInterPodCreated,
   INTER_POD_CARD_DAMAGED: handleInterPodDamage,
   INTER_POD_CARD_THREAT_REDUCED: handleInterPodThreatReduction,

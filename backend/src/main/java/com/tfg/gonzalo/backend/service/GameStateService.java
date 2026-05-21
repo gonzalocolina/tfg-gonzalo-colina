@@ -1,5 +1,6 @@
 package com.tfg.gonzalo.backend.service;
 
+import com.tfg.gonzalo.backend.dto.event.RevertEventLogRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedVillainDamageRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.DelegatedRemoveThreatRequest;
@@ -16,6 +17,7 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
+import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
@@ -24,6 +26,7 @@ import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GameFinishCause;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
+import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
@@ -38,10 +41,13 @@ import org.springframework.stereotype.Service;
 public class GameStateService {
 
     private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
+    private static final String CORRECTION_TARGET_VILLAIN_HP = "la vida del villano";
+    private static final String CORRECTION_TARGET_THREAT = "la amenaza";
 
     private final EventRepository eventRepository;
     private final GameStateRepository gameStateRepository;
     private final EventGroupRepository eventGroupRepository;
+    private final EventLogRepository eventLogRepository;
     private final EventLogService eventLogService;
     private final AccessControlService accessControlService;
     private final RealtimeEventPublisher realtimeEventPublisher;
@@ -49,12 +55,14 @@ public class GameStateService {
     public GameStateService(EventRepository eventRepository,
                             GameStateRepository gameStateRepository,
                             EventGroupRepository eventGroupRepository,
+                            EventLogRepository eventLogRepository,
                             EventLogService eventLogService,
                             AccessControlService accessControlService,
                             RealtimeEventPublisher realtimeEventPublisher) {
         this.eventRepository = eventRepository;
         this.gameStateRepository = gameStateRepository;
         this.eventGroupRepository = eventGroupRepository;
+        this.eventLogRepository = eventLogRepository;
         this.eventLogService = eventLogService;
         this.accessControlService = accessControlService;
         this.realtimeEventPublisher = realtimeEventPublisher;
@@ -91,7 +99,7 @@ public class GameStateService {
         gameState.setVillainHpCurrent(newHp);
         gameState.setTotalReportedVillainDamage(gameState.getTotalReportedVillainDamage() + request.damage());
 
-        evaluateVillainHpMilestones(gameState, notifications);
+        updateVillainHpMilestones(gameState, before, newHp, notifications);
         if (newHp == 0) {
             finishGame(event, gameState, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
@@ -118,7 +126,9 @@ public class GameStateService {
         ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = increaseMainSchemeThreat(gameState, request.threat(), notifications);
+        int newThreat = before + request.threat();
+        gameState.setSchemeThreatCurrent(newThreat);
+        updateThreatMilestones(gameState, before, newThreat, notifications);
 
         if (newThreat >= gameState.getSchemeThreatTarget() && gameState.getSchemeThreatTarget() > 0) {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
@@ -146,7 +156,9 @@ public class GameStateService {
         ensureRepresentativeActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = decreaseMainSchemeThreat(gameState, request.threat());
+        int newThreat = Math.max(0, before - request.threat());
+        gameState.setSchemeThreatCurrent(newThreat);
+        updateThreatMilestones(gameState, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(event, group, EventActionType.THREAT_REMOVED,
                 String.valueOf(before), String.valueOf(newThreat), "Amenaza retirada del plan principal por la mesa.");
@@ -162,22 +174,19 @@ public class GameStateService {
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
-        ensureNotFinished(event);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
         ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
-        ensureNotFinished(event);
-        ensureRepresentativeActionsAllowed(gameState);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
+        ensureDelegatedMetricActionsAllowed(gameState);
 
         int before = gameState.getVillainHpCurrent();
         int newHp = Math.max(0, before - request.damage());
         gameState.setVillainHpCurrent(newHp);
         gameState.setTotalReportedVillainDamage(gameState.getTotalReportedVillainDamage() + request.damage());
 
-        evaluateVillainHpMilestones(gameState, notifications);
-        if (newHp == 0) {
-            finishGame(event, gameState, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
-        }
+        updateVillainHpMilestones(gameState, before, newHp, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -187,7 +196,49 @@ public class GameStateService {
                 String.valueOf(newHp),
             buildOptionalJustificationNote("Registro delegado de daño al villano en nombre de la mesa.", request.justification())
         );
+        reconcileMetricOutcome(event, gameState, notifications,
+                "Partida reabierta tras una corrección delegada de daño al villano.");
         return persistAndRespond(eventId, "DELEGATE_VILLAIN_DAMAGE", event, gameState, notifications);
+    }
+
+    @Transactional
+    public GameStateOperationResponse delegateRemoveVillainDamage(Long eventId, DelegatedVillainDamageRequest request) {
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
+        accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
+        GameState gameState = context.gameState();
+        EventGroup group = findGroup(eventId, request.groupId());
+        List<String> notifications = new ArrayList<>();
+
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
+        ensureNoPendingAssignments(eventId);
+        markEventAsStarted(event);
+        refreshTimerState(event, gameState, notifications);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
+        ensureDelegatedMetricActionsAllowed(gameState);
+
+        int before = gameState.getVillainHpCurrent();
+        int newHp = Math.min(gameState.getVillainHpMax(), before + request.damage());
+        int restoredHp = newHp - before;
+        gameState.setVillainHpCurrent(newHp);
+        gameState.setTotalReportedVillainDamage(Math.max(0,
+                gameState.getTotalReportedVillainDamage() - restoredHp));
+
+        updateVillainHpMilestones(gameState, before, newHp, notifications);
+
+        eventLogService.appendAuthenticatedLog(
+                event,
+                group,
+                EventActionType.VILLAIN_DAMAGE_REVERTED,
+                String.valueOf(before),
+                String.valueOf(newHp),
+                buildOptionalJustificationNote(
+                        "Reversión delegada de daño al villano en nombre de la mesa.",
+                        request.justification())
+        );
+        reconcileMetricOutcome(event, gameState, notifications,
+                "Partida reabierta tras revertir daño delegado de una mesa.");
+        return persistAndRespond(eventId, "DELEGATE_REMOVE_VILLAIN_DAMAGE", event, gameState, notifications);
     }
 
     @Transactional
@@ -199,19 +250,17 @@ public class GameStateService {
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
-        ensureNotFinished(event);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
         ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
-        ensureNotFinished(event);
-        ensureRepresentativeActionsAllowed(gameState);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
+        ensureDelegatedMetricActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = increaseMainSchemeThreat(gameState, request.threat(), notifications);
-
-        if (newThreat >= gameState.getSchemeThreatTarget() && gameState.getSchemeThreatTarget() > 0) {
-            finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
-        }
+        int newThreat = before + request.threat();
+        gameState.setSchemeThreatCurrent(newThreat);
+        updateThreatMilestones(gameState, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -221,6 +270,8 @@ public class GameStateService {
                 String.valueOf(newThreat),
             buildOptionalJustificationNote("Registro delegado de amenaza en nombre de la mesa.", request.justification())
         );
+        reconcileMetricOutcome(event, gameState, notifications,
+                "Partida reabierta tras una corrección delegada de amenaza.");
         return persistAndRespond(eventId, "DELEGATE_THREAT", event, gameState, notifications);
     }
 
@@ -233,15 +284,17 @@ public class GameStateService {
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
 
-        ensureNotFinished(event);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
         ensureNoPendingAssignments(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
-        ensureNotFinished(event);
-        ensureRepresentativeActionsAllowed(gameState);
+        ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
+        ensureDelegatedMetricActionsAllowed(gameState);
 
         int before = gameState.getSchemeThreatCurrent();
-        int newThreat = decreaseMainSchemeThreat(gameState, request.threat());
+        int newThreat = Math.max(0, before - request.threat());
+        gameState.setSchemeThreatCurrent(newThreat);
+        updateThreatMilestones(gameState, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -253,6 +306,8 @@ public class GameStateService {
                         "Registro delegado de retirada de amenaza del plan principal en nombre de la mesa.",
                         request.justification())
         );
+            reconcileMetricOutcome(event, gameState, notifications,
+                "Partida reabierta tras una retirada delegada de amenaza.");
         return persistAndRespond(eventId, "DELEGATE_REMOVE_THREAT", event, gameState, notifications);
     }
 
@@ -266,12 +321,13 @@ public class GameStateService {
 
         ensureNotFinished(event);
         refreshTimerState(event, gameState, notifications);
+        ensureNotFinished(event);
 
         int before = gameState.getVillainHpCurrent();
         int newHp = Math.min(gameState.getVillainHpMax(), request.value());
         gameState.setVillainHpCurrent(newHp);
 
-        evaluateVillainHpMilestones(gameState, notifications);
+        updateVillainHpMilestones(gameState, before, newHp, notifications);
         if (newHp == 0) {
             finishGame(event, gameState, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
@@ -296,12 +352,13 @@ public class GameStateService {
 
         ensureNotFinished(event);
         refreshTimerState(event, gameState, notifications);
+        ensureNotFinished(event);
 
         int before = gameState.getSchemeThreatCurrent();
         int newThreat = request.value();
         gameState.setSchemeThreatCurrent(newThreat);
 
-        evaluateThreatMilestones(gameState, notifications);
+        updateThreatMilestones(gameState, before, newThreat, notifications);
         if (newThreat >= gameState.getSchemeThreatTarget() && gameState.getSchemeThreatTarget() > 0) {
             finishGame(event, gameState, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
@@ -314,6 +371,49 @@ public class GameStateService {
             buildOptionalJustificationNote("Corrección manual global de amenaza.", request.justification())
         );
         return persistAndRespond(eventId, "MANUAL_THREAT_UPDATE", event, gameState, notifications);
+    }
+
+    @Transactional
+    public GameStateOperationResponse revertLog(Long eventId, Long logId, RevertEventLogRequest request) {
+        MutableGameStateContext context = findMutableGameStateContext(eventId);
+        Event event = context.event();
+        GameState gameState = context.gameState();
+        EventLog originalLog = eventLogRepository.findByIdAndEventId(logId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe el log solicitado para este evento."));
+        List<String> notifications = new ArrayList<>();
+
+        requireResponsibilityForRevertedLog(event, originalLog);
+        ensureMetricCorrectionAllowed(event, gameState, describeCorrectionTarget(originalLog.getActionType()));
+        refreshTimerState(event, gameState, notifications);
+        ensureMetricCorrectionAllowed(event, gameState, describeCorrectionTarget(originalLog.getActionType()));
+        ensureLogCanBeReverted(eventId, originalLog);
+
+        ReversionResolution resolution = buildReversionResolution(originalLog, gameState);
+        if (resolution.metric() == ReversionMetric.VILLAIN_HP) {
+            int before = gameState.getVillainHpCurrent();
+            gameState.setVillainHpCurrent(resolution.newValue());
+            gameState.setTotalReportedVillainDamage(Math.max(0,
+                    gameState.getTotalReportedVillainDamage() + resolution.totalReportedVillainDamageDelta()));
+            updateVillainHpMilestones(gameState, before, resolution.newValue(), notifications);
+        } else {
+            int before = gameState.getSchemeThreatCurrent();
+            gameState.setSchemeThreatCurrent(resolution.newValue());
+            updateThreatMilestones(gameState, before, resolution.newValue(), notifications);
+        }
+
+        eventLogService.appendAuthenticatedLog(
+                event,
+                resolution.group(),
+                resolution.reversalActionType(),
+                String.valueOf(resolution.previousValue()),
+                String.valueOf(resolution.newValue()),
+                buildLogReversalNote(originalLog, request.justification()),
+                originalLog
+        );
+
+        reconcileMetricOutcome(event, gameState, notifications,
+                "Partida reabierta tras revertir un registro del log.");
+        return persistAndRespond(eventId, "REVERT_LOG", event, gameState, notifications);
     }
 
     @Transactional
@@ -488,6 +588,16 @@ public class GameStateService {
         }
     }
 
+    private void ensureMetricCorrectionAllowed(Event event, GameState gameState, String targetDescription) {
+        if (event.getStatus() != EventStatus.FINISHED) {
+            return;
+        }
+        if (gameState.getFinishCause() == GameFinishCause.TIMER_EXPIRED) {
+            throw new BusinessRuleException(
+                    "No se puede corregir " + targetDescription + " porque la partida terminó por tiempo.");
+        }
+    }
+
     private void ensureNoPendingAssignments(Long eventId) {
         boolean hasPendingAssignments = eventGroupRepository.findByEventId(eventId).stream()
                 .anyMatch(group -> group.getPod() == null
@@ -506,11 +616,23 @@ public class GameStateService {
         }
     }
 
+    private void ensureDelegatedMetricActionsAllowed(GameState gameState) {
+        if (gameState.getTimerStatus() == TimerStatus.READY) {
+            throw new BusinessRuleException("No puedes realizar acciones hasta que el organizador inicie el contador.");
+        }
+    }
+
     private String buildOptionalJustificationNote(String prefix, String justification) {
         if (justification == null || justification.isBlank()) {
             return prefix;
         }
         return prefix + " Justificación: " + justification.trim();
+    }
+
+    private String buildLogReversalNote(EventLog originalLog, String justification) {
+        return buildOptionalJustificationNote(
+                "Reversión del log #" + originalLog.getId() + " (" + describeActionType(originalLog.getActionType()) + ").",
+                justification);
     }
 
     private void markEventAsStarted(Event event) {
@@ -544,52 +666,46 @@ public class GameStateService {
         }
     }
 
-    private void evaluateVillainHpMilestones(GameState gameState, List<String> notifications) {
+    private void updateVillainHpMilestones(GameState gameState,
+                                           int beforeHp,
+                                           int newHp,
+                                           List<String> notifications) {
         int half = (int) Math.ceil(gameState.getVillainHpMax() * 0.5);
         int quarter = (int) Math.ceil(gameState.getVillainHpMax() * 0.25);
 
-        if (!gameState.isVillainHalfHpNotified() && gameState.getVillainHpCurrent() <= half) {
-            gameState.setVillainHalfHpNotified(true);
+        if (beforeHp > half && newHp <= half) {
             notifications.add("VILLAIN_HP_50_PERCENT");
         }
-        if (!gameState.isVillainQuarterHpNotified() && gameState.getVillainHpCurrent() <= quarter) {
-            gameState.setVillainQuarterHpNotified(true);
+        if (beforeHp > quarter && newHp <= quarter) {
             notifications.add("VILLAIN_HP_25_PERCENT");
         }
+
+        gameState.setVillainHalfHpNotified(newHp <= half);
+        gameState.setVillainQuarterHpNotified(newHp <= quarter);
     }
 
-    private void evaluateThreatMilestones(GameState gameState, List<String> notifications) {
+    private void updateThreatMilestones(GameState gameState,
+                                        int beforeThreat,
+                                        int newThreat,
+                                        List<String> notifications) {
         if (gameState.getSchemeThreatTarget() <= 0) {
             return;
         }
         int half = (int) Math.ceil(gameState.getSchemeThreatTarget() * 0.5);
         int threeQuarter = (int) Math.ceil(gameState.getSchemeThreatTarget() * 0.75);
 
-        if (!gameState.isThreatHalfNotified() && gameState.getSchemeThreatCurrent() >= half) {
-            gameState.setThreatHalfNotified(true);
+        if (beforeThreat < half && newThreat >= half) {
             notifications.add("THREAT_50_PERCENT");
         }
-        if (!gameState.isThreatThreeQuarterNotified() && gameState.getSchemeThreatCurrent() >= threeQuarter) {
-            gameState.setThreatThreeQuarterNotified(true);
+        if (beforeThreat < threeQuarter && newThreat >= threeQuarter) {
             notifications.add("THREAT_75_PERCENT");
         }
-        if (gameState.getSchemeThreatCurrent() >= gameState.getSchemeThreatTarget()
-                && !notifications.contains("THREAT_100_PERCENT")) {
+        if (beforeThreat < gameState.getSchemeThreatTarget() && newThreat >= gameState.getSchemeThreatTarget()) {
             notifications.add("THREAT_100_PERCENT");
         }
-    }
 
-    private int increaseMainSchemeThreat(GameState gameState, int amount, List<String> notifications) {
-        int newThreat = gameState.getSchemeThreatCurrent() + amount;
-        gameState.setSchemeThreatCurrent(newThreat);
-        evaluateThreatMilestones(gameState, notifications);
-        return newThreat;
-    }
-
-    private int decreaseMainSchemeThreat(GameState gameState, int amount) {
-        int newThreat = Math.max(0, gameState.getSchemeThreatCurrent() - amount);
-        gameState.setSchemeThreatCurrent(newThreat);
-        return newThreat;
+        gameState.setThreatHalfNotified(newThreat >= half);
+        gameState.setThreatThreeQuarterNotified(newThreat >= threeQuarter);
     }
 
     private void evaluateTimerMilestones(GameState gameState, List<String> notifications) {
@@ -635,6 +751,200 @@ public class GameStateService {
         notifications.add("EVENT_FINISHED_" + result.name());
         eventLogService.appendSystemLog(event, EventActionType.EVENT_FINISHED,
             null, result.name(), "Partida finalizada por " + cause.name());
+    }
+
+    private void reconcileMetricOutcome(Event event,
+                                        GameState gameState,
+                                        List<String> notifications,
+                                        String reopenNote) {
+        OutcomeResolution desiredOutcome = resolveOutcome(gameState);
+
+        if (event.getStatus() == EventStatus.FINISHED) {
+            if (gameState.getFinishCause() == GameFinishCause.TIMER_EXPIRED) {
+                return;
+            }
+
+            if (desiredOutcome == null) {
+                reopenGame(event, gameState, reopenNote);
+                return;
+            }
+
+            event.setResult(desiredOutcome.result());
+            gameState.setResult(desiredOutcome.result());
+            gameState.setFinishCause(desiredOutcome.cause());
+            return;
+        }
+
+        if (desiredOutcome != null) {
+            finishGame(event, gameState, desiredOutcome.result(), desiredOutcome.cause(), notifications);
+        }
+    }
+
+    private OutcomeResolution resolveOutcome(GameState gameState) {
+        if (gameState.getVillainHpCurrent() <= 0) {
+            return new OutcomeResolution(EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO);
+        }
+        if (gameState.getSchemeThreatTarget() > 0 && gameState.getSchemeThreatCurrent() >= gameState.getSchemeThreatTarget()) {
+            return new OutcomeResolution(EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED);
+        }
+        return null;
+    }
+
+    private void reopenGame(Event event, GameState gameState, String note) {
+        Instant now = Instant.now();
+        event.setStatus(EventStatus.IN_PROGRESS);
+        event.setResult(null);
+        event.setFinishedAt(null);
+
+        gameState.setResult(null);
+        gameState.setFinishCause(null);
+        gameState.setFinishedAt(null);
+        gameState.setTimerStartedAt(null);
+        if (gameState.getTimerStatus() != TimerStatus.NOT_CONFIGURED) {
+            gameState.setTimerStatus(TimerStatus.PAUSED);
+            gameState.setTimerPausedAt(now);
+        }
+
+        eventLogService.appendAuthenticatedLog(event, EventActionType.EVENT_REOPENED,
+                null, EventStatus.IN_PROGRESS.name(), note);
+    }
+
+    private void requireResponsibilityForRevertedLog(Event event, EventLog log) {
+        switch (resolveReversionMetric(log.getActionType())) {
+            case VILLAIN_HP -> accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
+            case THREAT -> accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
+            case NONE -> throw new BusinessRuleException("Este tipo de log no puede revertirse desde el panel de partida.");
+        }
+    }
+
+    private void ensureLogCanBeReverted(Long eventId, EventLog log) {
+        if (resolveReversionMetric(log.getActionType()) == ReversionMetric.NONE) {
+            throw new BusinessRuleException("Este tipo de log no admite reversión automática.");
+        }
+        if (eventLogRepository.existsByEventIdAndRevertedLogId(eventId, log.getId())) {
+            throw new BusinessRuleException("Ese log ya ha sido revertido previamente.");
+        }
+        if (parseLogNumericValue(log.getPreviousValue()) == null || parseLogNumericValue(log.getNewValue()) == null) {
+            throw new BusinessRuleException("El log seleccionado no contiene suficientes datos numéricos para revertirlo.");
+        }
+    }
+
+    private ReversionResolution buildReversionResolution(EventLog originalLog, GameState gameState) {
+        int originalPreviousValue = requireNumericLogValue(originalLog.getPreviousValue(), "previousValue");
+        int originalNewValue = requireNumericLogValue(originalLog.getNewValue(), "newValue");
+
+        return switch (originalLog.getActionType()) {
+            case VILLAIN_DAMAGE_REPORTED, VILLAIN_DAMAGE_DELEGATED -> {
+                int deltaHp = originalPreviousValue - originalNewValue;
+                int newHp = Math.min(gameState.getVillainHpMax(), gameState.getVillainHpCurrent() + deltaHp);
+                yield new ReversionResolution(
+                        ReversionMetric.VILLAIN_HP,
+                        gameState.getVillainHpCurrent(),
+                        newHp,
+                        originalLog.getGroup(),
+                        EventActionType.VILLAIN_DAMAGE_REVERTED,
+                        originalNewValue - originalPreviousValue
+                );
+            }
+            case VILLAIN_HP_CORRECTED -> {
+                int deltaHp = originalPreviousValue - originalNewValue;
+                int newHp = Math.max(0, Math.min(gameState.getVillainHpMax(), gameState.getVillainHpCurrent() + deltaHp));
+                yield new ReversionResolution(
+                        ReversionMetric.VILLAIN_HP,
+                        gameState.getVillainHpCurrent(),
+                        newHp,
+                        originalLog.getGroup(),
+                        EventActionType.VILLAIN_HP_CORRECTED,
+                        originalNewValue - originalPreviousValue
+                );
+            }
+            case THREAT_REPORTED, THREAT_DELEGATED -> {
+                int deltaThreat = originalNewValue - originalPreviousValue;
+                int newThreat = Math.max(0, gameState.getSchemeThreatCurrent() - deltaThreat);
+                yield new ReversionResolution(
+                        ReversionMetric.THREAT,
+                        gameState.getSchemeThreatCurrent(),
+                        newThreat,
+                        originalLog.getGroup(),
+                        EventActionType.THREAT_ADDITION_REVERTED,
+                        0
+                );
+            }
+            case THREAT_REMOVED, THREAT_REMOVED_DELEGATED -> {
+                int deltaThreat = originalPreviousValue - originalNewValue;
+                int newThreat = gameState.getSchemeThreatCurrent() + deltaThreat;
+                yield new ReversionResolution(
+                        ReversionMetric.THREAT,
+                        gameState.getSchemeThreatCurrent(),
+                        newThreat,
+                        originalLog.getGroup(),
+                        EventActionType.THREAT_REMOVAL_REVERTED,
+                        0
+                );
+            }
+            case THREAT_CORRECTED -> {
+                int deltaThreat = originalPreviousValue - originalNewValue;
+                int newThreat = Math.max(0, gameState.getSchemeThreatCurrent() + deltaThreat);
+                yield new ReversionResolution(
+                        ReversionMetric.THREAT,
+                        gameState.getSchemeThreatCurrent(),
+                        newThreat,
+                        originalLog.getGroup(),
+                        EventActionType.THREAT_CORRECTED,
+                        0
+                );
+            }
+            default -> throw new BusinessRuleException("Este tipo de log no admite reversión automática.");
+        };
+    }
+
+    private Integer parseLogNumericValue(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private int requireNumericLogValue(String value, String fieldName) {
+        Integer parsedValue = parseLogNumericValue(value);
+        if (parsedValue == null) {
+            throw new BusinessRuleException("El log seleccionado no contiene un valor numérico válido en " + fieldName + ".");
+        }
+        return parsedValue;
+    }
+
+    private ReversionMetric resolveReversionMetric(EventActionType actionType) {
+        return switch (actionType) {
+            case VILLAIN_DAMAGE_REPORTED, VILLAIN_DAMAGE_DELEGATED, VILLAIN_HP_CORRECTED -> ReversionMetric.VILLAIN_HP;
+            case THREAT_REPORTED, THREAT_DELEGATED, THREAT_REMOVED, THREAT_REMOVED_DELEGATED, THREAT_CORRECTED -> ReversionMetric.THREAT;
+            default -> ReversionMetric.NONE;
+        };
+    }
+
+    private String describeCorrectionTarget(EventActionType actionType) {
+        return switch (resolveReversionMetric(actionType)) {
+            case VILLAIN_HP -> CORRECTION_TARGET_VILLAIN_HP;
+            case THREAT -> CORRECTION_TARGET_THREAT;
+            case NONE -> "este elemento";
+        };
+    }
+
+    private String describeActionType(EventActionType actionType) {
+        return switch (actionType) {
+            case VILLAIN_DAMAGE_REPORTED -> "daño al villano reportado";
+            case VILLAIN_DAMAGE_DELEGATED -> "daño al villano delegado";
+            case THREAT_REPORTED -> "amenaza reportada";
+            case THREAT_DELEGATED -> "amenaza delegada";
+            case THREAT_REMOVED -> "retirada de amenaza";
+            case THREAT_REMOVED_DELEGATED -> "retirada de amenaza delegada";
+            case VILLAIN_HP_CORRECTED -> "corrección manual de HP del villano";
+            case THREAT_CORRECTED -> "corrección manual de amenaza";
+            default -> actionType.name();
+        };
     }
 
     private GameStateSnapshotResponse toSnapshot(Event event, GameState gameState) {
@@ -702,5 +1012,22 @@ public class GameStateService {
     }
 
     private record MutableGameStateContext(Event event, GameState gameState) {
+    }
+
+    private record OutcomeResolution(EventResult result, GameFinishCause cause) {
+    }
+
+    private record ReversionResolution(ReversionMetric metric,
+                                       int previousValue,
+                                       int newValue,
+                                       EventGroup group,
+                                       EventActionType reversalActionType,
+                                       int totalReportedVillainDamageDelta) {
+    }
+
+    private enum ReversionMetric {
+        VILLAIN_HP,
+        THREAT,
+        NONE
     }
 }

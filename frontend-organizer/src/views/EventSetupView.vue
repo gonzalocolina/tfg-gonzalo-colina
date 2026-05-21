@@ -47,7 +47,7 @@ function computeNextSortOrder(podList = pods.value) {
 }
 
 function applySuggestedPodDefaults() {
-  const suggestedPodName = structure.value?.suggestedPodName || `Pod ${(pods.value.length || 0) + 1}`
+  const suggestedPodName = structure.value?.suggestedPodName || `Nodo ${(pods.value.length || 0) + 1}`
   if (!newPodName.value.trim()) {
     newPodName.value = suggestedPodName
   }

@@ -3,11 +3,28 @@ import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
+import { formatLogActionType } from '@/utils/displayLabels'
 
 function resolveNotificationType(notification) {
   if (notification.includes('VICTORY')) return 'success'
   if (notification.includes('DEFEAT')) return 'error'
   return 'warning'
+}
+
+function resolveNotificationLabel(notification, labels) {
+  return labels[notification] || formatLogActionType(notification)
+}
+
+function addToastNotifications(notifications, notifStore, labels) {
+  for (const notification of notifications || []) {
+    if (notification.startsWith('EVENT_FINISHED_')) {
+      continue
+    }
+
+    const label = resolveNotificationLabel(notification, labels)
+    const type = resolveNotificationType(notification)
+    notifStore.add(label, type, 8000)
+  }
 }
 
 export function useWebSocket(eventId) {
@@ -21,7 +38,11 @@ export function useWebSocket(eventId) {
     THREAT_50_PERCENT: '¡Amenaza al 50%!',
     THREAT_75_PERCENT: '¡Amenaza al 75%! ¡Peligro!',
     THREAT_100_PERCENT: '¡Amenaza al 100%! Derrota por amenaza.',
+    INTER_POD_CARD_CREATED: 'Ha aparecido una carta inter-nodo.',
+    INTER_POD_CARD_DAMAGED: 'Se ha aplicado daño a una carta inter-nodo.',
     INTER_POD_CARD_THREAT_UPDATED: 'Se ha actualizado la amenaza de una carta inter-nodo.',
+    INTER_POD_CARD_STATUS_UPDATED: 'Se ha actualizado el estado de una carta inter-nodo.',
+    INTER_POD_CARD_DELETED: 'Se ha eliminado una carta inter-nodo.',
     TIMER_30_MINUTES: 'Quedan 30 minutos',
     TIMER_15_MINUTES: 'Quedan 15 minutos',
     TIMER_5_MINUTES: '¡Solo quedan 5 minutos!',
@@ -34,6 +55,7 @@ export function useWebSocket(eventId) {
     realtimeEvent.value = {
       operation: payload?.operation || null,
       notifications: Array.isArray(payload?.notifications) ? [...payload.notifications] : [],
+      targetPodId: payload?.targetPodId ?? null,
       emittedAt: payload?.emittedAt || Date.now(),
     }
   }
@@ -52,24 +74,12 @@ export function useWebSocket(eventId) {
           const payload = JSON.parse(msg.body)
           gameStore.applySnapshot(payload.snapshot)
           rememberRealtimeEvent(payload)
-
-          if (payload.notifications?.length) {
-            for (const n of payload.notifications) {
-              const label = NOTIFICATION_LABELS[n] || n
-              const type = resolveNotificationType(n)
-              notifStore.add(label, type, 8000)
-            }
-          }
         })
 
         client.subscribe(`/topic/events/${eventId}/notifications`, (msg) => {
           const payload = JSON.parse(msg.body)
           if (payload.notifications?.length) {
-            for (const n of payload.notifications) {
-              const label = NOTIFICATION_LABELS[n] || n
-              const type = resolveNotificationType(n)
-              notifStore.add(label, type, 8000)
-            }
+            addToastNotifications(payload.notifications, notifStore, NOTIFICATION_LABELS)
           } else if (payload.message) {
             notifStore.info(payload.message)
           }
@@ -78,7 +88,12 @@ export function useWebSocket(eventId) {
         client.subscribe(`/topic/events/${eventId}/game-finished`, (msg) => {
           const payload = JSON.parse(msg.body)
           gameStore.applySnapshot(payload.snapshot)
-          const label = NOTIFICATION_LABELS[`EVENT_FINISHED_${payload.snapshot?.eventResult}`]
+          const notificationCode = payload.snapshot?.eventResult
+            ? `EVENT_FINISHED_${payload.snapshot.eventResult}`
+            : null
+          const label = notificationCode
+            ? resolveNotificationLabel(notificationCode, NOTIFICATION_LABELS)
+            : null
           if (label) notifStore.add(label, 'warning', 0)
         })
       },

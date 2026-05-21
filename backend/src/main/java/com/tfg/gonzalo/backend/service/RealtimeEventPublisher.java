@@ -24,12 +24,21 @@ public class RealtimeEventPublisher {
                                        String operation,
                                        GameStateSnapshotResponse snapshot,
                                        List<String> notifications) {
+        publishGameStateUpdate(eventId, operation, snapshot, notifications, null);
+    }
+
+    public void publishGameStateUpdate(Long eventId,
+                                       String operation,
+                                       GameStateSnapshotResponse snapshot,
+                                       List<String> notifications,
+                                       Long targetPodId) {
         List<String> safeNotifications = notifications == null ? List.of() : List.copyOf(notifications);
         boolean eventFinished = snapshot != null && snapshot.finalSummary() != null;
         GameStateRealtimeMessage message = new GameStateRealtimeMessage();
         message.setOperation(operation);
         message.setSnapshot(snapshot);
         message.setNotifications(safeNotifications);
+        message.setTargetPodId(targetPodId);
         message.setEventFinished(eventFinished);
         message.setEmittedAt(Instant.now());
 

@@ -23,9 +23,6 @@ const gs = useGameStateStore()
 const notif = useNotificationsStore()
 const eventId = auth.eventId
 
-const { connected, realtimeEvent, connect } = useWebSocket(eventId)
-const socketConnected = computed(() => Boolean(unref(connected)))
-
 const eventStructure = ref(null)
 const structureLoading = ref(false)
 
@@ -61,11 +58,17 @@ const currentPod = computed(
 )
 
 const currentPodId = computed(() => currentPod.value?.id || null)
+const podScopeReady = computed(() => eventStructure.value !== null)
 const currentPodName = computed(() => currentPod.value?.name || '')
 const eventName = computed(() => eventStructure.value?.eventName || '')
 const currentGroupLabel = computed(() => normalizeGroupLabel(currentGroup.value?.identifier || auth.groupLabel))
 const hasAssignedPod = computed(() => Boolean(currentPod.value))
 const currentGroupPendingAssignment = computed(() => Boolean(currentGroup.value && !currentGroup.value.podId))
+const { connected, realtimeEvent, connect } = useWebSocket(eventId, {
+  podId: currentPodId,
+  podScopeReady,
+})
+const socketConnected = computed(() => Boolean(unref(connected)))
 const activeInterPodCards = computed(() => interPodCards.value.filter((card) => !isInterPodCardDefeated(card)))
 const playerActionNotice = computed(() => {
   if (isFinished.value) return null
@@ -294,6 +297,18 @@ function handleThreatActionSheetOverlayClick(event) {
   }
 }
 
+function isRelevantInterPodRealtimeEvent(nextRealtimeEvent) {
+  if (!nextRealtimeEvent?.operation?.startsWith('INTER_POD_CARD_')) {
+    return false
+  }
+
+  if (nextRealtimeEvent?.targetPodId == null) {
+    return true
+  }
+
+  return String(nextRealtimeEvent.targetPodId) === String(currentPodId.value)
+}
+
 // Local timer countdown
 let timerInterval = null
 
@@ -343,7 +358,7 @@ watch(
       return
     }
 
-    if (operation.startsWith('INTER_POD_CARD_')) {
+    if (isRelevantInterPodRealtimeEvent(nextRealtimeEvent)) {
       void loadInterPodCards({ silent: true })
     }
   },

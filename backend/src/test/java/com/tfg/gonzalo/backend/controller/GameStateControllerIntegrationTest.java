@@ -377,6 +377,79 @@ class GameStateControllerIntegrationTest {
     }
 
     @Test
+    void delegatedCorrectionsRemainAvailableWhilePaused() throws Exception {
+                long eventId = createEvent("evento-delegado-pausa", 8);
+        String organizerToken = loginOrganizer("evento-delegado-pausa", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/pause", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                                                                                                                        "damage": 1,
+                                  "justification": "Corregir reporte mientras la partida está pausada"
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.villainHpCurrent").isNumber())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"))
+                                                                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(1));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage/remove/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                                                                                                                        "damage": 1,
+                                  "justification": "Deshacer parte del daño comunicado"
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"))
+                                                                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(0));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                                                                                                                        "threat": 1
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"))
+                                                                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(1));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/remove/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 1
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"))
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(0));
+    }
+
+    @Test
     void representativeActionsAreBlockedWhileTimerIsReady() throws Exception {
         long eventId = createEvent("evento-ready-lock", 4);
         String organizerToken = loginOrganizer("evento-ready-lock", "Password123");
@@ -552,6 +625,163 @@ class GameStateControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].actor").value("evento-correccion"))
                 .andExpect(jsonPath("$[0].groupIdentifier").value(nullValue()))
                 .andExpect(jsonPath("$[0].notes").value("Corrección manual global de HP del villano."));
+    }
+
+    @Test
+    void delegatedDamageRemovalCanReopenMetricVictory() throws Exception {
+        long eventId = createEvent("evento-delegado-daño-revertido", 4);
+        String organizerToken = loginOrganizer("evento-delegado-daño-revertido", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+        String initialSnapshot = fetchSnapshotBody(eventId, organizerToken);
+        int initialVillainHp = extractRequiredIntegerField(initialSnapshot, VILLAIN_HP_PATTERN, "villainHpCurrent");
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "damage": %d
+                                }
+                                """.formatted(group.id(), initialVillainHp)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value("PLAYERS_VICTORY"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage/remove/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "damage": %d,
+                                  "justification": "La mesa había cantado daño de más"
+                                }
+                                """.formatted(group.id(), initialVillainHp)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value(nullValue()))
+                .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(initialVillainHp))
+                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(0))
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "VILLAIN_DAMAGE_REVERTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"))
+                .andExpect(jsonPath("$[0].notes").value(containsString("daño de más")));
+    }
+
+    @Test
+    void delegatedThreatRemovalCanReopenThreatDefeat() throws Exception {
+        long eventId = createEvent("evento-delegado-amenaza-revertida", 4);
+        String organizerToken = loginOrganizer("evento-delegado-amenaza-revertida", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 999
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value("THREAT_DEFEAT"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/threat/remove/delegated", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": %d,
+                                  "threat": 999,
+                                  "justification": "La mesa había comunicado amenaza incorrecta"
+                                }
+                                """.formatted(group.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value(nullValue()))
+                .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(0))
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"));
+    }
+
+    @Test
+    void revertingDamageLogReopensFinishedGameAndMarksOriginalAsReverted() throws Exception {
+        long eventId = createEvent("evento-revert-log", 4);
+        String organizerToken = loginOrganizer("evento-revert-log", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, group.representativeCode());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+        String initialSnapshot = fetchSnapshotBody(eventId, organizerToken);
+        int initialVillainHp = extractRequiredIntegerField(initialSnapshot, VILLAIN_HP_PATTERN, "villainHpCurrent");
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                        .header("Authorization", "Bearer " + representativeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "representativeCode": "%s",
+                                  "damage": %d
+                                }
+                                """.formatted(group.representativeCode(), initialVillainHp)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value("PLAYERS_VICTORY"));
+
+        long originalLogId = fetchFirstLogIdByActionType(eventId, organizerToken, "VILLAIN_DAMAGE_REPORTED");
+
+        mockMvc.perform(post("/api/events/{eventId}/logs/{logId}/revert", eventId, originalLogId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "justification": "La mesa reportó un KO por error"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshot.eventStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.snapshot.eventResult").value(nullValue()))
+                .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(initialVillainHp))
+                .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(0))
+                .andExpect(jsonPath("$.snapshot.timerStatus").value("PAUSED"));
+
+        mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .param("actionType", "VILLAIN_DAMAGE_REVERTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].groupIdentifier").value("A1"))
+                .andExpect(jsonPath("$[0].revertedLogId").value(originalLogId))
+                .andExpect(jsonPath("$[0].notes").value(containsString("KO por error")));
+
+        mockMvc.perform(post("/api/events/{eventId}/logs/{logId}/revert", eventId, originalLogId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("ya ha sido revertido")));
     }
 
         @Test
@@ -795,6 +1025,18 @@ class GameStateControllerIntegrationTest {
                         throw new IllegalStateException("No se ha encontrado " + fieldName + " en la respuesta JSON.");
                 }
                 return matcher.group(1);
+        }
+
+        private long fetchFirstLogIdByActionType(long eventId, String organizerToken, String actionType) throws Exception {
+                String responseBody = mockMvc.perform(get("/api/events/{eventId}/logs", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken)
+                                                .param("actionType", actionType))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString();
+
+                return extractId(responseBody);
         }
 
     private record GroupCreationResult(long id, String representativeCode) {

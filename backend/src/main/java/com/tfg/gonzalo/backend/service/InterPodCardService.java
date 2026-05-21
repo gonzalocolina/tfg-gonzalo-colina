@@ -109,7 +109,7 @@ public class InterPodCardService {
         eventLogService.appendOrganizerLog(event, sourceGroup, EventActionType.INTER_POD_CARD_CREATED,
             null, card.getCardName(), "Carta inter-pod registrada para el pod.");
 
-        publishCardRealtime(eventId, "INTER_POD_CARD_CREATED");
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_CREATED");
 
         return toResponse(card);
     }
@@ -142,7 +142,7 @@ public class InterPodCardService {
             String.valueOf(updatedHp),
             "Daño aplicado sobre carta inter-pod.");
 
-        publishCardRealtime(eventId, "INTER_POD_CARD_DAMAGED");
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_DAMAGED");
 
         return toResponse(card);
     }
@@ -175,7 +175,7 @@ public class InterPodCardService {
                 String.valueOf(updatedThreat),
                 "Amenaza retirada de plan inter-pod.");
 
-        publishCardRealtime(eventId, "INTER_POD_CARD_THREAT_UPDATED");
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_THREAT_UPDATED");
 
         return toResponse(card);
     }
@@ -208,7 +208,7 @@ public class InterPodCardService {
             card.getStatus().name(),
             "Estado de carta inter-pod actualizado.");
 
-        publishCardRealtime(eventId, "INTER_POD_CARD_STATUS_UPDATED");
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_STATUS_UPDATED");
 
         return toResponse(card);
     }
@@ -225,7 +225,7 @@ public class InterPodCardService {
         eventLogService.appendOrganizerLog(event, card.getSourceGroup(), EventActionType.INTER_POD_CARD_DELETED,
             card.getCardName(), null, "Carta inter-pod eliminada.");
 
-        publishCardRealtime(eventId, "INTER_POD_CARD_DELETED");
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_DELETED");
     }
 
     @Transactional
@@ -349,8 +349,8 @@ public class InterPodCardService {
         }
     }
 
-    private void publishCardRealtime(Long eventId, String operation) {
-        realtimeEventPublisher.publishGameStateUpdate(eventId, operation, null, List.of(operation));
+    private void publishCardRealtime(Long eventId, Long targetPodId, String operation) {
+        realtimeEventPublisher.publishGameStateUpdate(eventId, operation, null, List.of(operation), targetPodId);
     }
 
     private EventGroup authorizeMutation(Event event, InterPodCard card, String representativeCode) {

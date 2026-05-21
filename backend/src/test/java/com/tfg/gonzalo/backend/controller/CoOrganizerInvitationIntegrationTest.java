@@ -63,6 +63,11 @@ class CoOrganizerInvitationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACCEPTED"));
 
+        mockMvc.perform(get("/api/events/{eventId}/roles/co-organizers", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].invitationId").value((int) invitationId));
+
         mockMvc.perform(get("/api/events/mine")
                         .header("Authorization", "Bearer " + inviteeToken))
                 .andExpect(status().isOk())
@@ -128,6 +133,56 @@ class CoOrganizerInvitationIntegrationTest {
                         .header("Authorization", "Bearer " + inviteeToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void organizerCanRevokeAcceptedInvitationBeforeGameStarts() throws Exception {
+                String organizerToken = registerOrganizer("owner-revoke-accepted", "owner-revoke-accepted@example.com");
+                String inviteeToken = registerOrganizer("accepted-user", "accepted-user@example.com");
+        long eventId = createEvent("Evento Revocacion Aceptada", organizerToken);
+
+        long invitationId = inviteUser(eventId, organizerToken, "accepted-user");
+
+        mockMvc.perform(post("/api/co-organizer-invitations/{invitationId}/accept", invitationId)
+                        .header("Authorization", "Bearer " + inviteeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"));
+
+        mockMvc.perform(delete("/api/events/{eventId}/roles/co-organizer-invitations/{invitationId}", eventId, invitationId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/events/mine")
+                        .header("Authorization", "Bearer " + inviteeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(get("/api/events/{eventId}", eventId)
+                        .header("Authorization", "Bearer " + inviteeToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void organizerCannotRevokeAcceptedInvitationAfterGameStarts() throws Exception {
+                String organizerToken = registerOrganizer("owner-started-revoke", "owner-started-revoke@example.com");
+                String inviteeToken = registerOrganizer("started-user", "started-user@example.com");
+        long eventId = createEvent("Evento Revocacion Tras Inicio", organizerToken);
+
+        long invitationId = inviteUser(eventId, organizerToken, "started-user");
+
+        mockMvc.perform(post("/api/co-organizer-invitations/{invitationId}/accept", invitationId)
+                        .header("Authorization", "Bearer " + inviteeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"));
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/events/{eventId}/roles/co-organizer-invitations/{invitationId}", eventId, invitationId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("antes de iniciar la partida")));
     }
 
     @Test
@@ -234,11 +289,12 @@ class CoOrganizerInvitationIntegrationTest {
         return matcher.group(1);
     }
 
-    private long extractId(String responseBody) {
+        private long extractId(String responseBody) {
         Matcher matcher = ID_PATTERN.matcher(responseBody);
         if (!matcher.find()) {
             throw new IllegalStateException("No se ha encontrado un campo id en la respuesta JSON.");
         }
         return Long.parseLong(matcher.group(1));
     }
+
 }

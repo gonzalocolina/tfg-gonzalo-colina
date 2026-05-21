@@ -20,6 +20,10 @@ export function delegateVillainDamage(eventId, data) {
   return http.post(`/events/${eventId}/game-state/villain-damage/delegated`, data)
 }
 
+export function delegateRemoveVillainDamage(eventId, data) {
+  return http.post(`/events/${eventId}/game-state/villain-damage/remove/delegated`, data)
+}
+
 export function delegateThreat(eventId, data) {
   return http.post(`/events/${eventId}/game-state/threat/delegated`, data)
 }

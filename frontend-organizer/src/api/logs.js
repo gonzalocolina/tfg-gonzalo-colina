@@ -6,3 +6,7 @@ export function getEventLogs(eventId, filters = {}) {
   if (filters.actionType) params.actionType = filters.actionType
   return http.get(`/events/${eventId}/logs`, { params })
 }
+
+export function revertEventLog(eventId, logId, data = {}) {
+  return http.post(`/events/${eventId}/logs/${logId}/revert`, data)
+}

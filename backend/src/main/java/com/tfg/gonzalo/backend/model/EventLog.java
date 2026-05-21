@@ -34,6 +34,10 @@ public class EventLog extends BaseEntity {
     @JoinColumn(name = "actor_id")
     private AppUser actor;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reverted_log_id")
+    private EventLog revertedLog;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 40)

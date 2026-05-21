@@ -2,18 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import PlayerGameView from '../PlayerGameView.vue'
+import { __websocketState } from '@/composables/useWebSocket'
 
-const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById, realtimeEvent } = vi.hoisted(() => ({
+const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById } = vi.hoisted(() => ({
   getGameState: vi.fn(),
   getEventStructure: vi.fn(),
   getInterPodCards: vi.fn(),
   connect: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
-  realtimeEvent: { value: null },
 }))
-
-let websocketConnected = true
 
 vi.mock('@/api/gameState', () => ({
   getGameState,
@@ -27,13 +25,20 @@ vi.mock('@/api/interPod', () => ({
   getInterPodCards,
 }))
 
-vi.mock('@/composables/useWebSocket', () => ({
-  useWebSocket: () => ({
-    connected: websocketConnected,
-    realtimeEvent,
+vi.mock('@/composables/useWebSocket', async () => {
+  const { ref } = await import('vue')
+
+  const websocketState = {
+    connected: ref(true),
+    realtimeEvent: ref(null),
     connect,
-  }),
-}))
+  }
+
+  return {
+    __websocketState: websocketState,
+    useWebSocket: () => websocketState,
+  }
+})
 
 vi.mock('@/composables/useProtectedImageUrls', () => ({
   useProtectedImageUrls: () => ({
@@ -153,13 +158,13 @@ describe('PlayerGameView', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     sessionStorage.clear()
-    websocketConnected = true
     connect.mockReset()
     getGameState.mockReset()
     getEventStructure.mockReset()
     getInterPodCards.mockReset()
     syncImageUrls.mockReset()
-    realtimeEvent.value = null
+    __websocketState.connected.value = true
+    __websocketState.realtimeEvent.value = null
     Object.keys(protectedImagesById).forEach((key) => delete protectedImagesById[key])
     getGameState.mockResolvedValue({ data: buildSnapshot() })
     getEventStructure.mockResolvedValue({ data: buildStructure() })
@@ -328,6 +333,40 @@ describe('PlayerGameView', () => {
     wrapper.unmount()
   })
 
+  it('ignores inter-pod realtime updates for other pods and refreshes only the current one', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    __websocketState.realtimeEvent.value = {
+      operation: 'INTER_POD_CARD_CREATED',
+      notifications: ['INTER_POD_CARD_CREATED'],
+      targetPodId: 8,
+      emittedAt: Date.now(),
+    }
+    await flushPromises()
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    __websocketState.realtimeEvent.value = {
+      operation: 'INTER_POD_CARD_DAMAGED',
+      notifications: ['INTER_POD_CARD_DAMAGED'],
+      targetPodId: 7,
+      emittedAt: Date.now() + 1,
+    }
+    await flushPromises()
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+  })
+
   it('shows a pause warning and hides the action bar while the game is paused', async () => {
     seedAuthSession('GROUP_REPRESENTATIVE')
     getGameState.mockResolvedValue({
@@ -425,7 +464,7 @@ describe('PlayerGameView', () => {
 
   it('does not poll the game state on a timer when realtime is disconnected', async () => {
     seedAuthSession('GROUP_REPRESENTATIVE')
-    websocketConnected = false
+    __websocketState.connected.value = false
 
     const wrapper = mountView()
     await flushPromises()

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import {
   reportInterPodCardDamage,
   reportInterPodCardThreat,
@@ -14,6 +14,7 @@ import { formatCardCategory, formatCardStatus } from '@/utils/displayLabels'
 const props = defineProps({
   eventId: { type: [String, Number], required: true },
   disabled: { type: Boolean, default: false },
+  realtimeEvent: { type: Object, default: null },
 })
 
 const notif = useNotificationsStore()
@@ -26,6 +27,13 @@ const statusByCard = ref({})
 const mutatingCardId = ref(null)
 
 const CARD_STATUSES = ['OCULTA', 'REVELADA', 'DERROTADA']
+const INTER_POD_REALTIME_OPERATIONS = new Set([
+  'INTER_POD_CARD_CREATED',
+  'INTER_POD_CARD_DAMAGED',
+  'INTER_POD_CARD_THREAT_UPDATED',
+  'INTER_POD_CARD_STATUS_UPDATED',
+  'INTER_POD_CARD_DELETED',
+])
 const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth')
 
 function buildCardImageEntries(entries) {
@@ -37,8 +45,11 @@ function buildCardImageEntries(entries) {
     }))
 }
 
-async function load() {
-  loading.value = true
+async function load({ silent = false } = {}) {
+  if (!silent) {
+    loading.value = true
+  }
+
   try {
     const { data } = await getInterPodCards(props.eventId)
     cards.value = data || []
@@ -51,7 +62,9 @@ async function load() {
   } catch {
     /* ignore */
   } finally {
-    loading.value = false
+    if (!silent) {
+      loading.value = false
+    }
   }
 }
 
@@ -178,6 +191,19 @@ function handleImageLoadError(event) {
 onMounted(() => {
   load()
 })
+
+watch(
+  () => props.realtimeEvent?.emittedAt,
+  (nextEmittedAt) => {
+    if (!nextEmittedAt) {
+      return
+    }
+
+    if (INTER_POD_REALTIME_OPERATIONS.has(props.realtimeEvent?.operation)) {
+      void load({ silent: true })
+    }
+  },
+)
 </script>
 
 <template>

@@ -8,6 +8,7 @@ import { getEventStructure, assignGroupToPod } from '@/api/setup'
 import {
   startGame,
   delegateVillainDamage,
+  delegateRemoveVillainDamage,
   delegateThreat,
   delegateRemoveThreat,
   manualUpdateVillainHp,
@@ -36,7 +37,7 @@ const socketConnected = computed(() => Boolean(unref(connected)))
 const dmgGroupId = ref('')
 const dmgAmount = ref(1)
 const dmgJustification = ref('')
-const dmgLoading = ref(false)
+const dmgActionLoading = ref('')
 
 // Report threat form
 const threatGroupId = ref('')
@@ -51,11 +52,19 @@ const manualHpJustification = ref('')
 const manualThreatJustification = ref('')
 const manualHpLoading = ref(false)
 const manualThreatLoading = ref(false)
+const manualHpFocused = ref(false)
+const manualThreatFocused = ref(false)
+const lastSyncedManualHp = ref(null)
+const lastSyncedManualThreat = ref(null)
 const eventStructure = ref(null)
 const structureLoading = ref(false)
 
 const isFinished = computed(() => gs.eventStatus === 'FINISHED')
 const isInProgress = computed(() => gs.eventStatus === 'IN_PROGRESS')
+const canCorrectFinishedMetricOutcome = computed(
+  () => isFinished.value && ['VILLAIN_HP_ZERO', 'THREAT_TARGET_REACHED'].includes(gs.finalSummary?.cause ?? ''),
+)
+const canManageDelegatedReports = computed(() => isInProgress.value || canCorrectFinishedMetricOutcome.value)
 const pendingGroups = computed(() => eventStructure.value?.unassignedGroups || [])
 const canStartGame = computed(() => eventStructure.value !== null && pendingGroups.value.length === 0)
 
@@ -100,16 +109,47 @@ function formatReportGroupLabel(group) {
   return group.podName ? `${group.identifier} · ${group.podName}` : `${group.identifier} · Sin pod asignado`
 }
 
-function syncManualValuesFromState() {
-  manualHp.value = gs.villainHpCurrent
-  manualThreat.value = gs.schemeThreatCurrent
+function syncEditableManualValue(modelRef, sourceValue, focusedRef, lastSyncedRef, { force = false } = {}) {
+  const normalizedSourceValue = Number(sourceValue ?? 0)
+  const currentValue = modelRef.value
+  const isEmpty = currentValue === '' || currentValue == null
+  const wasPreviouslySynced = Number(currentValue) === lastSyncedRef.value
+
+  if (force || !focusedRef.value || isEmpty || wasPreviouslySynced) {
+    modelRef.value = normalizedSourceValue
+  }
+
+  lastSyncedRef.value = normalizedSourceValue
+}
+
+function syncManualValuesFromState(options = {}) {
+  syncEditableManualValue(manualHp, gs.villainHpCurrent, manualHpFocused, lastSyncedManualHp, options)
+  syncEditableManualValue(manualThreat, gs.schemeThreatCurrent, manualThreatFocused, lastSyncedManualThreat, options)
+}
+
+function setManualFieldFocus(metric, isFocused) {
+  if (metric === 'hp') {
+    manualHpFocused.value = isFocused
+    return
+  }
+
+  manualThreatFocused.value = isFocused
+}
+
+function requirePositiveDelegatedAmount(rawValue, metricLabel) {
+  const parsedValue = Number(rawValue)
+  if (!Number.isFinite(parsedValue) || parsedValue < 1) {
+    notif.error(`La cantidad de ${metricLabel} debe ser mayor que 0.`)
+    return null
+  }
+  return Math.trunc(parsedValue)
 }
 
 async function load() {
   try {
     await gs.fetchGameState(eventId.value)
     await loadStructure({ silent: true })
-    syncManualValuesFromState()
+    syncManualValuesFromState({ force: true })
   } catch {
     notif.error('Error al cargar el estado de la partida')
   }
@@ -175,24 +215,62 @@ async function handleDelegateDamage() {
     return
   }
 
+  const damage = requirePositiveDelegatedAmount(dmgAmount.value, 'daño')
+  if (damage === null) {
+    return
+  }
+
   const justification = dmgJustification.value.trim()
 
-  dmgLoading.value = true
+  dmgActionLoading.value = 'add'
   try {
     const { data } = await delegateVillainDamage(eventId.value, {
       groupId: group.id,
-      damage: dmgAmount.value,
+      damage,
       justification,
     })
     gs.applySnapshot(data.snapshot)
-    syncManualValuesFromState()
-    notif.success(`Daño delegado registrado: ${dmgAmount.value}`)
+    syncManualValuesFromState({ force: true })
+    notif.success(`Daño delegado registrado: ${damage}`)
     dmgAmount.value = 1
     dmgJustification.value = ''
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al reportar daño')
   } finally {
-    dmgLoading.value = false
+    dmgActionLoading.value = ''
+  }
+}
+
+async function handleDelegateDamageRemoval() {
+  const group = findReportGroup(dmgGroupId.value)
+  if (!group) {
+    notif.error('Selecciona una mesa válida antes de revertir daño.')
+    return
+  }
+
+  const damage = requirePositiveDelegatedAmount(dmgAmount.value, 'daño')
+  if (damage === null) {
+    return
+  }
+
+  const justification = dmgJustification.value.trim()
+
+  dmgActionLoading.value = 'remove'
+  try {
+    const { data } = await delegateRemoveVillainDamage(eventId.value, {
+      groupId: group.id,
+      damage,
+      justification,
+    })
+    gs.applySnapshot(data.snapshot)
+    syncManualValuesFromState({ force: true })
+    notif.success(`Daño delegado revertido: ${damage}`)
+    dmgAmount.value = 1
+    dmgJustification.value = ''
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al revertir daño')
+  } finally {
+    dmgActionLoading.value = ''
   }
 }
 
@@ -203,18 +281,23 @@ async function handleDelegateThreat() {
     return
   }
 
+  const threat = requirePositiveDelegatedAmount(threatAmount.value, 'amenaza')
+  if (threat === null) {
+    return
+  }
+
   const justification = threatJustification.value.trim()
 
   threatActionLoading.value = 'add'
   try {
     const { data } = await delegateThreat(eventId.value, {
       groupId: group.id,
-      threat: threatAmount.value,
+      threat,
       justification,
     })
     gs.applySnapshot(data.snapshot)
-    syncManualValuesFromState()
-    notif.success(`Amenaza delegada registrada: ${threatAmount.value}`)
+    syncManualValuesFromState({ force: true })
+    notif.success(`Amenaza delegada registrada: ${threat}`)
     threatAmount.value = 1
     threatJustification.value = ''
   } catch (err) {
@@ -231,18 +314,23 @@ async function handleDelegateThreatRemoval() {
     return
   }
 
+  const threat = requirePositiveDelegatedAmount(threatAmount.value, 'amenaza')
+  if (threat === null) {
+    return
+  }
+
   const justification = threatJustification.value.trim()
 
   threatActionLoading.value = 'remove'
   try {
     const { data } = await delegateRemoveThreat(eventId.value, {
       groupId: group.id,
-      threat: threatAmount.value,
+      threat,
       justification,
     })
     gs.applySnapshot(data.snapshot)
-    syncManualValuesFromState()
-    notif.success(`Amenaza retirada: ${threatAmount.value}`)
+    syncManualValuesFromState({ force: true })
+    notif.success(`Amenaza retirada: ${threat}`)
     threatAmount.value = 1
     threatJustification.value = ''
   } catch (err) {
@@ -262,7 +350,7 @@ async function handleManualHp() {
       justification,
     })
     gs.applySnapshot(data.snapshot)
-    syncManualValuesFromState()
+    syncManualValuesFromState({ force: true })
     manualHpJustification.value = ''
     notif.success('HP del villano corregido')
   } catch (err) {
@@ -282,7 +370,7 @@ async function handleManualThreat() {
       justification,
     })
     gs.applySnapshot(data.snapshot)
-    syncManualValuesFromState()
+    syncManualValuesFromState({ force: true })
     manualThreatJustification.value = ''
     notif.success('Amenaza corregida')
   } catch (err) {
@@ -354,6 +442,14 @@ watch(
       void loadStructure({ silent: true })
     }
   },
+)
+
+watch(
+  () => [gs.villainHpCurrent, gs.schemeThreatCurrent],
+  () => {
+    syncManualValuesFromState()
+  },
+  { immediate: true },
 )
 
 watch(
@@ -471,10 +567,9 @@ onUnmounted(() => {
         @adjust="handleTimerAdjust"
       />
 
-      <!-- Action panels (only in progress) -->
-      <template v-if="isInProgress">
+      <template v-if="canManageDelegatedReports">
         <!-- Pending group assignment (during IN_PROGRESS) -->
-        <div v-if="pendingGroups.length" class="card mt-2" style="border-left: 4px solid var(--c-warning)">
+        <div v-if="isInProgress && pendingGroups.length" class="card mt-2" style="border-left: 4px solid var(--c-warning)">
           <h3 class="mb-1">⚠ Mesas pendientes de asignación</h3>
           <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px">
             Hay mesas que se han unido y necesitan ser asignadas a un pod para que la partida continúe.
@@ -505,13 +600,19 @@ onUnmounted(() => {
         <div class="card mt-2">
           <h3 class="mb-1">Registro delegado en nombre de una mesa</h3>
           <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">
-            Usa esta opción cuando el organizador o co-organizador registra una aportación real de una mesa. El log
-            guardará la mesa de origen y el actor que realizó el registro. Puedes añadir una justificación opcional si
-            aporta contexto.
+            <template v-if="isInProgress">
+              Usa esta opción cuando el organizador o co-organizador registra una aportación real de una mesa. El log
+              guardará la mesa de origen y el actor que realizó el registro. Puedes añadir una justificación opcional si
+              aporta contexto.
+            </template>
+            <template v-else>
+              La partida terminó por vida o amenaza. Usa esta sección para corregir el registro de una mesa; si el ajuste
+              elimina la condición de finalización, la partida se reabrirá en pausa.
+            </template>
           </p>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
             <form data-testid="delegated-damage-form" @submit.prevent="handleDelegateDamage">
-              <h4 class="mb-1">Registrar daño en nombre de una mesa</h4>
+              <h4 class="mb-1">Gestionar daño al villano en nombre de una mesa</h4>
               <div class="form-group">
                 <label for="delegated-dmg-group">Mesa</label>
                 <select
@@ -550,9 +651,22 @@ onUnmounted(() => {
                   maxlength="300"
                 />
               </div>
-              <button class="btn btn-primary btn-sm" :disabled="dmgLoading || !dmgGroupId">
-                {{ dmgLoading ? 'Enviando…' : 'Registrar daño delegado' }}
-              </button>
+              <div class="text-muted" style="font-size: 0.78rem; margin-top: -8px; margin-bottom: 12px">
+                Usa <strong>Revertir daño delegado</strong> si una mesa comunicó daño de más y quieres devolver HP al villano.
+              </div>
+              <div class="flex gap-1" style="flex-wrap: wrap">
+                <button class="btn btn-primary btn-sm" :disabled="Boolean(dmgActionLoading) || !dmgGroupId">
+                  {{ dmgActionLoading === 'add' ? 'Enviando…' : 'Registrar daño delegado' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="Boolean(dmgActionLoading) || !dmgGroupId"
+                  @click="handleDelegateDamageRemoval"
+                >
+                  {{ dmgActionLoading === 'remove' ? 'Enviando…' : 'Revertir daño delegado' }}
+                </button>
+              </div>
             </form>
 
             <form data-testid="delegated-threat-form" @submit.prevent="handleDelegateThreat">
@@ -595,6 +709,9 @@ onUnmounted(() => {
                   maxlength="300"
                 />
               </div>
+              <div class="text-muted" style="font-size: 0.78rem; margin-top: -8px; margin-bottom: 12px">
+                Usa <strong>Retirar amenaza delegada</strong> si una mesa comunicó amenaza de más; usa el registro delegado si faltaba reflejarla.
+              </div>
               <div class="flex gap-1" style="flex-wrap: wrap">
                 <button class="btn btn-primary btn-sm" :disabled="Boolean(threatActionLoading) || !threatGroupId">
                   {{ threatActionLoading === 'add' ? 'Enviando…' : 'Registrar amenaza delegada' }}
@@ -611,7 +728,9 @@ onUnmounted(() => {
             </form>
           </div>
         </div>
+      </template>
 
+      <template v-if="isInProgress">
         <!-- Manual corrections -->
         <div class="card mt-2">
           <h3 class="mb-1">Correcciones manuales globales</h3>
@@ -623,7 +742,16 @@ onUnmounted(() => {
             <form data-testid="manual-hp-form" @submit.prevent="handleManualHp">
               <div class="form-group">
                 <label for="manual-hp">HP del villano</label>
-                <input id="manual-hp" v-model.number="manualHp" type="number" class="form-control" min="0" />
+                <input
+                  id="manual-hp"
+                  v-model.number="manualHp"
+                  type="number"
+                  class="form-control"
+                  min="0"
+                  :placeholder="String(gs.villainHpCurrent ?? 0)"
+                  @focus="setManualFieldFocus('hp', true)"
+                  @blur="setManualFieldFocus('hp', false)"
+                />
               </div>
               <div class="form-group">
                 <label for="manual-hp-justification">Justificación (opcional)</label>
@@ -649,6 +777,9 @@ onUnmounted(() => {
                   type="number"
                   class="form-control"
                   min="0"
+                  :placeholder="String(gs.schemeThreatCurrent ?? 0)"
+                  @focus="setManualFieldFocus('threat', true)"
+                  @blur="setManualFieldFocus('threat', false)"
                 />
               </div>
               <div class="form-group">
@@ -670,7 +801,7 @@ onUnmounted(() => {
       </template>
 
       <!-- Inter-pod cards -->
-      <InterPodAlerts :event-id="eventId" :disabled="isFinished" class="mt-2" />
+      <InterPodAlerts :event-id="eventId" :disabled="isFinished" :realtime-event="realtimeEvent" class="mt-2" />
     </template>
   </div>
 </template>

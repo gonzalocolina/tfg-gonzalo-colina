@@ -315,6 +315,106 @@ describe('buildEventStatistics', () => {
     ])
   })
 
+  it('discounts reverted logs from per-group totals and progression', () => {
+    const statistics = buildEventStatistics({
+      structure: buildStructure(),
+      finalSummary: buildFinalSummary(),
+      gameState: {
+        villainHpMax: 40,
+      },
+      logs: [
+        {
+          id: 1,
+          timestamp: '2026-05-18T10:00:00Z',
+          actor: 'organizer',
+          groupIdentifier: null,
+          actionType: 'EVENT_STARTED',
+          previousValue: null,
+          newValue: 'IN_PROGRESS',
+          notes: 'Partida iniciada manualmente.',
+        },
+        {
+          id: 2,
+          timestamp: '2026-05-18T10:01:00Z',
+          actor: 'rep-a',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'VILLAIN_DAMAGE_REPORTED',
+          previousValue: '40',
+          newValue: '35',
+          notes: 'Daño incorrecto.',
+        },
+        {
+          id: 3,
+          timestamp: '2026-05-18T10:02:00Z',
+          actor: 'rep-a',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'THREAT_REPORTED',
+          previousValue: '0',
+          newValue: '2',
+          notes: 'Amenaza incorrecta.',
+        },
+        {
+          id: 4,
+          timestamp: '2026-05-18T10:03:00Z',
+          actor: 'organizer',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'VILLAIN_DAMAGE_REVERTED',
+          revertedLogId: 2,
+          previousValue: '35',
+          newValue: '40',
+          notes: 'Reversión del daño.',
+        },
+        {
+          id: 5,
+          timestamp: '2026-05-18T10:04:00Z',
+          actor: 'organizer',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'THREAT_ADDITION_REVERTED',
+          revertedLogId: 3,
+          previousValue: '2',
+          newValue: '0',
+          notes: 'Reversión de la amenaza.',
+        },
+      ],
+    })
+
+    const alfa = statistics.groups.find((group) => group.identifier === 'Mesa Alfa')
+
+    expect(alfa?.damageToVillain).toBe(0)
+    expect(alfa?.threatAdded).toBe(0)
+    expect(statistics.progression.series.map((point) => ({
+      actionType: point.actionType,
+      villainDamage: point.villainDamage,
+      threat: point.threat,
+    }))).toEqual([
+      {
+        actionType: 'EVENT_STARTED',
+        villainDamage: 0,
+        threat: 0,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_REPORTED',
+        villainDamage: 5,
+        threat: 0,
+      },
+      {
+        actionType: 'THREAT_REPORTED',
+        villainDamage: 5,
+        threat: 2,
+      },
+      {
+        actionType: 'VILLAIN_DAMAGE_REVERTED',
+        villainDamage: 0,
+        threat: 2,
+      },
+      {
+        actionType: 'THREAT_ADDITION_REVERTED',
+        villainDamage: 0,
+        threat: 0,
+      },
+    ])
+  })
+
   it('ignores setup-only logs when counting gameplay actions', () => {
     const statistics = buildEventStatistics({
       structure: buildStructure(),

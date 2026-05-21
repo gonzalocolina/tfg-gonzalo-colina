@@ -30,8 +30,13 @@ const form = ref({
 })
 
 const RESPONSIBILITIES = ['VILLAIN_HP', 'THREAT', 'TIMER']
+const REVOCABLE_EVENT_STATUSES = new Set(['DRAFT', 'READY'])
 
 const availableSlots = computed(() => Math.max(0, 3 - coOrganizers.value.length - pendingInvitations.value.length))
+const canRevokeAcceptedCoOrganizers = computed(() =>
+  REVOCABLE_EVENT_STATUSES.has(event.value?.status),
+)
+const hasAcceptedInvitationCoOrganizers = computed(() => coOrganizers.value.some((co) => co.invitationId))
 
 function formatDate(value) {
   if (!value) return '-'
@@ -95,7 +100,7 @@ async function handleInvite() {
   }
 }
 
-async function handleRevoke(invitation) {
+async function handleRevokePending(invitation) {
   if (!confirm(`¿Revocar la invitación enviada a ${invitation.inviteeUsername}?`)) {
     return
   }
@@ -108,6 +113,33 @@ async function handleRevoke(invitation) {
     await load()
   } catch (err) {
     notif.error(err.response?.data?.message || 'No se pudo revocar la invitación')
+  } finally {
+    revokingId.value = null
+  }
+}
+
+async function handleRevokeAccepted(coOrganizer) {
+  if (!coOrganizer.invitationId) {
+    return
+  }
+
+  if (!canRevokeAcceptedCoOrganizers.value) {
+    notif.error('Solo se puede revocar un co-organizador antes de iniciar la partida.')
+    return
+  }
+
+  if (!confirm(`¿Revocar el acceso de ${coOrganizer.username} como co-organizador?`)) {
+    return
+  }
+
+  revokingId.value = coOrganizer.invitationId
+
+  try {
+    await revokeCoOrganizerInvitation(eventId.value, coOrganizer.invitationId)
+    notif.success('Co-organizador revocado')
+    await load()
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'No se pudo revocar el co-organizador')
   } finally {
     revokingId.value = null
   }
@@ -142,6 +174,7 @@ onMounted(load)
             <th>Usuario</th>
             <th>Email</th>
             <th>Responsabilidades</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -158,9 +191,29 @@ onMounted(load)
                 {{ formatResponsibility(responsibility) }}
               </span>
             </td>
+            <td>
+              <button
+                v-if="co.invitationId"
+                class="btn btn-secondary btn-sm"
+                :disabled="revokingId === co.invitationId || !canRevokeAcceptedCoOrganizers"
+                :title="canRevokeAcceptedCoOrganizers ? '' : 'Solo disponible antes de iniciar la partida'"
+                @click="handleRevokeAccepted(co)"
+              >
+                {{ revokingId === co.invitationId ? 'Revocando…' : 'Revocar acceso' }}
+              </button>
+              <span v-else class="text-muted">-</span>
+            </td>
           </tr>
         </tbody>
       </table>
+
+      <p
+        v-if="!loading && !canRevokeAcceptedCoOrganizers && hasAcceptedInvitationCoOrganizers"
+        class="text-muted"
+        style="margin-top: 12px"
+      >
+        Los co-organizadores que aceptaron invitación solo se pueden revocar antes de iniciar la partida.
+      </p>
     </div>
 
     <div class="card">
@@ -195,7 +248,7 @@ onMounted(load)
               <button
                 class="btn btn-secondary btn-sm"
                 :disabled="revokingId === invitation.id"
-                @click="handleRevoke(invitation)"
+                @click="handleRevokePending(invitation)"
               >
                 {{ revokingId === invitation.id ? 'Revocando…' : 'Revocar' }}
               </button>

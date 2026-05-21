@@ -7,6 +7,7 @@ public record CoOrganizerResponse(
         Long userId,
         String username,
         String email,
-        Set<CoOrganizerResponsibility> responsibilities
+        Set<CoOrganizerResponsibility> responsibilities,
+        Long invitationId
 ) {
 }

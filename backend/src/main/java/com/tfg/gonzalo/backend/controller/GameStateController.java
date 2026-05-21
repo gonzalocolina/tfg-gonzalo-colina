@@ -60,6 +60,12 @@ public class GameStateController {
         return gameStateService.delegateVillainDamage(eventId, request);
     }
 
+    @PostMapping("/villain-damage/remove/delegated")
+    public GameStateOperationResponse delegateRemoveVillainDamage(@PathVariable Long eventId,
+                                                                  @Valid @RequestBody DelegatedVillainDamageRequest request) {
+        return gameStateService.delegateRemoveVillainDamage(eventId, request);
+    }
+
     @PostMapping("/threat/delegated")
     public GameStateOperationResponse delegateThreat(@PathVariable Long eventId,
                                                      @Valid @RequestBody DelegatedThreatRequest request) {

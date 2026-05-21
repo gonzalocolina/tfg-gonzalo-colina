@@ -47,6 +47,20 @@ let pinchStartScale = 1
 let panStart = { x: 0, y: 0 }
 let previewHistoryActive = false
 let ignoreNextPreviewPopState = false
+let lockedAppContent = null
+
+const scrollLockState = {
+  scrollX: 0,
+  scrollY: 0,
+  htmlOverflow: '',
+  bodyOverflow: '',
+  bodyPosition: '',
+  bodyTop: '',
+  bodyLeft: '',
+  bodyWidth: '',
+  appContentOverflow: '',
+  appContentTouchAction: '',
+}
 
 const previewTransformStyle = computed(() => ({
   transform: `translate(${previewOffset.value.x}px, ${previewOffset.value.y}px) scale(${previewScale.value})`,
@@ -423,6 +437,67 @@ function handlePreviewPopState() {
   closeImagePreview({ restoreHistory: false })
 }
 
+function lockBackgroundScroll() {
+  if (globalThis.document === undefined) {
+    return
+  }
+
+  const { document } = globalThis
+  const appContent = document.querySelector('.app-content')
+
+  if (globalThis.window !== undefined) {
+    scrollLockState.scrollX = globalThis.window.scrollX
+    scrollLockState.scrollY = globalThis.window.scrollY
+  }
+
+  scrollLockState.htmlOverflow = document.documentElement.style.overflow
+  scrollLockState.bodyOverflow = document.body.style.overflow
+  scrollLockState.bodyPosition = document.body.style.position
+  scrollLockState.bodyTop = document.body.style.top
+  scrollLockState.bodyLeft = document.body.style.left
+  scrollLockState.bodyWidth = document.body.style.width
+
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+  document.body.style.position = 'fixed'
+  document.body.style.top = `-${scrollLockState.scrollY}px`
+  document.body.style.left = `-${scrollLockState.scrollX}px`
+  document.body.style.width = '100%'
+
+  if (appContent instanceof HTMLElement) {
+    lockedAppContent = appContent
+    scrollLockState.appContentOverflow = appContent.style.overflow
+    scrollLockState.appContentTouchAction = appContent.style.touchAction
+    appContent.style.overflow = 'hidden'
+    appContent.style.touchAction = 'none'
+  }
+}
+
+function unlockBackgroundScroll() {
+  if (globalThis.document === undefined) {
+    return
+  }
+
+  const { document } = globalThis
+
+  document.documentElement.style.overflow = scrollLockState.htmlOverflow
+  document.body.style.overflow = scrollLockState.bodyOverflow
+  document.body.style.position = scrollLockState.bodyPosition
+  document.body.style.top = scrollLockState.bodyTop
+  document.body.style.left = scrollLockState.bodyLeft
+  document.body.style.width = scrollLockState.bodyWidth
+
+  if (lockedAppContent) {
+    lockedAppContent.style.overflow = scrollLockState.appContentOverflow
+    lockedAppContent.style.touchAction = scrollLockState.appContentTouchAction
+    lockedAppContent = null
+  }
+
+  if (globalThis.window !== undefined && globalThis.window.scrollTo) {
+    globalThis.window.scrollTo(scrollLockState.scrollX, scrollLockState.scrollY)
+  }
+}
+
 watch(
   () => props.initialCardId,
   (nextCardId) => {
@@ -444,6 +519,8 @@ watch(
 )
 
 onMounted(async () => {
+  lockBackgroundScroll()
+
   if (globalThis.window !== undefined) {
     globalThis.window.addEventListener('popstate', handlePreviewPopState)
   }
@@ -458,6 +535,7 @@ onUnmounted(() => {
   if (globalThis.window !== undefined) {
     globalThis.window.removeEventListener('popstate', handlePreviewPopState)
   }
+  unlockBackgroundScroll()
 })
 </script>
 
@@ -658,6 +736,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.modal-overlay {
+  overscroll-behavior: contain;
+}
+
+.modal-panel {
+  overscroll-behavior: contain;
+}
+
 .interpod-card-item {
   background: var(--card-bg);
   border: 1px solid var(--border-color, #333);

@@ -9,6 +9,7 @@ public record EventLogEntryResponse(
         String actor,
         String groupIdentifier,
         EventActionType actionType,
+        Long revertedLogId,
         String previousValue,
         String newValue,
         String notes

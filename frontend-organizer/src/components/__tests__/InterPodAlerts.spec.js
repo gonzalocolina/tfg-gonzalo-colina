@@ -39,13 +39,14 @@ vi.mock('@/composables/useProtectedImageUrls', () => ({
   }),
 }))
 
-function mountComponent() {
+function mountComponent(props = {}) {
   const pinia = createPinia()
   setActivePinia(pinia)
 
   return mount(InterPodAlerts, {
     props: {
       eventId: 1,
+      ...props,
     },
     global: {
       plugins: [pinia],
@@ -119,5 +120,73 @@ describe('InterPodAlerts', () => {
 
     expect(reportInterPodCardThreat).toHaveBeenCalledWith(1, 101, { threat: 3 })
     expect(reportInterPodCardDamage).not.toHaveBeenCalled()
+  })
+
+  it('refreshes the list when an inter-pod realtime event arrives', async () => {
+    getInterPodCards
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 99,
+            podName: 'Pod Norte',
+            sourceGroupIdentifier: 'Mesa Beta',
+            cardName: 'THE_MANGOG',
+            cardCategory: 'ESBIRRO',
+            hpCurrent: 8,
+            hpMax: 8,
+            status: 'REVELADA',
+            imageUrl: '/api/events/1/inter-pod-cards/99/image',
+            createdAt: '2026-04-11T12:00:00Z',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 99,
+            podName: 'Pod Norte',
+            sourceGroupIdentifier: 'Mesa Beta',
+            cardName: 'THE_MANGOG',
+            cardCategory: 'ESBIRRO',
+            hpCurrent: 8,
+            hpMax: 8,
+            status: 'REVELADA',
+            imageUrl: '/api/events/1/inter-pod-cards/99/image',
+            createdAt: '2026-04-11T12:00:00Z',
+          },
+          {
+            id: 102,
+            podName: 'Pod Sur',
+            sourceGroupIdentifier: 'Mesa Gamma',
+            cardName: 'DOOR_BETWEEN_WORLDS',
+            cardCategory: 'PLAN',
+            hpCurrent: 0,
+            hpMax: 0,
+            threatCurrent: 4,
+            threatMax: 6,
+            status: 'REVELADA',
+            createdAt: '2026-04-11T12:05:00Z',
+          },
+        ],
+      })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).not.toContain('Mesa Gamma')
+
+    await wrapper.setProps({
+      realtimeEvent: {
+        operation: 'INTER_POD_CARD_CREATED',
+        notifications: ['INTER_POD_CARD_CREATED'],
+        emittedAt: '2026-04-11T12:05:00Z',
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    expect(getInterPodCards).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Mesa Gamma')
   })
 })

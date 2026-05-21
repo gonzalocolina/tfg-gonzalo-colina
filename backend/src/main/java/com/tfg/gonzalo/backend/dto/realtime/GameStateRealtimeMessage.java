@@ -15,6 +15,7 @@ public class GameStateRealtimeMessage {
         private String operation;
         private GameStateSnapshotResponse snapshot;
         private List<String> notifications;
+        private Long targetPodId;
         private boolean eventFinished;
         private Instant emittedAt;
 }

@@ -131,6 +131,63 @@ describe('InterPodAlertDialog', () => {
     wrapper.unmount()
   })
 
+  it('locks the background scroll while it is open and restores it when it closes', async () => {
+    const appContent = document.createElement('div')
+    appContent.className = 'app-content'
+    appContent.style.overflow = 'auto'
+    appContent.style.touchAction = 'pan-y'
+    document.body.appendChild(appContent)
+
+    const scrollToSpy = vi.spyOn(globalThis.window, 'scrollTo').mockImplementation(() => {})
+    Object.defineProperty(globalThis.window, 'scrollX', {
+      configurable: true,
+      value: 18,
+    })
+    Object.defineProperty(globalThis.window, 'scrollY', {
+      configurable: true,
+      value: 240,
+    })
+
+    const wrapper = mountDialog()
+
+    await flushPromises()
+
+    expect(document.documentElement.style.overflow).toBe('hidden')
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(document.body.style.position).toBe('fixed')
+    expect(document.body.style.top).toBe('-240px')
+    expect(document.body.style.left).toBe('-18px')
+    expect(document.body.style.width).toBe('100%')
+    expect(appContent.style.overflow).toBe('hidden')
+    expect(appContent.style.touchAction).toBe('none')
+
+    wrapper.unmount()
+
+    expect(document.documentElement.style.overflow).toBe('')
+    expect(document.body.style.overflow).toBe('')
+    expect(document.body.style.position).toBe('')
+    expect(document.body.style.top).toBe('')
+    expect(document.body.style.left).toBe('')
+    expect(document.body.style.width).toBe('')
+    expect(appContent.style.overflow).toBe('auto')
+    expect(appContent.style.touchAction).toBe('pan-y')
+    expect(scrollToSpy).toHaveBeenCalledWith(18, 240)
+
+    scrollToSpy.mockRestore()
+    appContent.remove()
+  })
+
+  it('closes when the player taps outside the dialog panel', async () => {
+    const wrapper = mountDialog()
+
+    await flushPromises()
+    await wrapper.get('.modal-overlay').trigger('click')
+
+    expect(wrapper.emitted('close')).toHaveLength(1)
+
+    wrapper.unmount()
+  })
+
   it('separates active and defeated cards and only renders actions for active ones', async () => {
     const wrapper = mountDialog({
       cards: [

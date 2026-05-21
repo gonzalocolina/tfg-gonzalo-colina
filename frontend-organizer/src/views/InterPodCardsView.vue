@@ -465,13 +465,10 @@ onUnmounted(() => {
                 {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}
               </div>
               <div class="selection-card-tags">
-                <span class="badge" :class="definition.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                  {{ formatCatalogItemType(definition.type) }}
-                </span>
-                <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
+
+                <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'"">
                   {{ definition.ownerUsername ? `Personalizada · ${definition.ownerUsername}` : 'Sistema' }}
                 </span>
-                <span v-if="selectedDefinitionIds.includes(definition.id)" class="badge badge-ready">Seleccionada</span>
               </div>
             </div>
           </label>

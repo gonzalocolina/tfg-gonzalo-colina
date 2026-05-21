@@ -282,9 +282,6 @@ watch(eventId, () => {
             <div class="selection-card-content">
               <div class="selection-card-actions">
                 <div class="selection-card-title">{{ v.name }}</div>
-                <span class="badge" :class="v.type === 'PREDEFINED' ? 'badge-ready' : 'badge-in-progress'">
-                  {{ formatCatalogItemType(v.type) }}
-                </span>
               </div>
               <div class="selection-card-meta">
                 HP {{ formatRuleType(v.hpRuleType) }}: {{ v.hpRuleValue }} · Amenaza {{ formatRuleType(v.threatRuleType) }}: {{ v.threatRuleValue }}
@@ -293,7 +290,6 @@ watch(eventId, () => {
                 <span class="badge" :class="v.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
                   {{ v.ownerUsername ? `Personalizado` : 'Sistema' }}
                 </span>
-                <span v-if="selectedVillainId === v.id" class="badge badge-ready">Seleccionado</span>
               </div>
             </div>
           </label>
