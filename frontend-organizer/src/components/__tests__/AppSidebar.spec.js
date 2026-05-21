@@ -21,7 +21,7 @@ vi.mock('@/api/events', () => ({
   getEvent,
 }))
 
-function buildSnapshot(status = 'DRAFT') {
+function buildSnapshot(status = 'DRAFT', overrides = {}) {
   return {
     eventId: 42,
     eventStatus: status,
@@ -38,7 +38,16 @@ function buildSnapshot(status = 'DRAFT') {
     startedAt: null,
     finishedAt: null,
     updatedAt: '2026-04-11T18:00:00Z',
-    finalSummary: null,
+    finalSummary: status === 'FINISHED'
+      ? {
+          result: 'PLAYERS_VICTORY',
+          cause: 'VILLAIN_HP_ZERO',
+          durationSeconds: 3600,
+          totalReportedVillainDamage: 42,
+          finalThreat: 3,
+        }
+      : null,
+    ...overrides,
   }
 }
 
@@ -59,6 +68,7 @@ function createTestRouter() {
       },
       { path: '/event/:eventId/roles', name: 'roles', component: { template: '<div>Roles</div>' } },
       { path: '/event/:eventId/game', name: 'game', component: { template: '<div>Game</div>' } },
+      { path: '/event/:eventId/statistics', name: 'statistics', component: { template: '<div>Statistics</div>' } },
       { path: '/event/:eventId/logs', name: 'logs', component: { template: '<div>Logs</div>' } },
       { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
       { path: '/inter-pod-cards', name: 'inter-pod-cards', component: { template: '<div>InterPod</div>' } },
@@ -128,7 +138,7 @@ describe('AppSidebar', () => {
     expect(getGameState).toHaveBeenCalledWith('42')
     expect(getEvent).toHaveBeenCalledWith('42')
     expect(wrapper.text()).toContain('Dashboard')
-    expect(wrapper.text()).toContain('Pods y Mesas')
+    expect(wrapper.text()).toContain('Nodos y mesas')
     expect(wrapper.text()).toContain('Co-organizadores')
     expect(wrapper.text()).not.toContain('Mis invitaciones')
     expect(wrapper.text()).toContain('Partida')
@@ -155,7 +165,7 @@ describe('AppSidebar', () => {
     expect(getEvent).toHaveBeenCalledWith('42')
     expect(wrapper.text()).toContain('Dashboard')
     expect(wrapper.text()).not.toContain('Mis invitaciones')
-    expect(wrapper.text()).not.toContain('Pods y Mesas')
+    expect(wrapper.text()).not.toContain('Nodos y mesas')
     expect(wrapper.text()).not.toContain('Co-organizadores')
     expect(wrapper.text()).toContain('Partida')
     expect(wrapper.text()).toContain('Registro (Log)')
@@ -182,7 +192,7 @@ describe('AppSidebar', () => {
     expect(getEvent).toHaveBeenCalledWith('42')
     expect(wrapper.text()).toContain('Dashboard')
     expect(wrapper.text()).not.toContain('Mis invitaciones')
-    expect(wrapper.text()).not.toContain('Pods y Mesas')
+    expect(wrapper.text()).not.toContain('Nodos y mesas')
     expect(wrapper.text()).not.toContain('Co-organizadores')
     expect(wrapper.text()).toContain('Partida')
     expect(wrapper.text()).toContain('Registro (Log)')
@@ -201,13 +211,24 @@ describe('AppSidebar', () => {
     expect(getGameState).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('Dashboard')
     expect(wrapper.text()).not.toContain('Mis invitaciones')
-    expect(wrapper.text()).not.toContain('Pods y Mesas')
+    expect(wrapper.text()).not.toContain('Nodos y Mesas')
     expect(wrapper.text()).not.toContain('Co-organizadores')
     expect(wrapper.text()).toContain('Villanos')
     expect(wrapper.text()).toContain('Cartas Inter-Nodo')
     expect(wrapper.find('a[href="/invitations"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/villains"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/inter-pod-cards"]').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('shows the statistics link only when the event is finished', async () => {
+    getGameState.mockResolvedValueOnce({ data: buildSnapshot('FINISHED') })
+
+    const { wrapper } = await mountSidebar('/event/42/game')
+
+    expect(wrapper.text()).toContain('Estadísticas')
+    expect(wrapper.find('a[href="/event/42/statistics"]').exists()).toBe(true)
 
     wrapper.unmount()
   })

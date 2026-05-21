@@ -8,6 +8,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -26,6 +33,8 @@ class GameStateControllerIntegrationTest {
         private static final Pattern EVENT_CODE_PATTERN = Pattern.compile("\"eventCode\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern REPRESENTATIVE_CODE_PATTERN = Pattern.compile("\"representativeCode\"\\s*:\\s*\"([^\"]+)\"");
         private static final Pattern TOKEN_PATTERN = Pattern.compile("\"accessToken\"\\s*:\\s*\"([^\"]+)\"");
+        private static final Pattern VILLAIN_HP_PATTERN = Pattern.compile("\"villainHpCurrent\"\\s*:\\s*(\\d+)");
+        private static final Pattern THREAT_PATTERN = Pattern.compile("\"schemeThreatCurrent\"\\s*:\\s*(\\d+)");
 
     @Autowired
     private MockMvc mockMvc;
@@ -545,6 +554,90 @@ class GameStateControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].notes").value("Corrección manual global de HP del villano."));
     }
 
+        @Test
+        void concurrentMixedRepresentativeReportsAccumulateWithoutLostUpdates() throws Exception {
+                long eventId = createEvent("evento-concurrente-burst", 40);
+                String organizerToken = loginOrganizer("evento-concurrente-burst", "Password123");
+                long podId = createPod(eventId, "Pod C", organizerToken);
+                List<GroupCreationResult> groups = new ArrayList<>();
+                List<String> representativeTokens = new ArrayList<>();
+
+                for (int i = 1; i <= 10; i++) {
+                        GroupCreationResult group = createGroup(eventId, podId, "C" + i, 4, organizerToken);
+                        groups.add(group);
+                        representativeTokens.add(loginGroup(eventId, group.representativeCode()));
+                }
+
+                mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken))
+                                .andExpect(status().isOk());
+
+                String initialSnapshot = fetchSnapshotBody(eventId, organizerToken);
+                int initialVillainHp = extractRequiredIntegerField(initialSnapshot, VILLAIN_HP_PATTERN, "villainHpCurrent");
+                int initialThreat = extractRequiredIntegerField(initialSnapshot, THREAT_PATTERN, "schemeThreatCurrent");
+                int damageWriters = 5;
+                int threatWriters = 5;
+                int totalRequests = damageWriters + threatWriters;
+                CyclicBarrier barrier = new CyclicBarrier(totalRequests);
+                ExecutorService executor = Executors.newFixedThreadPool(totalRequests);
+
+                try {
+                        List<Future<Void>> futures = new ArrayList<>();
+
+                        for (int i = 0; i < damageWriters; i++) {
+                                GroupCreationResult group = groups.get(i);
+                                String representativeToken = representativeTokens.get(i);
+                                futures.add(executor.submit(() -> {
+                                        barrier.await(10, TimeUnit.SECONDS);
+                                        mockMvc.perform(post("/api/events/{eventId}/game-state/villain-damage", eventId)
+                                                                        .header("Authorization", "Bearer " + representativeToken)
+                                                                        .contentType(MediaType.APPLICATION_JSON)
+                                                                        .content("""
+                                                                                        {
+                                                                                          "representativeCode": "%s",
+                                                                                          "damage": 1
+                                                                                        }
+                                                                                        """.formatted(group.representativeCode())))
+                                                        .andExpect(status().isOk());
+                                        return null;
+                                }));
+                        }
+
+                        for (int i = damageWriters; i < totalRequests; i++) {
+                                GroupCreationResult group = groups.get(i);
+                                String representativeToken = representativeTokens.get(i);
+                                futures.add(executor.submit(() -> {
+                                        barrier.await(10, TimeUnit.SECONDS);
+                                        mockMvc.perform(post("/api/events/{eventId}/game-state/threat", eventId)
+                                                                        .header("Authorization", "Bearer " + representativeToken)
+                                                                        .contentType(MediaType.APPLICATION_JSON)
+                                                                        .content("""
+                                                                                        {
+                                                                                          "representativeCode": "%s",
+                                                                                          "threat": 1
+                                                                                        }
+                                                                                        """.formatted(group.representativeCode())))
+                                                        .andExpect(status().isOk());
+                                        return null;
+                                }));
+                        }
+
+                        for (Future<Void> future : futures) {
+                                future.get(30, TimeUnit.SECONDS);
+                        }
+                } finally {
+                        executor.shutdownNow();
+                        executor.awaitTermination(5, TimeUnit.SECONDS);
+                }
+
+                mockMvc.perform(get("/api/events/{eventId}/game-state", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.villainHpCurrent").value(initialVillainHp - damageWriters))
+                                .andExpect(jsonPath("$.schemeThreatCurrent").value(initialThreat + threatWriters))
+                                .andExpect(jsonPath("$.totalReportedVillainDamage").value(damageWriters));
+        }
+
     private long createEvent(String username, int players) throws Exception {
         String organizerToken = registerOrganizer(username);
 
@@ -669,6 +762,23 @@ class GameStateControllerIntegrationTest {
                         throw new IllegalStateException("No se ha encontrado accessToken en la respuesta.");
                 }
                 return matcher.group(1);
+        }
+
+        private String fetchSnapshotBody(long eventId, String organizerToken) throws Exception {
+                return mockMvc.perform(get("/api/events/{eventId}/game-state", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString();
+        }
+
+        private int extractRequiredIntegerField(String responseBody, Pattern pattern, String fieldName) {
+                Matcher matcher = pattern.matcher(responseBody);
+                if (!matcher.find()) {
+                        throw new IllegalStateException("No se ha encontrado " + fieldName + " en la respuesta JSON.");
+                }
+                return Integer.parseInt(matcher.group(1));
         }
 
     private long extractId(String responseBody) {

@@ -10,6 +10,7 @@ import MyInvitationsView from '@/views/MyInvitationsView.vue'
 import RolesView from '@/views/RolesView.vue'
 import GameView from '@/views/GameView.vue'
 import EventLogView from '@/views/EventLogView.vue'
+import EventStatisticsView from '@/views/EventStatisticsView.vue'
 import VillainsView from '@/views/VillainsView.vue'
 import InterPodCardsView from '@/views/InterPodCardsView.vue'
 
@@ -30,6 +31,7 @@ const router = createRouter({
     { path: '/inter-pod-cards', name: 'inter-pod-cards', component: InterPodCardsView },
     { path: '/event/:eventId/roles', name: 'roles', component: RolesView },
     { path: '/event/:eventId/game', name: 'game', component: GameView },
+    { path: '/event/:eventId/statistics', name: 'statistics', component: EventStatisticsView },
     { path: '/event/:eventId/logs', name: 'logs', component: EventLogView },
   ],
 })

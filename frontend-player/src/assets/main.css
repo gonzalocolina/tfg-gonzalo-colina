@@ -116,7 +116,7 @@ a {
 /* ---------- Progress bars ---------- */
 .progress-bar {
   position: relative;
-  height: 28px;
+  height: 16px;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--c-surface-alt);
@@ -155,8 +155,7 @@ a {
 
 /* ---------- Timer display ---------- */
 .timer-display {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 2.8rem;
+  font-size: 3rem;
   font-weight: 700;
   text-align: center;
   letter-spacing: 0.06em;
@@ -344,15 +343,17 @@ a {
   height: var(--action-bar-h);
   background: var(--c-surface);
   border-top: 1px solid var(--c-border);
-  display: flex;
+  display: grid;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
   z-index: 100;
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .action-bar .btn {
   flex: 1;
+  height: 70%;
 }
 
 /* ---------- Badges ---------- */

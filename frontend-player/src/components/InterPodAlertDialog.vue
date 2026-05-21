@@ -3,10 +3,8 @@ import { computed, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
-import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 import {
   createInterPodCard,
-  getInterPodCards,
   reportInterPodCardDamage,
   reportInterPodCardThreat,
 } from '@/api/interPod'
@@ -16,10 +14,13 @@ const props = defineProps({
   podId: { type: [Number, String], default: null },
   podName: { type: String, default: '' },
   initialCardId: { type: [Number, String], default: null },
-  refreshTick: { type: Number, default: 0 },
+  cards: { type: Array, default: () => [] },
+  cardsLoading: { type: Boolean, default: false },
+  getImageUrl: { type: Function, default: () => null },
+  realtimeConnected: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'refresh-requested'])
 
 const auth = useAuthStore()
 const gs = useGameStateStore()
@@ -29,8 +30,6 @@ const selectedDefinitions = ref([])
 const loadingDefinitions = ref(true)
 const interPodCardDefinitionId = ref(null)
 const creating = ref(false)
-const cards = ref([])
-const loadingCards = ref(true)
 const amountByCard = ref({})
 const mutatingCardId = ref(null)
 const cardElements = ref({})
@@ -39,7 +38,6 @@ const pendingFocusCardId = ref(null)
 const previewCard = ref(null)
 const previewScale = ref(1)
 const previewOffset = ref({ x: 0, y: 0 })
-const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth-player')
 
 const MAX_PREVIEW_SCALE = 4
 
@@ -53,15 +51,8 @@ let ignoreNextPreviewPopState = false
 const previewTransformStyle = computed(() => ({
   transform: `translate(${previewOffset.value.x}px, ${previewOffset.value.y}px) scale(${previewScale.value})`,
 }))
-
-function buildCardImageEntries(entries) {
-  return entries
-    .filter((card) => card?.id != null && card?.imageUrl)
-    .map((card) => ({
-      id: card.id,
-      url: card.imageUrl,
-    }))
-}
+const activeCards = computed(() => props.cards.filter((card) => !isInterPodCardDefeated(card)))
+const defeatedCards = computed(() => props.cards.filter((card) => isInterPodCardDefeated(card)))
 
 const actionsDisabledReason = computed(() => {
   if (!auth.isRepresentative) {
@@ -80,34 +71,6 @@ const actionsDisabledReason = computed(() => {
 })
 
 const actionsDisabled = computed(() => Boolean(actionsDisabledReason.value))
-
-async function loadCards({ silent = false } = {}) {
-  if (!props.podId) {
-    cards.value = []
-    loadingCards.value = false
-    await syncImageUrls([])
-    return
-  }
-
-  if (!silent) {
-    loadingCards.value = true
-  }
-
-  try {
-    const { data } = await getInterPodCards(auth.eventId, Number(props.podId))
-    cards.value = data || []
-    await syncImageUrls(buildCardImageEntries(cards.value))
-    await focusPendingCard()
-  } catch {
-    if (!silent) {
-      notif.error('Error al cargar las cartas inter-nodo del pod')
-    }
-  } finally {
-    if (!silent) {
-      loadingCards.value = false
-    }
-  }
-}
 
 function prettyCardName(name) {
   if (!name) return '-'
@@ -132,6 +95,10 @@ function resolveInterPodCardStatus(card) {
   }
 
   return 'REVELADA'
+}
+
+function isInterPodCardDefeated(card) {
+  return resolveInterPodCardStatus(card) === 'DERROTADA'
 }
 
 function isMinionCard(card) {
@@ -198,7 +165,9 @@ async function handleCreate() {
       },
     )
     notif.success('Carta inter-nodo registrada')
-    await loadCards()
+    if (!props.realtimeConnected) {
+      emit('refresh-requested')
+    }
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al crear carta')
   } finally {
@@ -216,6 +185,10 @@ function mapMutationError(err, fallback) {
 async function handleCardProgress(card) {
   if (actionsDisabled.value) {
     notif.error(actionsDisabledReason.value)
+    return
+  }
+  if (isInterPodCardDefeated(card)) {
+    notif.error('La carta inter-nodo ya está derrotada.')
     return
   }
   const amount = Number(amountByCard.value[card.id] || 0)
@@ -239,7 +212,9 @@ async function handleCardProgress(card) {
     }
     notif.success(isMinionCard(card) ? 'Daño reportado' : 'Amenaza retirada')
     amountByCard.value[card.id] = ''
-    await loadCards()
+    if (!props.realtimeConnected) {
+      emit('refresh-requested')
+    }
   } catch (err) {
     notif.error(mapMutationError(err, isMinionCard(card) ? 'Error al reportar daño' : 'Error al retirar amenaza'))
   } finally {
@@ -305,7 +280,7 @@ async function focusPendingCard() {
     return
   }
 
-  if (!cards.value.some((card) => Number(card.id) === cardId)) {
+  if (!props.cards.some((card) => Number(card.id) === cardId)) {
     return
   }
 
@@ -326,7 +301,7 @@ function resetPreviewTransform() {
 }
 
 function openImagePreview(card) {
-  const imageUrl = getProtectedImageUrl(card.id)
+  const imageUrl = props.getImageUrl(card.id)
   if (!imageUrl) {
     return
   }
@@ -449,46 +424,24 @@ function handlePreviewPopState() {
 }
 
 watch(
-  () => props.podId,
-  (nextPodId) => {
-    if (nextPodId) {
-      void loadCards()
-      return
-    }
-
-    cards.value = []
-    loadingCards.value = false
-  },
-  { immediate: true },
-)
-
-watch(
-  () => props.refreshTick,
-  (nextRefreshTick, previousRefreshTick) => {
-    if (nextRefreshTick === previousRefreshTick || !props.podId) {
-      return
-    }
-
-    void loadCards({ silent: true })
-  },
-)
-
-watch(
   () => props.initialCardId,
   (nextCardId) => {
     pendingFocusCardId.value = normalizeCardId(nextCardId)
-    if (pendingFocusCardId.value != null && cards.value.length) {
+    if (pendingFocusCardId.value != null && props.cards.length) {
       void focusPendingCard()
     }
   },
   { immediate: true },
 )
 
-watch(cards, () => {
-  if (pendingFocusCardId.value != null) {
-    void focusPendingCard()
-  }
-})
+watch(
+  () => props.cards,
+  () => {
+    if (pendingFocusCardId.value != null) {
+      void focusPendingCard()
+    }
+  },
+)
 
 onMounted(async () => {
   if (globalThis.window !== undefined) {
@@ -513,7 +466,7 @@ onUnmounted(() => {
     <div class="modal-panel">
       <div class="modal-title">Cartas Inter-Nodo</div>
       <p v-if="podName" class="text-muted text-center mb-1" style="font-size: 0.85rem">
-        Pod actual: {{ podName }}
+        Nodo actual: {{ podName }}
       </p>
 
       <div v-if="actionsDisabled" class="warn-box" style="margin-bottom: 12px">
@@ -551,67 +504,123 @@ onUnmounted(() => {
 
       <!-- Active cards -->
       <div v-if="!podId" class="text-muted text-center mt-2" style="font-size: 0.85rem">
-        Cargando la información del pod actual…
+        Cargando la información del nodo actual…
       </div>
 
-      <div class="mt-2" v-else-if="!loadingCards && cards.length">
-        <div class="form-label">Cartas activas del pod</div>
-        <div
-          v-for="a in cards"
-          :key="a.id"
-          :ref="(element) => setCardElement(a.id, element)"
-          class="interpod-card-item"
-          :class="{ 'interpod-card-item--highlighted': highlightedCardId === a.id }"
-          :data-testid="`interpod-detail-card-${a.id}`"
-        >
-          <div class="interpod-card-header">
-            <button
-              v-if="getProtectedImageUrl(a.id)"
-              type="button"
-              class="interpod-card-thumb-button"
-              :aria-label="`Ampliar imagen de ${prettyCardName(a.cardName)}`"
-              @click="openImagePreview(a)"
+      <div class="mt-2" v-else-if="!cardsLoading && cards.length">
+        <div class="interpod-card-section" data-testid="interpod-active-section">
+          <div class="form-label">Cartas activas del nodo</div>
+
+          <div v-if="activeCards.length" class="interpod-card-list">
+            <div
+              v-for="a in activeCards"
+              :key="a.id"
+              :ref="(element) => setCardElement(a.id, element)"
+              class="interpod-card-item"
+              :class="{ 'interpod-card-item--highlighted': highlightedCardId === a.id }"
+              :data-testid="`interpod-detail-card-${a.id}`"
             >
-              <img
-                :src="getProtectedImageUrl(a.id)"
-                alt="Carta inter-nodo"
-                class="interpod-card-thumb"
-                @error="handleImageLoadError"
-              />
-            </button>
-            <div class="interpod-card-meta">
-              <span
-                class="alert-type"
-                :class="a.cardCategory === 'ESBIRRO' ? 'alert-type--mangog' : 'alert-type--door'"
-                style="font-size: 0.95rem"
-              >
-                {{ prettyCardName(a.cardName) }}
-              </span>
-              <span class="text-muted" style="font-size: 0.8rem">{{ a.cardCategory }} · Mesa: {{ a.sourceGroupIdentifier }}</span>
-              <div style="font-size: 0.95rem; margin-top: 2px">
-                <strong>{{ cardMetricLabel(a) }} {{ cardCurrentValue(a) }} / {{ cardMaxValue(a) }}</strong>
-                <span class="text-muted" style="margin-left: 8px">{{ prettyCardName(resolveInterPodCardStatus(a)) }}</span>
+              <div class="interpod-card-header">
+                <button
+                  v-if="getImageUrl(a.id)"
+                  type="button"
+                  class="interpod-card-thumb-button"
+                  :aria-label="`Ampliar imagen de ${prettyCardName(a.cardName)}`"
+                  @click="openImagePreview(a)"
+                >
+                  <img
+                    :src="getImageUrl(a.id)"
+                    alt="Carta inter-nodo"
+                    class="interpod-card-thumb"
+                    @error="handleImageLoadError"
+                  />
+                </button>
+                <div class="interpod-card-meta">
+                  <span
+                    class="alert-type"
+                    :class="a.cardCategory === 'ESBIRRO' ? 'alert-type--mangog' : 'alert-type--door'"
+                    style="font-size: 0.95rem"
+                  >
+                    {{ prettyCardName(a.cardName) }}
+                  </span>
+                  <span class="text-muted" style="font-size: 0.8rem">{{ a.cardCategory }} · Mesa: {{ a.sourceGroupIdentifier }}</span>
+                  <div style="font-size: 0.95rem; margin-top: 2px">
+                    <strong>{{ cardMetricLabel(a) }} {{ cardCurrentValue(a) }} / {{ cardMaxValue(a) }}</strong>
+                    <span class="text-muted" style="margin-left: 8px">{{ prettyCardName(resolveInterPodCardStatus(a)) }}</span>
+                  </div>
+                  <span class="text-muted" style="font-size: 0.72rem">{{ formatTime(a.createdAt) }}</span>
+                </div>
               </div>
-              <span class="text-muted" style="font-size: 0.72rem">{{ formatTime(a.createdAt) }}</span>
+
+              <div class="interpod-card-actions">
+                <input
+                  v-model.number="amountByCard[a.id]"
+                  class="form-control"
+                  type="number"
+                  min="1"
+                  :placeholder="cardActionPlaceholder(a)"
+                  style="width: 90px"
+                />
+                <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleCardProgress(a)">
+                  {{ cardActionLabel(a) }}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="interpod-card-actions">
-            <input
-              v-model.number="amountByCard[a.id]"
-              class="form-control"
-              type="number"
-              min="1"
-              :placeholder="cardActionPlaceholder(a)"
-              style="width: 90px"
-            />
-            <button class="btn btn-secondary btn-sm" :disabled="actionsDisabled || mutatingCardId === a.id" @click="handleCardProgress(a)">
-              {{ cardActionLabel(a) }}
-            </button>
+          <div v-else class="text-muted text-center interpod-empty-state">
+            No hay cartas inter-nodo activas en tu pod.
+          </div>
+        </div>
+
+        <div v-if="defeatedCards.length" class="interpod-card-section" data-testid="interpod-defeated-section">
+          <div class="form-label">Cartas derrotadas del nodo</div>
+
+          <div class="interpod-card-list">
+            <div
+              v-for="card in defeatedCards"
+              :key="card.id"
+              :ref="(element) => setCardElement(card.id, element)"
+              class="interpod-card-item interpod-card-item--defeated"
+              :class="{ 'interpod-card-item--highlighted': highlightedCardId === card.id }"
+              :data-testid="`interpod-detail-card-${card.id}`"
+            >
+              <div class="interpod-card-header">
+                <button
+                  v-if="getImageUrl(card.id)"
+                  type="button"
+                  class="interpod-card-thumb-button"
+                  :aria-label="`Ampliar imagen de ${prettyCardName(card.cardName)}`"
+                  @click="openImagePreview(card)"
+                >
+                  <img
+                    :src="getImageUrl(card.id)"
+                    alt="Carta inter-nodo"
+                    class="interpod-card-thumb"
+                    @error="handleImageLoadError"
+                  />
+                </button>
+                <div class="interpod-card-meta">
+                  <span
+                    class="alert-type"
+                    :class="card.cardCategory === 'ESBIRRO' ? 'alert-type--mangog' : 'alert-type--door'"
+                    style="font-size: 0.95rem"
+                  >
+                    {{ prettyCardName(card.cardName) }}
+                  </span>
+                  <span class="text-muted" style="font-size: 0.8rem">{{ card.cardCategory }} · Mesa: {{ card.sourceGroupIdentifier }}</span>
+                  <div style="font-size: 0.95rem; margin-top: 2px">
+                    <strong>{{ cardMetricLabel(card) }} {{ cardCurrentValue(card) }} / {{ cardMaxValue(card) }}</strong>
+                    <span class="text-muted" style="margin-left: 8px">{{ prettyCardName(resolveInterPodCardStatus(card)) }}</span>
+                  </div>
+                  <span class="text-muted" style="font-size: 0.72rem">{{ formatTime(card.createdAt) }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div v-else-if="!loadingCards" class="text-muted text-center mt-2" style="font-size: 0.85rem">
+      <div v-else-if="!cardsLoading" class="text-muted text-center mt-2" style="font-size: 0.85rem">
         No hay cartas inter-nodo en tu pod.
       </div>
 
@@ -650,17 +659,32 @@ onUnmounted(() => {
 
 <style scoped>
 .interpod-card-item {
-  background: var(--card-bg, #23252b);
+  background: var(--card-bg);
   border: 1px solid var(--border-color, #333);
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
+.interpod-card-section + .interpod-card-section {
+  margin-top: 16px;
+}
+.interpod-card-list {
+  display: flex;
+  flex-direction: column;
+}
+.interpod-empty-state {
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
 .interpod-card-item--highlighted {
   border-color: rgba(212, 175, 55, 0.95);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
   transform: translateY(-1px);
+}
+.interpod-card-item--defeated {
+  border-style: dashed;
+  opacity: 0.82;
 }
 .interpod-card-header {
   display: flex;

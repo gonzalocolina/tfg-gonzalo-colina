@@ -249,7 +249,7 @@ onMounted(loadVillains)
           :to="{ name: 'setup', params: { eventId } }"
           class="btn btn-primary"
         >
-          Configurar Pods y Mesas
+          Configurar nodos y mesas
         </router-link>
         <router-link
           :to="{ name: 'game', params: { eventId } }"
@@ -301,6 +301,12 @@ onMounted(loadVillains)
           class="btn btn-secondary"
         >
           Ver resumen final
+        </router-link>
+        <router-link
+          :to="{ name: 'statistics', params: { eventId } }"
+          class="btn btn-primary"
+        >
+          Ver estadísticas
         </router-link>
         <router-link
           :to="{ name: 'logs', params: { eventId } }"
