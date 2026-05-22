@@ -112,7 +112,7 @@ function buildStructure(overrides = {}) {
     pods: [
       {
         id: 7,
-        name: 'Pod Norte',
+        name: 'Pod 1',
         sortOrder: 0,
         totalGroups: 1,
         totalPlayers: 4,
@@ -255,7 +255,7 @@ describe('GameView', () => {
 
     expect(damageGroupSelect.exists()).toBe(true)
     expect(threatGroupSelect.exists()).toBe(true)
-    expect(damageGroupSelect.text()).toContain('Mesa Alfa · Pod Norte')
+    expect(damageGroupSelect.text()).toContain('Mesa Alfa · Pod 1')
     expect(damageGroupSelect.text()).toContain('Mesa Beta · Sin pod asignado')
 
     await damageGroupSelect.setValue('19')

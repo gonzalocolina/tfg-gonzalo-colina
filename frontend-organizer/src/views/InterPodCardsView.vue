@@ -9,6 +9,7 @@ import {
   updateInterPodCardDefinition,
   deleteInterPodCardDefinition,
 } from '@/api/interPodCardDefinitions'
+import { useDialogs } from '@/composables/useDialogs'
 import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 import {
   eventStatusBadgeClass,
@@ -19,6 +20,7 @@ import {
 } from '@/utils/displayLabels'
 
 const route = useRoute()
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 
 const eventId = computed(() => route?.params?.eventId || null)
@@ -363,7 +365,15 @@ async function handleUpdate(definitionId) {
 }
 
 async function handleDelete(definition) {
-  if (!confirm(`¿Eliminar carta inter-nodo "${prettyCardName(definition.name)}"?`)) return
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar carta inter-nodo',
+    message: `¿Quieres eliminar la carta inter-nodo "${prettyCardName(definition.name)}" del catálogo?`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
+
   deletingId.value = definition.id
   try {
     await deleteInterPodCardDefinition(definition.id)
@@ -466,7 +476,7 @@ onUnmounted(() => {
               </div>
               <div class="selection-card-tags">
 
-                <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'"">
+                <span class="badge" :class="definition.ownerUsername ? 'badge-in-progress' : 'badge-ready'">
                   {{ definition.ownerUsername ? `Personalizada · ${definition.ownerUsername}` : 'Sistema' }}
                 </span>
               </div>

@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getEvent, updateEvent, deleteEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
+import { useDialogs } from '@/composables/useDialogs'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
   eventStatusBadgeClass,
@@ -14,6 +15,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 
 const eventId = computed(() => route.params.eventId)
@@ -79,7 +81,15 @@ async function saveEdit() {
 }
 
 async function handleDelete() {
-  if (!confirm('¿Eliminar este evento? Esta acción no se puede deshacer.')) return
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar evento',
+    message: 'Esta acción no se puede deshacer. El evento y toda su configuración desaparecerán del panel.',
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
+
   try {
     await deleteEvent(eventId.value)
     notif.success('Evento eliminado')

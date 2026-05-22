@@ -83,7 +83,7 @@ function mountDialog(props = {}) {
   return mount(InterPodAlertDialog, {
     props: {
       podId: 7,
-      podName: 'Pod Norte',
+      podName: 'Pod 1',
       initialCardId: null,
       cards: [],
       cardsLoading: false,
@@ -125,7 +125,7 @@ describe('InterPodAlertDialog', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Nodo actual: Pod Norte')
+    expect(wrapper.text()).toContain('Nodo actual: Pod 1')
     expect(wrapper.get('[data-testid="interpod-detail-card-42"]').text()).toContain('The Mangog')
 
     wrapper.unmount()

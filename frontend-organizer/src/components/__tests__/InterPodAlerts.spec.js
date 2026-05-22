@@ -64,7 +64,7 @@ describe('InterPodAlerts', () => {
       data: [
         {
           id: 99,
-          podName: 'Pod Norte',
+          podName: 'Pod 1',
           sourceGroupIdentifier: 'Mesa Beta',
           cardName: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
@@ -96,7 +96,7 @@ describe('InterPodAlerts', () => {
       data: [
         {
           id: 101,
-          podName: 'Pod Norte',
+          podName: 'Pod 1',
           sourceGroupIdentifier: 'Mesa Beta',
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
@@ -128,7 +128,7 @@ describe('InterPodAlerts', () => {
         data: [
           {
             id: 99,
-            podName: 'Pod Norte',
+            podName: 'Pod 1',
             sourceGroupIdentifier: 'Mesa Beta',
             cardName: 'THE_MANGOG',
             cardCategory: 'ESBIRRO',
@@ -144,7 +144,7 @@ describe('InterPodAlerts', () => {
         data: [
           {
             id: 99,
-            podName: 'Pod Norte',
+            podName: 'Pod 1',
             sourceGroupIdentifier: 'Mesa Beta',
             cardName: 'THE_MANGOG',
             cardCategory: 'ESBIRRO',
@@ -156,7 +156,7 @@ describe('InterPodAlerts', () => {
           },
           {
             id: 102,
-            podName: 'Pod Sur',
+            podName: 'Pod 2',
             sourceGroupIdentifier: 'Mesa Gamma',
             cardName: 'DOOR_BETWEEN_WORLDS',
             cardCategory: 'PLAN',

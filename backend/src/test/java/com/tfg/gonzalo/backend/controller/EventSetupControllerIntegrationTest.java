@@ -121,7 +121,7 @@ class EventSetupControllerIntegrationTest {
 
         String podRequest = """
                 {
-                  "name": "Pod Norte",
+                  "name": "Pod 1",
                   "sortOrder": 0
                 }
                 """;
@@ -159,7 +159,7 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.assignedPlayerCount").value(0))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(1))
                 .andExpect(jsonPath("$.unassignedPlayerCount").value(1))
-                .andExpect(jsonPath("$.pods[0].name").value("Pod Norte"))
+                .andExpect(jsonPath("$.pods[0].name").value("Pod 1"))
                 .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Jugador Uno"));
 
         mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}/pod", eventId, groupId)
@@ -180,7 +180,7 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.configuredPlayerCount").value(1))
                 .andExpect(jsonPath("$.assignedPlayerCount").value(1))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(0))
-                .andExpect(jsonPath("$.pods[0].name").value("Pod Norte"))
+                .andExpect(jsonPath("$.pods[0].name").value("Pod 1"))
                 .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("Jugador Uno"));
     }
 

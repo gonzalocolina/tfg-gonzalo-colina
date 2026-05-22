@@ -85,7 +85,7 @@ function buildStructure(overrides = {}) {
     pods: [
       {
         id: 7,
-        name: 'Pod Norte',
+        name: 'Pod 1',
         totalGroups: 2,
         totalPlayers: 5,
         warnings: [],
@@ -96,7 +96,7 @@ function buildStructure(overrides = {}) {
       },
       {
         id: 8,
-        name: 'Pod Sur',
+        name: 'Pod 2',
         totalGroups: 1,
         totalPlayers: 4,
         warnings: ['La diferencia de jugadores entre mesas del pod es superior a 1.'],
@@ -189,7 +189,7 @@ describe('PlayerGameView', () => {
     expect(connect).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Esperando a que el organizador inicie la partida…')
     expect(wrapper.find('.header-stub').text()).toContain('Mesa Beta · Epic Loki')
-    expect(wrapper.text()).toContain('Pod Norte')
+    expect(wrapper.text()).toContain('Pod 1')
     expect(wrapper.find('.pod-overview-card__group--current').text()).toContain('Mesa Beta')
 
     wrapper.unmount()
@@ -205,7 +205,7 @@ describe('PlayerGameView', () => {
     expect(interPodButton).toBeDefined()
     await interPodButton.trigger('click')
 
-    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod Norte')
+    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod 1')
 
     wrapper.unmount()
   })
@@ -277,7 +277,7 @@ describe('PlayerGameView', () => {
 
     await wrapper.get('[data-testid="player-interpod-card-77"]').trigger('click')
 
-    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod Norte · Card 77')
+    expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Pod 7 · Pod 1 · Card 77')
     expect(wrapper.find('.inter-pod-dialog-stub').text()).toContain('Cards 1')
 
     wrapper.unmount()
@@ -441,7 +441,7 @@ describe('PlayerGameView', () => {
         pods: [
           {
             id: 7,
-            name: 'Pod Norte',
+            name: 'Pod 1',
             totalGroups: 1,
             totalPlayers: 2,
             warnings: [],

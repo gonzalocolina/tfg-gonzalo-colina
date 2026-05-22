@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useNotificationsStore } from '@/stores/notifications'
 import { getEvent, updateEvent } from '@/api/events'
 import { getVillains, createVillain, updateVillain, deleteVillain } from '@/api/villains'
+import { useDialogs } from '@/composables/useDialogs'
 import {
   eventStatusBadgeClass,
   formatCatalogItemType,
@@ -12,6 +13,7 @@ import {
 } from '@/utils/displayLabels'
 
 const route = useRoute()
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 
 const eventId = computed(() => route?.params?.eventId || null)
@@ -206,7 +208,15 @@ async function handleUpdate(villainId) {
 }
 
 async function handleDelete(villain) {
-  if (!confirm(`¿Eliminar villano "${villain.name}"?`)) return
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar villano',
+    message: `¿Quieres eliminar el villano "${villain.name}" del catálogo?`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
+
   deletingId.value = villain.id
   try {
     await deleteVillain(villain.id)

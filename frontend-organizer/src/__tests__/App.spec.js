@@ -45,6 +45,9 @@ async function mountApp(initialPath, { authenticated = true } = {}) {
         AppSidebar: {
           template: '<aside data-test="app-sidebar" />',
         },
+        DialogHost: {
+          template: '<div data-test="dialog-host" />',
+        },
         NotificationToast: {
           template: '<div data-test="notification-toast" />',
         },

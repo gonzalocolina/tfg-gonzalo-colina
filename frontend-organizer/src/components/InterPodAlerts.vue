@@ -7,6 +7,7 @@ import {
   deleteInterPodCard,
   getInterPodCards,
 } from '@/api/interPod'
+import { useDialogs } from '@/composables/useDialogs'
 import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatCardCategory, formatCardStatus } from '@/utils/displayLabels'
@@ -17,6 +18,7 @@ const props = defineProps({
   realtimeEvent: { type: Object, default: null },
 })
 
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 
 const cards = ref([])
@@ -162,7 +164,15 @@ async function handleUpdateStatus(card) {
 }
 
 async function handleDeleteCard(card) {
-  if (!confirm(`¿Eliminar carta ${card.cardName} de la mesa ${card.sourceGroupIdentifier}?`)) return
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar carta inter-nodo',
+    message: `¿Quieres eliminar la carta ${card.cardName} de la mesa ${card.sourceGroupIdentifier}?`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
+
   mutatingCardId.value = card.id
   try {
     await deleteInterPodCard(props.eventId, card.id)

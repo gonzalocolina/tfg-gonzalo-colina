@@ -8,11 +8,13 @@ import {
   inviteCoOrganizer,
   revokeCoOrganizerInvitation,
 } from '@/api/roles'
+import { useDialogs } from '@/composables/useDialogs'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatResponsibility, formatResponsibilities } from '@/utils/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 const eventId = computed(() => route.params.eventId)
 
@@ -101,7 +103,14 @@ async function handleInvite() {
 }
 
 async function handleRevokePending(invitation) {
-  if (!confirm(`¿Revocar la invitación enviada a ${invitation.inviteeUsername}?`)) {
+  const confirmed = await dialogs.confirm({
+    title: 'Revocar invitación',
+    message: `¿Quieres revocar la invitación enviada a ${invitation.inviteeUsername}?`,
+    confirmLabel: 'Revocar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) {
     return
   }
 
@@ -128,7 +137,14 @@ async function handleRevokeAccepted(coOrganizer) {
     return
   }
 
-  if (!confirm(`¿Revocar el acceso de ${coOrganizer.username} como co-organizador?`)) {
+  const confirmed = await dialogs.confirm({
+    title: 'Revocar acceso',
+    message: `¿Quieres revocar el acceso de ${coOrganizer.username} como co-organizador?`,
+    confirmLabel: 'Revocar acceso',
+    tone: 'danger',
+  })
+
+  if (!confirmed) {
     return
   }
 

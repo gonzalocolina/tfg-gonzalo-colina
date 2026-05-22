@@ -203,7 +203,7 @@ const latestPoint = computed(() => normalizedSeries.value[normalizedSeries.value
       >
         <title id="trend-chart-title">Evolución temporal de daño y amenaza</title>
         <desc id="trend-chart-desc">
-          La línea azul representa el daño acumulado al villano y la línea naranja la amenaza actual,
+          La línea roja representa el daño acumulado al villano y la línea naranja la amenaza actual,
           cada una con su propia escala vertical.
         </desc>
 

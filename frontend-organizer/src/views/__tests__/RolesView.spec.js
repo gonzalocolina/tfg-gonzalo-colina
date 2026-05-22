@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import RolesView from '../RolesView.vue'
 
@@ -27,6 +27,10 @@ const { notifSuccess, notifError } = vi.hoisted(() => ({
   notifError: vi.fn(),
 }))
 
+const { confirmDialog } = vi.hoisted(() => ({
+  confirmDialog: vi.fn(),
+}))
+
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
   return {
@@ -51,6 +55,17 @@ vi.mock('@/stores/notifications', () => ({
   useNotificationsStore: () => ({
     success: notifSuccess,
     error: notifError,
+  }),
+}))
+
+vi.mock('@/composables/useDialogs', () => ({
+  useDialogs: () => ({
+    confirm: confirmDialog,
+    alert: vi.fn(),
+    currentDialog: { value: null },
+    acceptCurrentDialog: vi.fn(),
+    dismissCurrentDialog: vi.fn(),
+    resetDialogs: vi.fn(),
   }),
 }))
 
@@ -81,16 +96,12 @@ function findButtonByText(wrapper, text) {
 describe('RolesView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('confirm', vi.fn(() => true))
+    confirmDialog.mockResolvedValue(true)
     getCoOrganizerInvitations.mockResolvedValue({ data: [] })
     getCoOrganizers.mockResolvedValue({ data: [] })
     getEvent.mockResolvedValue({ data: buildEvent('DRAFT') })
     inviteCoOrganizer.mockResolvedValue({})
     revokeCoOrganizerInvitation.mockResolvedValue({})
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('allows revoking accepted co-organizers before the game starts', async () => {
@@ -106,6 +117,13 @@ describe('RolesView', () => {
     await revokeButton.trigger('click')
     await flushPromises()
 
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Revocar acceso',
+        confirmLabel: 'Revocar acceso',
+        tone: 'danger',
+      }),
+    )
     expect(revokeCoOrganizerInvitation).toHaveBeenCalledWith('42', 99)
     expect(notifSuccess).toHaveBeenCalledWith('Co-organizador revocado')
   })

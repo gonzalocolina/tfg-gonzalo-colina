@@ -1,13 +1,28 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import MyInvitationsView from '@/views/MyInvitationsView.vue'
 
+const { confirmDialog } = vi.hoisted(() => ({
+  confirmDialog: vi.fn(),
+}))
+
 vi.mock('@/api/invitations', () => ({
   getMyCoOrganizerInvitations: vi.fn(),
   acceptCoOrganizerInvitation: vi.fn(),
   rejectCoOrganizerInvitation: vi.fn(),
+}))
+
+vi.mock('@/composables/useDialogs', () => ({
+  useDialogs: () => ({
+    confirm: confirmDialog,
+    alert: vi.fn(),
+    currentDialog: { value: null },
+    acceptCurrentDialog: vi.fn(),
+    dismissCurrentDialog: vi.fn(),
+    resetDialogs: vi.fn(),
+  }),
 }))
 
 import {
@@ -37,7 +52,7 @@ describe('MyInvitationsView', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     router = createTestRouter()
-    vi.stubGlobal('confirm', vi.fn(() => true))
+    confirmDialog.mockResolvedValue(true)
 
     getMyCoOrganizerInvitations.mockResolvedValue({
       data: [
@@ -52,10 +67,6 @@ describe('MyInvitationsView', () => {
         },
       ],
     })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   function mountView() {
@@ -86,6 +97,12 @@ describe('MyInvitationsView', () => {
     await wrapper.find('button.btn-primary').trigger('click')
     await new Promise((resolve) => setTimeout(resolve, 20))
 
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Aceptar invitación',
+        confirmLabel: 'Aceptar',
+      }),
+    )
     expect(acceptCoOrganizerInvitation).toHaveBeenCalledWith(5)
     expect(pushSpy).toHaveBeenCalledWith({ name: 'dashboard', params: { eventId: 17 } })
   })
@@ -99,6 +116,13 @@ describe('MyInvitationsView', () => {
     await buttons[1].trigger('click')
     await new Promise((resolve) => setTimeout(resolve, 20))
 
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Rechazar invitación',
+        confirmLabel: 'Rechazar',
+        tone: 'danger',
+      }),
+    )
     expect(rejectCoOrganizerInvitation).toHaveBeenCalledWith(5)
     expect(getMyCoOrganizerInvitations).toHaveBeenCalledTimes(2)
   })

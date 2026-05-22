@@ -86,7 +86,7 @@ function buildStructure() {
     pods: [
       {
         id: 1,
-        name: 'Pod Norte',
+        name: 'Pod 1',
         groups: [
           {
             id: 11,

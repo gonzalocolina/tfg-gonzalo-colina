@@ -5,7 +5,7 @@ function buildStructure() {
   return {
     pods: [
       {
-        name: 'Pod Norte',
+        name: 'Pod 1',
         groups: [
           { identifier: 'Mesa Alfa' },
           { identifier: 'Mesa Beta' },

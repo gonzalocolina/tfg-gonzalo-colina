@@ -601,7 +601,7 @@ onUnmounted(() => {
           <h3 class="mb-1">Registro delegado en nombre de una mesa</h3>
           <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">
             <template v-if="isInProgress">
-              Usa esta opción cuando el organizador o co-organizador registra una aportación real de una mesa. El log
+              Usa esta opción cuando quieras corregir algún valor de daño o amenaza causado por alguna mesa en concreto. El log
               guardará la mesa de origen y el actor que realizó el registro. Puedes añadir una justificación opcional si
               aporta contexto.
             </template>
@@ -735,7 +735,7 @@ onUnmounted(() => {
         <div class="card mt-2">
           <h3 class="mb-1">Correcciones manuales globales</h3>
           <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">
-            Solo organizador / co-organizador. Usa esta opción para corregir un total global erróneo. No se atribuye a
+            Usa esta opción para establecer un nuevo valor global. No se atribuye a
             una mesa concreta. Puedes añadir una justificación opcional en el log si quieres dejar más contexto.
           </p>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">

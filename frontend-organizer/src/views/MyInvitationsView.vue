@@ -6,10 +6,12 @@ import {
   getMyCoOrganizerInvitations,
   rejectCoOrganizerInvitation,
 } from '@/api/invitations'
+import { useDialogs } from '@/composables/useDialogs'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatEventStatus, formatResponsibilities } from '@/utils/displayLabels'
 
 const router = useRouter()
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 
 const invitations = ref([])
@@ -29,7 +31,13 @@ async function load() {
 }
 
 async function handleAccept(invitation) {
-  if (!confirm(`¿Aceptar la invitación al evento "${invitation.eventName}"?`)) return
+  const confirmed = await dialogs.confirm({
+    title: 'Aceptar invitación',
+    message: `¿Quieres aceptar la invitación al evento "${invitation.eventName}"?`,
+    confirmLabel: 'Aceptar',
+  })
+
+  if (!confirmed) return
 
   actionId.value = invitation.id
   try {
@@ -45,7 +53,14 @@ async function handleAccept(invitation) {
 }
 
 async function handleReject(invitation) {
-  if (!confirm(`¿Rechazar la invitación al evento "${invitation.eventName}"?`)) return
+  const confirmed = await dialogs.confirm({
+    title: 'Rechazar invitación',
+    message: `¿Quieres rechazar la invitación al evento "${invitation.eventName}"?`,
+    confirmLabel: 'Rechazar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
 
   actionId.value = invitation.id
   try {

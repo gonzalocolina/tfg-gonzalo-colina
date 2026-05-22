@@ -45,7 +45,7 @@ describe('EventLogView', () => {
       data: {
         pods: [
           {
-            name: 'Pod Norte',
+            name: 'Pod 1',
             groups: [
               {
                 id: 10,

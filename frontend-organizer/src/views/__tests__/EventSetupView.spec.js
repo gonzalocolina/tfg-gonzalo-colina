@@ -57,7 +57,7 @@ function buildStructure(overrides = {}) {
     pods: [
       {
         id: 7,
-        name: 'Pod Norte',
+        name: 'Pod 1',
         totalGroups: 2,
         totalPlayers: 5,
         warnings: [],

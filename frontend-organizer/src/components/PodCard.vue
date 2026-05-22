@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { deletePod, updatePod } from '@/api/setup'
+import { useDialogs } from '@/composables/useDialogs'
 import GroupItem from '@/components/GroupItem.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 
@@ -14,6 +15,7 @@ const props = defineProps({
 
 const emit = defineEmits(['changed', 'group-drag-start', 'group-drag-end', 'drag-over-column', 'drop-group'])
 
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 const editingName = ref(false)
 const savingName = ref(false)
@@ -67,7 +69,15 @@ async function handleDelete() {
   const warning = props.pod.totalGroups
     ? ' Sus mesas pasarán a pendientes de asignación.'
     : ''
-  if (!confirm(`¿Eliminar ${props.pod.name}?${warning}`)) return
+
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar pod',
+    message: `¿Quieres eliminar ${props.pod.name}?${warning}`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
 
   deletingPod.value = true
   try {
