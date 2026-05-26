@@ -1,0 +1,9 @@
+target/
+data/
+.git/
+.gitignore
+.mvn/
+Dockerfile
+*.log
+*.db
+*.mv.db

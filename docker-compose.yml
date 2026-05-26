@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-CHANGE_ME_TO_A_LONG_RANDOM_SECRET}
+      APP_JWT_EXPIRATION_MINUTES: ${APP_JWT_EXPIRATION_MINUTES:-120}
+      APP_SEED_ORGANIZER_PASSWORD: ${APP_SEED_ORGANIZER_PASSWORD:-}
+      APP_ALLOWED_ORIGINS: ${DOCKER_APP_ALLOWED_ORIGINS:-http://localhost:5175}
+      APP_INTER_POD_CARD_MAX_IMAGE_BYTES: ${APP_INTER_POD_CARD_MAX_IMAGE_BYTES:-5242880}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5175}:80"
+    restart: unless-stopped
+
+volumes:
+  backend-data:

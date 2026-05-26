@@ -51,9 +51,10 @@ export function createAppConfig({ appRoot, appName, basePath, port }) {
   return defineConfig({
     root: appRoot,
     base: normalizedBasePath,
-    plugins: [vue()],
+    plugins: [vue(), replaceGlobalPlugin()],
     define: {
       __FRONTEND_PUBLIC_PORT__: JSON.stringify(publicPort),
+      global: 'globalThis',
     },
     resolve: {
       alias: {
@@ -61,6 +62,11 @@ export function createAppConfig({ appRoot, appName, basePath, port }) {
       },
     },
     optimizeDeps: {
+      esbuildOptions: {
+        define: {
+          global: 'globalThis',
+        },
+      },
       rolldownOptions: {
         plugins: [replaceGlobalPlugin()],
       },
