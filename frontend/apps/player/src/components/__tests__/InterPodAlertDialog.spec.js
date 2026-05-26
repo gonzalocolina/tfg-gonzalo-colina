@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
 import InterPodAlertDialog from '../InterPodAlertDialog.vue'
 import { useGameStateStore } from '@/stores/gameState'
+import { seedAuthSession } from '../../../tests/fixtures/authSession.js'
+import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
 
 const {
   createInterPodCard,
@@ -26,20 +27,6 @@ vi.mock('@/api/interPodCardDefinitions', () => ({
   getEventInterPodCardDefinitions,
 }))
 
-function seedAuthSession() {
-  sessionStorage.setItem(
-    'auth-player',
-    JSON.stringify({
-      accessToken: 'tok-123',
-      role: 'GROUP_REPRESENTATIVE',
-      eventId: 1,
-      groupId: 20,
-      groupLabel: 'Mesa Beta',
-      code: 'REP001',
-    }),
-  )
-}
-
 function buildCard(overrides = {}) {
   return {
     id: 42,
@@ -58,8 +45,7 @@ function buildCard(overrides = {}) {
 }
 
 function mountDialog(props = {}) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
+  const pinia = createActivePinia()
 
   const gs = useGameStateStore()
   gs.applySnapshot({

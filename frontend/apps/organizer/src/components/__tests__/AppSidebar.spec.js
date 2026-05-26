@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
 import AppSidebar from '../AppSidebar.vue'
-import { useAuthStore } from '@/stores/auth'
+import { seedAuthSession } from '../../../tests/fixtures/authSession.js'
+import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
+import { createTestRouter } from '../../../tests/utils/createTestRouter.js'
 
 const { getGameState } = vi.hoisted(() => ({
   getGameState: vi.fn(),
@@ -51,46 +51,31 @@ function buildSnapshot(status = 'DRAFT', overrides = {}) {
   }
 }
 
-function createTestRouter() {
-  return createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
-      { path: '/my-events', name: 'my-events', component: { template: '<div>My events</div>' } },
-      { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
-      { path: '/event/:eventId', name: 'dashboard', component: { template: '<div>Dashboard</div>' } },
-      { path: '/event/:eventId/setup', name: 'setup', component: { template: '<div>Setup</div>' } },
-      { path: '/event/:eventId/villains', name: 'event-villains', component: { template: '<div>Event villains</div>' } },
-      {
-        path: '/event/:eventId/inter-pod-cards',
-        name: 'event-inter-pod-cards',
-        component: { template: '<div>Event inter-pod cards</div>' },
-      },
-      { path: '/event/:eventId/roles', name: 'roles', component: { template: '<div>Roles</div>' } },
-      { path: '/event/:eventId/game', name: 'game', component: { template: '<div>Game</div>' } },
-      { path: '/event/:eventId/statistics', name: 'statistics', component: { template: '<div>Statistics</div>' } },
-      { path: '/event/:eventId/logs', name: 'logs', component: { template: '<div>Logs</div>' } },
-      { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
-      { path: '/inter-pod-cards', name: 'inter-pod-cards', component: { template: '<div>InterPod</div>' } },
-    ],
-  })
-}
+const sidebarRoutes = [
+  { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
+  { path: '/my-events', name: 'my-events', component: { template: '<div>My events</div>' } },
+  { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
+  { path: '/event/:eventId', name: 'dashboard', component: { template: '<div>Dashboard</div>' } },
+  { path: '/event/:eventId/setup', name: 'setup', component: { template: '<div>Setup</div>' } },
+  { path: '/event/:eventId/villains', name: 'event-villains', component: { template: '<div>Event villains</div>' } },
+  {
+    path: '/event/:eventId/inter-pod-cards',
+    name: 'event-inter-pod-cards',
+    component: { template: '<div>Event inter-pod cards</div>' },
+  },
+  { path: '/event/:eventId/roles', name: 'roles', component: { template: '<div>Roles</div>' } },
+  { path: '/event/:eventId/game', name: 'game', component: { template: '<div>Game</div>' } },
+  { path: '/event/:eventId/statistics', name: 'statistics', component: { template: '<div>Statistics</div>' } },
+  { path: '/event/:eventId/logs', name: 'logs', component: { template: '<div>Logs</div>' } },
+  { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
+  { path: '/inter-pod-cards', name: 'inter-pod-cards', component: { template: '<div>InterPod</div>' } },
+]
 
 async function mountSidebar(initialPath) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
+  seedAuthSession()
 
-  const auth = useAuthStore()
-  auth.setSession({
-    accessToken: 'tok-123',
-    role: 'ORGANIZER',
-    eventId: null,
-    groupId: null,
-    username: 'organizer',
-    displayName: 'Organizador',
-  })
-
-  const router = createTestRouter()
+  const pinia = createActivePinia()
+  const router = createTestRouter(sidebarRoutes)
   await router.push(initialPath)
   await router.isReady()
 

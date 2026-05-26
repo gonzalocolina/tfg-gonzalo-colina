@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
 import PlayerGameView from '../PlayerGameView.vue'
 import { __websocketState } from '@/composables/useWebSocket'
+import { seedAuthSession } from '../../../tests/fixtures/authSession.js'
+import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
 
 const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById } = vi.hoisted(() => ({
   getGameState: vi.fn(),
@@ -110,23 +111,8 @@ function buildStructure(overrides = {}) {
   }
 }
 
-function seedAuthSession(role = 'GROUP_REPRESENTATIVE') {
-  sessionStorage.setItem(
-    'auth-player',
-    JSON.stringify({
-      accessToken: 'tok-123',
-      role,
-      eventId: 1,
-      groupId: 20,
-      groupLabel: 'Mesa Beta',
-      code: 'REP001',
-    }),
-  )
-}
-
 function mountView() {
-  const pinia = createPinia()
-  setActivePinia(pinia)
+  const pinia = createActivePinia()
 
   return mount(PlayerGameView, {
     global: {
