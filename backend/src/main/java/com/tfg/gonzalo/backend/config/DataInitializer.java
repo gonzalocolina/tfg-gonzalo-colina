@@ -19,6 +19,7 @@ import com.tfg.gonzalo.backend.repository.VillainDefinitionRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -140,50 +141,59 @@ public class DataInitializer implements ApplicationRunner {
 
         boolean changed = false;
         for (InterPodCard card : cards) {
-            if (card.getCardCategory() == InterPodCardCategory.PLAN) {
-                int migratedThreatMax = Math.max(safeValue(card.getThreatMax()), safeValue(card.getHpMax()));
-                int migratedThreatCurrent = Math.max(safeValue(card.getThreatCurrent()), safeValue(card.getHpCurrent()));
-
-                if (!Integer.valueOf(0).equals(card.getHpMax())) {
-                    card.setHpMax(0);
-                    changed = true;
-                }
-                if (!Integer.valueOf(0).equals(card.getHpCurrent())) {
-                    card.setHpCurrent(0);
-                    changed = true;
-                }
-                if (!Integer.valueOf(migratedThreatMax).equals(card.getThreatMax())) {
-                    card.setThreatMax(migratedThreatMax);
-                    changed = true;
-                }
-                if (!Integer.valueOf(migratedThreatCurrent).equals(card.getThreatCurrent())) {
-                    card.setThreatCurrent(migratedThreatCurrent);
-                    changed = true;
-                }
-                continue;
-            }
-
-            if (!Integer.valueOf(0).equals(card.getThreatMax())) {
-                card.setThreatMax(0);
-                changed = true;
-            }
-            if (!Integer.valueOf(0).equals(card.getThreatCurrent())) {
-                card.setThreatCurrent(0);
-                changed = true;
-            }
-            if (card.getHpMax() == null) {
-                card.setHpMax(0);
-                changed = true;
-            }
-            if (card.getHpCurrent() == null) {
-                card.setHpCurrent(0);
-                changed = true;
-            }
+            changed |= migrateInterPodCard(card);
         }
 
         if (changed) {
             interPodCardRepository.saveAll(cards);
         }
+    }
+
+    private boolean migrateInterPodCard(InterPodCard card) {
+        if (card.getCardCategory() == InterPodCardCategory.PLAN) {
+            return migratePlanInterPodCard(card);
+        }
+
+        return migrateNonPlanInterPodCard(card);
+    }
+
+    private boolean migratePlanInterPodCard(InterPodCard card) {
+        int migratedThreatMax = Math.max(safeValue(card.getThreatMax()), safeValue(card.getHpMax()));
+        int migratedThreatCurrent = Math.max(safeValue(card.getThreatCurrent()), safeValue(card.getHpCurrent()));
+
+        boolean changed = false;
+        changed |= updateValue(card.getHpMax(), 0, card::setHpMax);
+        changed |= updateValue(card.getHpCurrent(), 0, card::setHpCurrent);
+        changed |= updateValue(card.getThreatMax(), migratedThreatMax, card::setThreatMax);
+        changed |= updateValue(card.getThreatCurrent(), migratedThreatCurrent, card::setThreatCurrent);
+        return changed;
+    }
+
+    private boolean migrateNonPlanInterPodCard(InterPodCard card) {
+        boolean changed = false;
+        changed |= updateValue(card.getThreatMax(), 0, card::setThreatMax);
+        changed |= updateValue(card.getThreatCurrent(), 0, card::setThreatCurrent);
+        changed |= initializeIfNull(card.getHpMax(), 0, card::setHpMax);
+        changed |= initializeIfNull(card.getHpCurrent(), 0, card::setHpCurrent);
+        return changed;
+    }
+
+    private boolean updateValue(Integer currentValue, int targetValue, IntConsumer setter) {
+        if (Integer.valueOf(targetValue).equals(currentValue)) {
+            return false;
+        }
+
+        setter.accept(targetValue);
+        return true;
+    }
+
+    private boolean initializeIfNull(Integer currentValue, int defaultValue, IntConsumer setter) {
+        if (currentValue != null) {
+            return false;
+        }
+
+        setter.accept(defaultValue);
+        return true;
     }
 
     private int safeValue(Integer value) {
