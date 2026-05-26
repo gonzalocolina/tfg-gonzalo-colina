@@ -8,6 +8,14 @@ function isAuthRequest(url) {
   return typeof url === 'string' && url.startsWith('/auth/')
 }
 
+function resolveAppPath(path) {
+  const baseUrl = import.meta.env.BASE_URL || '/'
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path
+
+  return `${normalizedBase}${normalizedPath}`.replace(/\/+/g, '/')
+}
+
 http.interceptors.request.use((config) => {
   config.headers = config.headers || {}
 
@@ -38,7 +46,7 @@ http.interceptors.response.use(
     if (err.response?.status === 401) {
       sessionStorage.removeItem('auth-player')
       if (!isAuthRequest(err.config?.url)) {
-        globalThis.location?.replace('/join')
+        globalThis.location?.replace(resolveAppPath('/join'))
       }
     }
     return Promise.reject(err)

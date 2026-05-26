@@ -1,8 +1,7 @@
 # ============================================================
 # start-dev.ps1 - Lanza el entorno de desarrollo local
 #   - Backend: Spring Boot en http://localhost:8080
-#   - Frontend Organizer: Vite dev server en http://localhost:5173
-#   - Frontend Player: Vite dev server en http://localhost:5174
+#   - Frontend unificado: Portal + Organizer + Player en http://localhost:5175
 #   - Base de datos: H2 embebida (se inicia con el backend)
 #                    Consola H2: http://localhost:8080/h2-console
 # ============================================================
@@ -40,24 +39,20 @@ if ($up.status -eq "UP") {
     Write-Host "El backend tardó más de ${maxWait}s. Lanzando el frontend de todas formas..." -ForegroundColor Yellow
 }
 
-# --- Frontend Organizer ---
-Write-Host "Iniciando frontend organizer..." -ForegroundColor Cyan
+# --- Frontend unificado ---
+Write-Host "Iniciando frontend unificado..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "Set-Location '$root\frontend-organizer'; npm run dev" `
-    -WindowStyle Normal
-
-# --- Frontend Player ---
-Write-Host "Iniciando frontend player..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "Set-Location '$root\frontend-player'; npm run dev" `
+    "npm --prefix '$root\frontend' run dev" `
     -WindowStyle Normal
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host " Entorno de desarrollo iniciado" -ForegroundColor Green
 Write-Host "  Backend:   http://localhost:8080" -ForegroundColor White
-Write-Host "  Frontend organizer:  http://localhost:5173" -ForegroundColor White
-Write-Host "  Frontend player: http://localhost:5174" -ForegroundColor White
+Write-Host "  Frontend unificado: http://localhost:5175" -ForegroundColor White
+Write-Host "  Portal: http://localhost:5175" -ForegroundColor White
+Write-Host "  Organizer: http://localhost:5175/organizer/login" -ForegroundColor White
+Write-Host "  Player: http://localhost:5175/player/join" -ForegroundColor White
 Write-Host "  H2 console: http://localhost:8080/h2-console" -ForegroundColor White
 Write-Host "  Usuario:   organizer / organizer" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Green

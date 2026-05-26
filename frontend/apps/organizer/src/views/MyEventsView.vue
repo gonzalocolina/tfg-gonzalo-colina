@@ -65,10 +65,6 @@ onMounted(load)
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       </div>
       <p>No tienes eventos todavía.</p>
-      <router-link to="/invitations" class="btn btn-secondary">Revisar invitaciones</router-link>
-      <router-link to="/villains" class="btn btn-secondary" style="margin-left: 8px">Configurar villanos</router-link>
-      <router-link to="/inter-pod-cards" class="btn btn-secondary" style="margin-left: 8px">Configurar cartas inter-nodo</router-link>
-      <router-link to="/create-event" class="btn btn-primary" style="margin-left: 8px;">Crear tu primer evento</router-link>
     </div>
 
     <div v-else class="events-grid">

@@ -1,0 +1,304 @@
+:root {
+  color-scheme: dark light;
+  --c-bg: #0f0f0f;
+  --c-surface: #171717;
+  --c-surface-alt: #202020;
+  --c-border: #303030;
+  --c-text: #f3f3f3;
+  --c-text-muted: #a0a0a0;
+  --c-primary: #c0392b;
+  --c-primary-hover: #e74c3c;
+  --c-player: #2980b9;
+  --c-player-hover: #3498db;
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
+  font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --c-bg: #f5f5f7;
+    --c-surface: #ffffff;
+    --c-surface-alt: #f0f0f3;
+    --c-border: #dadada;
+    --c-text: #1d1d1f;
+    --c-text-muted: #555;
+    --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.08);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 45% at 50% 0%, rgba(192, 57, 43, 0.25) 0%, transparent 55%),
+    linear-gradient(180deg, var(--c-bg) 0%, color-mix(in srgb, var(--c-bg) 85%, black) 100%);
+  color: var(--c-text);
+}
+
+body,
+a,
+button,
+input {
+  font: inherit;
+}
+
+/* ─── Fade-in ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.portal-shell {
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0 24px;
+  animation: fadeUp 0.45s ease both;
+}
+
+/* ─── Glass card base ─── */
+.card {
+  background: color-mix(in srgb, var(--c-surface) 86%, transparent);
+  border: 1px solid var(--c-border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(14px);
+}
+
+/* ─── Hero ─── */
+.hero {
+  padding: 40px 40px 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+
+.eyebrow {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-primary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-primary) 35%, transparent);
+  color: color-mix(in srgb, var(--c-primary-hover) 90%, var(--c-text));
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 14px 0 4px;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  font-weight: 900;
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    135deg,
+    var(--c-text) 30%,
+    color-mix(in srgb, var(--c-primary-hover) 80%, var(--c-text)) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-tagline {
+  margin: 0 0 16px;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.hero-copy {
+  margin: 0;
+  max-width: 600px;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--c-text-muted);
+}
+
+/* ─── Entry grid ─── */
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.entry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+  padding: 28px;
+  border-radius: 24px;
+  text-decoration: none;
+  border: 1px solid var(--c-border);
+  border-top-width: 3px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.entry-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 90% 8%, rgba(255, 255, 255, 0.04), transparent 50%);
+  pointer-events: none;
+}
+
+.entry-card--player {
+  border-top-color: var(--c-player);
+}
+
+.entry-card--organizer {
+  border-top-color: var(--c-primary);
+}
+
+.entry-card:focus-visible {
+  outline: 3px solid var(--c-primary);
+  outline-offset: 3px;
+}
+
+.entry-card:hover {
+  transform: translateY(-5px);
+}
+
+.entry-card--player:hover {
+  border-color: color-mix(in srgb, var(--c-player) 50%, var(--c-border));
+  border-top-color: var(--c-player-hover);
+  box-shadow: 0 24px 48px color-mix(in srgb, var(--c-player) 22%, transparent);
+}
+
+.entry-card--organizer:hover {
+  border-color: color-mix(in srgb, var(--c-primary) 50%, var(--c-border));
+  border-top-color: var(--c-primary-hover);
+  box-shadow: 0 24px 48px color-mix(in srgb, var(--c-primary) 22%, transparent);
+}
+
+.entry-card h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.entry-card p {
+  margin: 0;
+  color: var(--c-text-muted);
+  line-height: 1.65;
+  font-size: 0.95rem;
+}
+
+/* ─── Badge ─── */
+.entry-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.entry-card--player .entry-badge {
+  background: color-mix(in srgb, var(--c-player) 20%, transparent);
+  color: var(--c-player-hover);
+}
+
+.entry-card--organizer .entry-badge {
+  background: color-mix(in srgb, var(--c-primary) 20%, transparent);
+  color: var(--c-primary-hover);
+}
+
+/* ─── Icon ─── */
+.entry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 4px 0 2px;
+}
+
+.entry-card--player .entry-icon {
+  background: color-mix(in srgb, var(--c-player) 18%, transparent);
+  color: var(--c-player-hover);
+}
+
+.entry-card--organizer .entry-icon {
+  background: color-mix(in srgb, var(--c-primary) 18%, transparent);
+  color: var(--c-primary-hover);
+}
+
+/* ─── CTA link ─── */
+.entry-link {
+  margin-top: auto;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.entry-card--player .entry-link {
+  color: var(--c-player-hover);
+}
+
+.entry-card--organizer .entry-link {
+  color: var(--c-primary-hover);
+}
+
+.entry-card:hover .entry-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ─── Hint footer ─── */
+.portal-hint {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--c-text-muted);
+  line-height: 1.7;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .portal-shell {
+    width: min(100% - 24px, 640px);
+    padding-top: 24px;
+  }
+
+  .hero {
+    padding: 28px 24px 24px;
+  }
+
+  .hero,
+  .entry-card {
+    border-radius: 20px;
+  }
+
+  .entry-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+  .entry-card--player {
+    order: -1;
+  }
+}

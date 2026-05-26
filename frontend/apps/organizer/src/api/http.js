@@ -9,6 +9,14 @@ function isAuthRequest(url) {
   return typeof url === 'string' && url.startsWith('/auth/')
 }
 
+function resolveAppPath(path) {
+  const baseUrl = import.meta.env.BASE_URL || '/'
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path
+
+  return `${normalizedBase}${normalizedPath}`.replace(/\/+/g, '/')
+}
+
 http.interceptors.request.use((config) => {
   if (globalThis.FormData !== undefined && config.data instanceof globalThis.FormData) {
     delete config.headers['Content-Type']
@@ -33,7 +41,7 @@ http.interceptors.response.use(
     if (err.response?.status === 401) {
       globalThis.sessionStorage?.removeItem('auth')
       if (!isAuthRequest(err.config?.url)) {
-        globalThis.location?.replace('/login')
+        globalThis.location?.replace(resolveAppPath('/login'))
       }
     }
     return Promise.reject(err)
