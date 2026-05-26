@@ -5,7 +5,7 @@ import { createEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
 import { getInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 import { useNotificationsStore } from '@/stores/notifications'
-import { formatCardCategory, formatCardStatus, formatCatalogItemType } from '@/utils/displayLabels'
+import { formatCardCategory, formatCatalogItemType } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
