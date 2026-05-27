@@ -27,7 +27,7 @@ const timerColor = computed(() => {
 </script>
 
 <template>
-  <div class="card mt-2">
+  <div class="card">
     <h3 class="mb-1 text-center">Temporizador</h3>
     <div class="timer-display" :style="{ color: timerColor }">
       {{ formatted }}

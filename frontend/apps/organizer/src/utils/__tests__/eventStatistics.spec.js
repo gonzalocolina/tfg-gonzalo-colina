@@ -143,6 +143,7 @@ describe('buildEventStatistics', () => {
     expect(statistics.operationalSummary.timerPauses).toBe(1)
     expect(statistics.interPodSummary.created).toBe(1)
     expect(statistics.interPodSummary.threatReducedTotal).toBe(3)
+    expect(statistics.interPodSummary.defeated).toBe(0)
 
     expect(statistics.highlights.topDamageGroup?.identifier).toBe('Mesa Alfa')
     expect(statistics.highlights.firstContributionGroup?.identifier).toBe('Mesa Alfa')
@@ -446,5 +447,47 @@ describe('buildEventStatistics', () => {
     expect(statistics.totals.actionCount).toBe(1)
     expect(statistics.highlights.finalBlowGroup?.identifier).toBe('Mesa Alfa')
     expect(statistics.groups.find((group) => group.identifier === 'Mesa Alfa')?.activityCount).toBe(1)
+  })
+
+  it('counts only real inter-pod defeats when damage or threat reaches zero', () => {
+    const statistics = buildEventStatistics({
+      structure: buildStructure(),
+      finalSummary: buildFinalSummary(),
+      logs: [
+        {
+          id: 1,
+          timestamp: '2026-05-18T10:00:00Z',
+          actor: 'rep-a',
+          groupIdentifier: 'Mesa Alfa',
+          actionType: 'INTER_POD_CARD_DAMAGED',
+          previousValue: '3',
+          newValue: '0',
+          notes: 'Esbirro inter-pod derrotado por daño.',
+        },
+        {
+          id: 2,
+          timestamp: '2026-05-18T10:01:00Z',
+          actor: 'rep-b',
+          groupIdentifier: 'Mesa Beta',
+          actionType: 'INTER_POD_CARD_THREAT_REDUCED',
+          previousValue: '2',
+          newValue: '0',
+          notes: 'Plan inter-pod derrotado al retirar toda la amenaza.',
+        },
+        {
+          id: 3,
+          timestamp: '2026-05-18T10:02:00Z',
+          actor: 'organizer',
+          groupIdentifier: 'Mesa Beta',
+          actionType: 'INTER_POD_CARD_STATUS_UPDATED',
+          previousValue: 'REVELADA',
+          newValue: 'DERROTADA',
+          notes: 'Estado actualizado manualmente.',
+        },
+      ],
+    })
+
+    expect(statistics.interPodSummary.defeated).toBe(2)
+    expect(statistics.interPodSummary.statusUpdates).toBe(1)
   })
 })

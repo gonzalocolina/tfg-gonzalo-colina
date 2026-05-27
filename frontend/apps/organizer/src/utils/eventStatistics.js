@@ -254,6 +254,7 @@ function createInterPodSummary() {
     damageTotal: 0,
     threatReducedActions: 0,
     threatReducedTotal: 0,
+    defeated: 0,
     statusUpdates: 0,
     deleted: 0,
   }
@@ -531,6 +532,9 @@ function handleInterPodDamage(context, group, log, previousValue, newValue) {
   const effectiveChange = decrease(previousValue, newValue)
   context.interPodSummary.damageActions += 1
   context.interPodSummary.damageTotal += effectiveChange
+  if (newValue === 0 && effectiveChange > 0) {
+    context.interPodSummary.defeated += 1
+  }
 
   if (group) {
     group.interPodDamage += effectiveChange
@@ -545,6 +549,9 @@ function handleInterPodThreatReduction(context, group, log, previousValue, newVa
   const effectiveChange = decrease(previousValue, newValue)
   context.interPodSummary.threatReducedActions += 1
   context.interPodSummary.threatReducedTotal += effectiveChange
+  if (newValue === 0 && effectiveChange > 0) {
+    context.interPodSummary.defeated += 1
+  }
 
   if (group) {
     group.interPodThreatReduced += effectiveChange

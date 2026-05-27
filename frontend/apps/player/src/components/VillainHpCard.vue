@@ -21,7 +21,7 @@ function barColor(current, max) {
 <template>
   <div class="card">
     <div class="villain-hp-card__header">
-      <div class="card-title">HP del Villano</div>
+      <div class="card-title">Puntos de vida del Villano</div>
       <div v-if="name" class="text-muted villain-hp-card__name">
         {{ name }}
       </div>

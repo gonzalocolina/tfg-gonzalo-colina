@@ -217,71 +217,118 @@ onMounted(load)
         <StatisticsTrendChart v-else :series="progressionSeries" />
       </div>
 
-      <div class="stats-two-columns">
-        <div class="card">
-          <h2 class="mb-2">Líderes destacados</h2>
-          <div class="leader-grid">
-            <div class="leader-card">
-              <div class="leader-card__label">Más daño al villano</div>
-              <div class="leader-card__value">{{ formatGroupHighlight(highlights.topDamageGroup, `${highlights.topDamageGroup?.damageToVillain || 0} daño`) }}</div>
+      <div class="card">
+        <h2 class="mb-2">Protagonistas de la partida</h2>
+
+        <div class="mvp-row">
+          <div class="mvp-tile mvp-tile--damage" :class="{ 'mvp-tile--empty': !highlights.topDamageGroup }">
+            <div class="mvp-tile__category">Mayor daño al villano</div>
+            <div class="mvp-tile__name">{{ highlights.topDamageGroup?.identifier || '—' }}</div>
+            <div class="mvp-tile__stat" v-if="highlights.topDamageGroup">
+              <span class="mvp-tile__big-num">{{ highlights.topDamageGroup.damageToVillain }}</span>
+              <span class="mvp-tile__unit">daño infligido</span>
             </div>
-            <div class="leader-card">
-              <div class="leader-card__label">Más amenaza añadida</div>
-              <div class="leader-card__value">{{ formatGroupHighlight(highlights.topThreatAddedGroup, `${highlights.topThreatAddedGroup?.threatAdded || 0} amenaza`) }}</div>
+            <div class="mvp-tile__empty-msg" v-else>Sin datos todavía</div>
+          </div>
+
+          <div class="mvp-tile mvp-tile--active" :class="{ 'mvp-tile--empty': !highlights.mostActiveGroup }">
+            <div class="mvp-tile__category">Mesa más activa</div>
+            <div class="mvp-tile__name">{{ highlights.mostActiveGroup?.identifier || '—' }}</div>
+            <div class="mvp-tile__stat" v-if="highlights.mostActiveGroup">
+              <span class="mvp-tile__big-num">{{ highlights.mostActiveGroup.activityCount }}</span>
+              <span class="mvp-tile__unit">acciones</span>
             </div>
-            <div class="leader-card">
-              <div class="leader-card__label">Más amenaza retirada</div>
-              <div class="leader-card__value">{{ formatGroupHighlight(highlights.topThreatRemovedGroup, `${highlights.topThreatRemovedGroup?.threatRemoved || 0} retirada`) }}</div>
+            <div class="mvp-tile__empty-msg" v-else>Sin datos todavía</div>
+          </div>
+
+          <div class="mvp-tile mvp-tile--finish" :class="{ 'mvp-tile--empty': !highlights.finalBlowGroup }">
+            <div class="mvp-tile__category">Golpe final</div>
+            <div class="mvp-tile__name">{{ highlights.finalBlowGroup?.identifier || 'Sin golpe final' }}</div>
+            <div class="mvp-tile__stat" v-if="highlights.finalBlowGroup">
+              <span class="mvp-tile__unit">Último golpe al villano registrado</span>
             </div>
-            <div class="leader-card">
-              <div class="leader-card__label">Mesa más activa</div>
-              <div class="leader-card__value">{{ formatGroupHighlight(highlights.mostActiveGroup, `${highlights.mostActiveGroup?.activityCount || 0} acciones`) }}</div>
-            </div>
-            <div class="leader-card">
-              <div class="leader-card__label">Primera contribución</div>
-              <div class="leader-card__value">{{ highlights.firstContributionGroup?.identifier || 'Sin datos todavía' }}</div>
-            </div>
-            <div class="leader-card">
-              <div class="leader-card__label">Golpe final</div>
-              <div class="leader-card__value">{{ highlights.finalBlowGroup?.identifier || 'Sin golpe final registrado' }}</div>
-            </div>
+            <div class="mvp-tile__empty-msg" v-else>No registrado</div>
           </div>
         </div>
 
-        <div class="card">
-          <h2 class="mb-2">Operativa e inter-pod</h2>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <div class="label">Temporizador iniciado</div>
-              <div class="value">{{ operationalSummary.timerStarts || 0 }}</div>
+        <div class="secondary-row">
+          <div class="secondary-item">
+            <div class="secondary-item__label">Mayor amenaza añadida</div>
+            <div class="secondary-item__value">
+              <span v-if="highlights.topThreatAddedGroup">
+                {{ highlights.topThreatAddedGroup.identifier }}
+                <span class="secondary-item__stat">· {{ highlights.topThreatAddedGroup.threatAdded }}</span>
+              </span>
+              <span v-else class="text-muted">Sin datos</span>
             </div>
-            <div class="summary-item">
-              <div class="label">Pausas</div>
-              <div class="value">{{ operationalSummary.timerPauses || 0 }}</div>
+          </div>
+          <div class="secondary-item">
+            <div class="secondary-item__label">Mayor amenaza retirada</div>
+            <div class="secondary-item__value">
+              <span v-if="highlights.topThreatRemovedGroup">
+                {{ highlights.topThreatRemovedGroup.identifier }}
+                <span class="secondary-item__stat">· {{ highlights.topThreatRemovedGroup.threatRemoved }}</span>
+              </span>
+              <span v-else class="text-muted">Sin datos</span>
             </div>
-            <div class="summary-item">
-              <div class="label">Reanudaciones</div>
-              <div class="value">{{ operationalSummary.timerResumes || 0 }}</div>
+          </div>
+          <div class="secondary-item">
+            <div class="secondary-item__label">Primera contribución</div>
+            <div class="secondary-item__value">
+              <span v-if="highlights.firstContributionGroup">{{ highlights.firstContributionGroup.identifier }}</span>
+              <span v-else class="text-muted">Sin datos</span>
             </div>
-            <div class="summary-item">
-              <div class="label">Ajustes de timer</div>
-              <div class="value">{{ operationalSummary.timerAdjustments || 0 }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="mb-2">Operativa de la partida</h2>
+
+        <div class="ops-panel">
+          <div class="ops-panel__section">
+            <div class="ops-panel__section-title">General</div>
+            <div class="ops-kpi-grid">
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ operationalSummary.delegatedActions || 0 }}</div>
+                <div class="ops-kpi__lbl">Acciones delegadas</div>
+              </div>
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ operationalSummary.manualCorrections || 0 }}</div>
+                <div class="ops-kpi__lbl">Correcciones manuales</div>
+              </div>
+              <div class="ops-kpi" :class="{ 'ops-kpi--nonzero': operationalSummary.timerNetAdjustmentSeconds !== 0 }">
+                <div class="ops-kpi__val">{{ formatSignedSeconds(operationalSummary.timerNetAdjustmentSeconds || 0) }}</div>
+                <div class="ops-kpi__lbl">Ajuste neto del timer</div>
+              </div>
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ operationalSummary.timerPauses || 0 }}</div>
+                <div class="ops-kpi__lbl">Pausas de partida</div>
+              </div>
             </div>
-            <div class="summary-item">
-              <div class="label">Cartas inter-pod creadas</div>
-              <div class="value">{{ interPodSummary.created || 0 }}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Daño inter-pod</div>
-              <div class="value">{{ interPodSummary.damageTotal || 0 }}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Amenaza inter-pod retirada</div>
-              <div class="value">{{ interPodSummary.threatReducedTotal || 0 }}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Estados/elim. inter-pod</div>
-              <div class="value">{{ (interPodSummary.statusUpdates || 0) + (interPodSummary.deleted || 0) }}</div>
+          </div>
+
+          <div class="ops-panel__divider" aria-hidden="true"></div>
+
+          <div class="ops-panel__section">
+            <div class="ops-panel__section-title">Inter-pod</div>
+            <div class="ops-kpi-grid">
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ interPodSummary.created || 0 }}</div>
+                <div class="ops-kpi__lbl">Cartas creadas</div>
+              </div>
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ interPodSummary.damageTotal || 0 }}</div>
+                <div class="ops-kpi__lbl">Daño aplicado</div>
+              </div>
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ interPodSummary.threatReducedTotal || 0 }}</div>
+                <div class="ops-kpi__lbl">Amenaza reducida</div>
+              </div>
+              <div class="ops-kpi">
+                <div class="ops-kpi__val">{{ interPodSummary.defeated || 0 }}</div>
+                <div class="ops-kpi__lbl">Cartas derrotadas</div>
+              </div>
             </div>
           </div>
         </div>
@@ -386,12 +433,6 @@ onMounted(load)
   font-size: 0.92rem;
 }
 
-.stats-two-columns {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 16px;
-}
-
 .chart-card-header {
   align-items: flex-start;
 }
@@ -401,31 +442,154 @@ onMounted(load)
   font-size: 0.86rem;
 }
 
-.leader-grid {
+/* MVP podium */
+.mvp-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+  margin-bottom: 16px;
 }
 
-.leader-card {
-  border: 1px solid var(--c-border);
+.mvp-tile {
   border-radius: var(--radius);
+  padding: 18px 16px;
   background: var(--c-surface-alt);
-  padding: 14px;
+  border-top: 3px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.leader-card__label {
-  font-size: 0.78rem;
+.mvp-tile--damage  { border-top-color: #d97706; }
+.mvp-tile--active  { border-top-color: #2563eb; }
+.mvp-tile--finish  { border-top-color: #dc2626; }
+
+.mvp-tile--empty { opacity: 0.55; }
+
+.mvp-tile__category {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--c-text-muted);
+}
+
+.mvp-tile__name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.mvp-tile__stat {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.mvp-tile__big-num {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mvp-tile__unit {
+  font-size: 0.8rem;
+  color: var(--c-text-muted);
+}
+
+.mvp-tile__empty-msg {
+  font-size: 0.82rem;
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+
+/* Secondary awards row */
+.secondary-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--c-border);
+  padding-top: 14px;
+}
+
+.secondary-item {
+  padding: 6px 14px;
+  border-right: 1px solid var(--c-border);
+}
+
+.secondary-item:first-child { padding-left: 0; }
+.secondary-item:last-child  { border-right: none; }
+
+.secondary-item__label {
+  font-size: 0.7rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  color: var(--c-text-muted);
+  margin-bottom: 4px;
 }
 
-.leader-card__value {
-  font-size: 0.98rem;
+.secondary-item__value {
+  font-size: 0.88rem;
   font-weight: 600;
 }
+
+.secondary-item__stat {
+  font-weight: 400;
+  color: var(--c-text-muted);
+}
+
+/* Ops panel */
+.ops-panel {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.ops-panel__divider {
+  width: 1px;
+  background: var(--c-border);
+  align-self: stretch;
+  margin-top: 30px;
+}
+
+.ops-panel__section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-muted);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.ops-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 20px;
+}
+
+.ops-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-kpi__val {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ops-kpi__lbl {
+  font-size: 0.76rem;
+  color: var(--c-text-muted);
+}
+
+.ops-kpi--nonzero .ops-kpi__val { color: #d97706; }
 
 .table-subvalue {
   margin-top: 4px;
@@ -472,7 +636,6 @@ onMounted(load)
 
 @media (max-width: 900px) {
   .stats-page-header,
-  .stats-two-columns,
   .timeline-entry {
     grid-template-columns: 1fr;
     display: grid;
@@ -489,6 +652,32 @@ onMounted(load)
 
   .stats-page-header__actions {
     justify-content: flex-start;
+  }
+
+  .mvp-row {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-item {
+    padding: 8px 0;
+    border-right: none;
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .secondary-item:last-child { border-bottom: none; }
+
+  .ops-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-panel__divider {
+    width: 100%;
+    height: 1px;
+    margin-top: 0;
   }
 }
 </style>

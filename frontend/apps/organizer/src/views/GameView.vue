@@ -541,7 +541,7 @@ onUnmounted(() => {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px" class="mt-2">
         <!-- Villain HP -->
         <div class="card">
-          <h3 class="mb-1">HP del Villano</h3>
+          <h3 class="mb-1">Puntos de vida del Villano</h3>
           <VillainHpBar :current="gs.villainHpCurrent" :max="gs.villainHpMax" />
           <div class="text-center mt-1 text-muted" style="font-size: 0.85rem">
             Daño total reportado: {{ gs.totalReportedVillainDamage }}
