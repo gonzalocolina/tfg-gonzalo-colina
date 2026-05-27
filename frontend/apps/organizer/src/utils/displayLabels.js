@@ -86,6 +86,7 @@ const LOG_ACTION_LABELS = Object.freeze({
   INTER_POD_CARD_CREATED: 'Carta inter-nodo creada',
   INTER_POD_CARD_DAMAGED: 'Daño en carta inter-nodo',
   INTER_POD_CARD_THREAT_REDUCED: 'Amenaza reducida en carta inter-nodo',
+  INTER_POD_CARD_THREAT_UPDATED: 'Amenaza actualizada en carta inter-nodo',
   INTER_POD_CARD_STATUS_UPDATED: 'Estado de carta inter-nodo actualizado',
   INTER_POD_CARD_DELETED: 'Carta inter-nodo eliminada',
   EVENT_FINISHED: 'Partida finalizada',

@@ -16,6 +16,7 @@ const {
   updateEvent,
   syncImageUrls,
   protectedImagesById,
+  routerPush,
 } = vi.hoisted(() => ({
   getInterPodCardDefinitions: vi.fn(),
   createInterPodCardDefinition: vi.fn(),
@@ -25,6 +26,7 @@ const {
   updateEvent: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
+  routerPush: vi.fn(),
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
@@ -51,6 +53,7 @@ vi.mock('@/composables/useProtectedImageUrls', () => ({
 
 vi.mock('vue-router', () => ({
   useRoute: () => routeState,
+  useRouter: () => ({ push: routerPush }),
 }))
 
 const originalCreateObjectURL = URL.createObjectURL
@@ -131,6 +134,7 @@ describe('InterPodCardsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(wrapper.text()).toContain('Volver al home')
     expect(syncImageUrls).toHaveBeenCalledWith(
       [{ id: 10, url: '/api/inter-pod-card-definitions/10/image' }],
       { force: false },

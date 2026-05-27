@@ -31,6 +31,7 @@ function createTestRouter() {
       { path: '/', redirect: '/my-events' },
       { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
       { path: '/my-events', name: 'my-events', component: { template: '<div>My Events</div>' } },
+      { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
       { path: '/create-event', name: 'create-event', component: { template: '<div>Create</div>' } },
       { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
       {
@@ -80,6 +81,8 @@ describe('CreateEventView', () => {
     const wrapper = mountView()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
+    expect(wrapper.find('[data-test="organizer-header-actions"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="organizer-home-link"]').exists()).toBe(true)
     expect(wrapper.find('h1').text()).toBe('Crear Evento')
     expect(wrapper.find('#name').exists()).toBe(true)
     expect(wrapper.find('#players').exists()).toBe(false)
@@ -139,10 +142,10 @@ describe('CreateEventView', () => {
     expect(wrapper.find('.form-error').text()).toBe('Error al crear evento.')
   })
 
-  it('shows link to my events page', () => {
+  it('shows the shared home shortcut in the header actions', () => {
     const wrapper = mountView()
-    const link = wrapper.find('a[href="/my-events"]')
+    const link = wrapper.find('[data-test="organizer-home-link"]')
     expect(link.exists()).toBe(true)
-    expect(link.text()).toContain('Volver a mis eventos')
+    expect(link.text()).toContain('Volver al home')
   })
 })

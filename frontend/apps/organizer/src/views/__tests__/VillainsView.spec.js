@@ -14,6 +14,7 @@ const {
   deleteVillain,
   getEvent,
   updateEvent,
+  routerPush,
 } = vi.hoisted(() => ({
   getVillains: vi.fn(),
   createVillain: vi.fn(),
@@ -21,6 +22,7 @@ const {
   deleteVillain: vi.fn(),
   getEvent: vi.fn(),
   updateEvent: vi.fn(),
+  routerPush: vi.fn(),
 }))
 
 vi.mock('@/api/villains', () => ({
@@ -37,6 +39,7 @@ vi.mock('@/api/events', () => ({
 
 vi.mock('vue-router', () => ({
   useRoute: () => routeState,
+  useRouter: () => ({ push: routerPush }),
 }))
 
 function buildVillain(overrides = {}) {
@@ -118,6 +121,7 @@ describe('VillainsView', () => {
     await flushPromises()
 
     expect(getEvent).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Volver al home')
     expect(wrapper.text()).toContain('Gestión de Villanos')
     expect(wrapper.text()).not.toContain('Selección para el evento')
   })

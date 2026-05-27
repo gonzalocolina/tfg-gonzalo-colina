@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import OrganizerPageHeader from '@/components/OrganizerPageHeader.vue'
 import { createEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
 import { getInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
@@ -104,9 +105,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-centered">
-    <div class="form-card" style="max-width: 480px">
-      <h1>Crear Evento</h1>
+  <div style="margin: 24px 32px">
+    <OrganizerPageHeader>
+      <h1 class="page-title create-event-title">Crear Evento</h1>
+    </OrganizerPageHeader>    
+  </div>
+
+  <div class="create-event-page">
+    <div class="form-card create-event-form-card">
       <form @submit.prevent="handleCreate">
         <div class="form-group">
           <label for="name">Nombre del evento</label>
@@ -184,10 +190,24 @@ onMounted(async () => {
             {{ loading ? 'Creando…' : 'Crear evento' }}
           </button>
         </div>
-        <p class="mt-2 text-center text-muted" style="font-size: 0.85rem">
-          <router-link to="/my-events">← Volver a mis eventos</router-link>
-        </p>
       </form>
     </div>
   </div>
 </template>
+
+<style scoped>
+.create-event-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.create-event-title {
+  margin-bottom: 0;
+}
+
+.create-event-form-card {
+  max-width: 480px;
+  margin: 0 auto;
+}
+</style>

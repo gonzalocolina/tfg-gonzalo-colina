@@ -5,25 +5,69 @@ import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatLogActionType } from '@/utils/displayLabels'
 
+const DEFAULT_NOTIFICATION_LABEL = 'Se ha producido una actualización de la partida.'
+const REALTIME_NOTIFICATION_TIMEOUT = 8000
+const FINAL_RESULT_NOTIFICATION_TIMEOUT = 12000
+
+function normalizeNotificationCode(notification) {
+  return typeof notification === 'string' ? notification.trim() : ''
+}
+
 function resolveNotificationType(notification) {
-  if (notification.includes('VICTORY')) return 'success'
-  if (notification.includes('DEFEAT')) return 'error'
+  const code = normalizeNotificationCode(notification)
+  if (!code) return 'info'
+  if (code.startsWith('INTER_POD_CARD_')) return 'info'
+  if (code.includes('VICTORY')) return 'success'
+  if (code.includes('DEFEAT')) return 'error'
   return 'warning'
 }
 
 function resolveNotificationLabel(notification, labels) {
-  return labels[notification] || formatLogActionType(notification)
+  const code = normalizeNotificationCode(notification)
+  if (!code) {
+    return DEFAULT_NOTIFICATION_LABEL
+  }
+
+  if (labels[code]) {
+    return labels[code]
+  }
+
+  const formattedLabel = formatLogActionType(code)
+  if (formattedLabel && formattedLabel !== '-' && formattedLabel !== code) {
+    return formattedLabel
+  }
+
+  return DEFAULT_NOTIFICATION_LABEL
 }
 
-function addToastNotifications(notifications, notifStore, labels) {
-  for (const notification of notifications || []) {
-    if (notification.startsWith('EVENT_FINISHED_')) {
+function isFinalResultNotification(notification) {
+  return normalizeNotificationCode(notification).startsWith('EVENT_FINISHED_')
+}
+
+function resolveNotificationTimeout(notification) {
+  return isFinalResultNotification(notification)
+    ? FINAL_RESULT_NOTIFICATION_TIMEOUT
+    : REALTIME_NOTIFICATION_TIMEOUT
+}
+
+function addToastNotifications(notifications, notifStore, labels, payload = null) {
+  const targetPodId = payload?.targetPodId ?? null
+
+  for (const rawNotification of notifications || []) {
+    const notification = normalizeNotificationCode(rawNotification)
+    if (!notification || isFinalResultNotification(notification)) {
       continue
     }
 
-    const label = resolveNotificationLabel(notification, labels)
-    const type = resolveNotificationType(notification)
-    notifStore.add(label, type, 8000)
+    if (notifStore.consumeSuppressedRealtimeNotification(notification, { targetPodId })) {
+      continue
+    }
+
+    notifStore.add(
+      resolveNotificationLabel(notification, labels),
+      resolveNotificationType(notification),
+      resolveNotificationTimeout(notification),
+    )
   }
 }
 
@@ -41,6 +85,7 @@ export function useWebSocket(eventId) {
     INTER_POD_CARD_CREATED: 'Ha aparecido una carta inter-nodo.',
     INTER_POD_CARD_DAMAGED: 'Se ha aplicado daño a una carta inter-nodo.',
     INTER_POD_CARD_THREAT_UPDATED: 'Se ha actualizado la amenaza de una carta inter-nodo.',
+    INTER_POD_CARD_THREAT_REDUCED: 'Se ha actualizado la amenaza de una carta inter-nodo.',
     INTER_POD_CARD_STATUS_UPDATED: 'Se ha actualizado el estado de una carta inter-nodo.',
     INTER_POD_CARD_DELETED: 'Se ha eliminado una carta inter-nodo.',
     TIMER_30_MINUTES: 'Quedan 30 minutos',
@@ -79,7 +124,7 @@ export function useWebSocket(eventId) {
         client.subscribe(`/topic/events/${eventId}/notifications`, (msg) => {
           const payload = JSON.parse(msg.body)
           if (payload.notifications?.length) {
-            addToastNotifications(payload.notifications, notifStore, NOTIFICATION_LABELS)
+            addToastNotifications(payload.notifications, notifStore, NOTIFICATION_LABELS, payload)
           } else if (payload.message) {
             notifStore.info(payload.message)
           }
@@ -91,10 +136,21 @@ export function useWebSocket(eventId) {
           const notificationCode = payload.snapshot?.eventResult
             ? `EVENT_FINISHED_${payload.snapshot.eventResult}`
             : null
-          const label = notificationCode
-            ? resolveNotificationLabel(notificationCode, NOTIFICATION_LABELS)
-            : null
-          if (label) notifStore.add(label, 'warning', 0)
+
+          if (
+            notificationCode
+            && notifStore.consumeSuppressedRealtimeNotification(notificationCode, { targetPodId: payload?.targetPodId ?? null })
+          ) {
+            return
+          }
+
+          if (notificationCode) {
+            notifStore.add(
+              resolveNotificationLabel(notificationCode, NOTIFICATION_LABELS),
+              resolveNotificationType(notificationCode),
+              resolveNotificationTimeout(notificationCode),
+            )
+          }
         })
       },
       onDisconnect: () => {

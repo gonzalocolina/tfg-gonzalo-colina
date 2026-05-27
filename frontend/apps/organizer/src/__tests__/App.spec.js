@@ -12,6 +12,8 @@ const appRoutes = [
   { path: '/create-event', name: 'create-event', component: { template: '<div>Create event</div>' } },
   { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
   { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
+  { path: '/inter-pod-cards', name: 'inter-pod-cards', component: { template: '<div>Inter-pod cards</div>' } },
+  { path: '/event/:eventId', name: 'dashboard', component: { template: '<div>Dashboard</div>' } },
 ]
 
 async function mountApp(initialPath, { authenticated = true } = {}) {
@@ -51,6 +53,16 @@ describe('App layout', () => {
     sessionStorage.clear()
   })
 
+  it('hides the sidebar on the my-events route', async () => {
+    const wrapper = await mountApp('/my-events')
+
+    expect(wrapper.find('[data-test="app-sidebar"]').exists()).toBe(false)
+    expect(wrapper.find('main').classes()).not.toContain('app-main')
+    expect(wrapper.text()).toContain('My events')
+
+    wrapper.unmount()
+  })
+
   it('hides the sidebar on the invitations route', async () => {
     const wrapper = await mountApp('/invitations')
 
@@ -61,12 +73,23 @@ describe('App layout', () => {
     wrapper.unmount()
   })
 
-  it('keeps the sidebar on authenticated organizer routes outside invitations', async () => {
+  it('keeps the global villains route outside the sidebar layout', async () => {
     const wrapper = await mountApp('/villains')
 
-    expect(wrapper.find('[data-test="app-sidebar"]').exists()).toBe(true)
-    expect(wrapper.find('main').classes()).toContain('app-main')
+    expect(wrapper.find('[data-test="app-sidebar"]').exists()).toBe(false)
+    expect(wrapper.find('main').classes()).not.toContain('app-main')
     expect(wrapper.text()).toContain('Villains')
+
+    wrapper.unmount()
+  })
+
+  it('keeps the sidebar on event-scoped organizer routes', async () => {
+    const wrapper = await mountApp('/event/42')
+
+    expect(wrapper.find('[data-test="app-sidebar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="organizer-header-actions"]').exists()).toBe(false)
+    expect(wrapper.find('main').classes()).toContain('app-main')
+    expect(wrapper.text()).toContain('Dashboard')
 
     wrapper.unmount()
   })

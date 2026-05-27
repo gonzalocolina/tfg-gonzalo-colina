@@ -36,8 +36,12 @@ function createTestRouter() {
     history: createWebHistory(),
     routes: [
       { path: '/', redirect: '/invitations' },
+      { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
       { path: '/my-events', name: 'my-events', component: { template: '<div>My Events</div>' } },
       { path: '/invitations', name: 'invitations', component: { template: '<div>Invitations</div>' } },
+      { path: '/create-event', name: 'create-event', component: { template: '<div>Create</div>' } },
+      { path: '/villains', name: 'villains', component: { template: '<div>Villains</div>' } },
+      { path: '/inter-pod-cards', name: 'inter-pod-cards', component: { template: '<div>InterPod</div>' } },
       { path: '/event/:eventId', name: 'dashboard', component: { template: '<div>Dashboard</div>' } },
     ],
   })
@@ -83,6 +87,8 @@ describe('MyInvitationsView', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
 
     expect(getMyCoOrganizerInvitations).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="organizer-header-actions"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="organizer-home-link"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Evento Compartido')
     expect(wrapper.text()).toContain('owner-user')
     expect(wrapper.text()).toContain('Amenaza, Temporizador')
@@ -112,8 +118,9 @@ describe('MyInvitationsView', () => {
     rejectCoOrganizerInvitation.mockResolvedValue({})
 
     await new Promise((resolve) => setTimeout(resolve, 10))
-    const buttons = wrapper.findAll('button')
-    await buttons[1].trigger('click')
+    const rejectButton = wrapper.findAll('button').find((button) => button.text() === 'Rechazar')
+    expect(rejectButton).toBeDefined()
+    await rejectButton.trigger('click')
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(confirmDialog).toHaveBeenCalledWith(

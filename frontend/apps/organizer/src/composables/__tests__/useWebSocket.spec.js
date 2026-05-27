@@ -113,11 +113,32 @@ describe('useWebSocket', () => {
     publish('/topic/events/42/notifications', payload)
     expect(notifStore.items).toHaveLength(1)
     expect(notifStore.items[0].message).toBe('Ha aparecido una carta inter-nodo.')
+    expect(notifStore.items[0].type).toBe('info')
 
     wrapper.unmount()
   })
 
-  it('reserves final result notifications for the dedicated game-finished channel', () => {
+  it('skips locally suppressed realtime inter-pod notifications', () => {
+    const wrapper = mountHarness()
+    const notifStore = useNotificationsStore()
+
+    clientState.config.onConnect()
+    notifStore.suppressRealtimeNotification('INTER_POD_CARD_CREATED', { targetPodId: 7 })
+
+    publish('/topic/events/42/notifications', {
+      notifications: ['INTER_POD_CARD_CREATED'],
+      targetPodId: 7,
+      emittedAt: '2026-05-21T12:01:00Z',
+    })
+
+    expect(notifStore.items).toHaveLength(0)
+
+    wrapper.unmount()
+  })
+
+  it('reserves final result notifications for the dedicated game-finished channel and lets them expire', () => {
+    vi.useFakeTimers()
+
     const wrapper = mountHarness()
     const notifStore = useNotificationsStore()
 
@@ -151,7 +172,15 @@ describe('useWebSocket', () => {
 
     expect(notifStore.items).toHaveLength(1)
     expect(notifStore.items[0].message).toBe('Derrota - La amenaza ha alcanzado el límite')
+    expect(notifStore.items[0].type).toBe('error')
+
+    vi.advanceTimersByTime(11999)
+    expect(notifStore.items).toHaveLength(1)
+
+    vi.advanceTimersByTime(1)
+    expect(notifStore.items).toHaveLength(0)
 
     wrapper.unmount()
+    vi.useRealTimers()
   })
 })

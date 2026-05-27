@@ -139,6 +139,10 @@ function cardActionLabel(card) {
   return isMinionCard(card) ? 'Registrar daño' : 'Quitar amenaza'
 }
 
+function suppressOwnRealtimeNotification(code, targetPodId) {
+  notif.suppressRealtimeNotification(code, { targetPodId })
+}
+
 async function loadSelectedDefinitions() {
   loadingDefinitions.value = true
   try {
@@ -178,6 +182,7 @@ async function handleCreate() {
         interPodCardDefinitionId: interPodCardDefinitionId.value,
       },
     )
+    suppressOwnRealtimeNotification('INTER_POD_CARD_CREATED', props.podId)
     notif.success('Carta inter-nodo registrada')
     if (!props.realtimeConnected) {
       emit('refresh-requested')
@@ -224,6 +229,10 @@ async function handleCardProgress(card) {
         threat: amount,
       })
     }
+    suppressOwnRealtimeNotification(
+      isMinionCard(card) ? 'INTER_POD_CARD_DAMAGED' : 'INTER_POD_CARD_THREAT_UPDATED',
+      card.podId ?? props.podId,
+    )
     notif.success(isMinionCard(card) ? 'Daño reportado' : 'Amenaza retirada')
     amountByCard.value[card.id] = ''
     if (!props.realtimeConnected) {

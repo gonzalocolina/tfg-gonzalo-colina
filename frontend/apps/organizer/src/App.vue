@@ -9,9 +9,10 @@ import NotificationToast from '@/components/NotificationToast.vue'
 const route = useRoute()
 const auth = useAuthStore()
 
+const sidebarlessRoutes = new Set(['my-events', 'invitations', 'villains', 'inter-pod-cards', 'login', 'register', 'create-event'])
+
 const showSidebar = computed(() => {
-  const noSidebar = ['login', 'register', 'my-events', 'create-event', 'invitations']
-  return auth.isAuthenticated && !noSidebar.includes(route.name)
+  return auth.isAuthenticated && !sidebarlessRoutes.has(route.name)
 })
 </script>
 

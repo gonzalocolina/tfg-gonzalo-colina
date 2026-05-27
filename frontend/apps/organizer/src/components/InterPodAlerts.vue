@@ -108,6 +108,10 @@ function successMessage(card) {
     : 'Amenaza retirada del plan inter-nodo'
 }
 
+function suppressOwnRealtimeNotification(code, targetPodId) {
+  notif.suppressRealtimeNotification(code, { targetPodId })
+}
+
 async function handleApplyProgress(card) {
   const amount = Number(amountByCard.value[card.id] || 0)
   if (amount < 1) {
@@ -130,6 +134,10 @@ async function handleApplyProgress(card) {
         { threat: amount },
       )
     }
+    suppressOwnRealtimeNotification(
+      isMinionCard(card) ? 'INTER_POD_CARD_DAMAGED' : 'INTER_POD_CARD_THREAT_UPDATED',
+      card.podId,
+    )
     notif.success(successMessage(card))
     amountByCard.value[card.id] = ''
     await load()
@@ -154,6 +162,7 @@ async function handleUpdateStatus(card) {
       card.id,
       { status },
     )
+    suppressOwnRealtimeNotification('INTER_POD_CARD_STATUS_UPDATED', card.podId)
     notif.success('Estado de carta actualizado')
     await load()
   } catch (err) {
@@ -176,6 +185,7 @@ async function handleDeleteCard(card) {
   mutatingCardId.value = card.id
   try {
     await deleteInterPodCard(props.eventId, card.id)
+    suppressOwnRealtimeNotification('INTER_POD_CARD_DELETED', card.podId)
     notif.success('Carta inter-nodo eliminada')
     await load()
   } catch (err) {

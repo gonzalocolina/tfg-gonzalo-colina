@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import OrganizerPageHeader from '@/components/OrganizerPageHeader.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import { getEvent, updateEvent } from '@/api/events'
 import { getVillains, createVillain, updateVillain, deleteVillain } from '@/api/villains'
@@ -235,8 +236,12 @@ watch(eventId, () => {
 </script>
 
 <template>
-  <div>
-    <div class="flex" style="align-items: center; justify-content: space-between; margin-bottom: 16px">
+  <div :class="{ 'catalog-page': !isEventScoped }">
+    <OrganizerPageHeader v-if="!isEventScoped">
+      <h1 class="page-title" style="margin-bottom: 0">{{ pageTitle }}</h1>
+    </OrganizerPageHeader>
+
+    <div v-else class="flex" style="align-items: center; justify-content: space-between; margin-bottom: 16px">
       <h1 class="page-title" style="margin-bottom: 0">{{ pageTitle }}</h1>
       <router-link class="btn btn-secondary" :to="backRoute">{{ backLabel }}</router-link>
     </div>
@@ -493,3 +498,11 @@ watch(eventId, () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.catalog-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+</style>

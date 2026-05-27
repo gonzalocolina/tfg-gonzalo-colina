@@ -66,10 +66,12 @@ describe('MyEventsView', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
 
     expect(getMyEvents).toHaveBeenCalled()
+    expect(wrapper.find('[data-test="organizer-header-actions"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="organizer-home-link"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Mis Eventos')
     expect(wrapper.text()).toContain('Evento Compartido')
     expect(wrapper.text()).toContain('Co-organizador')
     expect(wrapper.text()).toContain('Amenaza, Temporizador')
-    expect(wrapper.find('a[href="/invitations"]').exists()).toBe(true)
   })
 
   it('navigates to the dashboard when clicking an event card', async () => {

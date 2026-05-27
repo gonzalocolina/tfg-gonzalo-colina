@@ -1,19 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import OrganizerPageHeader from '@/components/OrganizerPageHeader.vue'
 import { getMyEvents } from '@/api/events'
 import { useNotificationsStore } from '@/stores/notifications'
-import { useAuthStore } from '@/stores/auth'
 import { eventStatusBadgeClass, formatEventStatus, formatResponsibilities } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
-const auth = useAuthStore()
-
-function logout() {
-  auth.logout()
-  router.push({ name: 'login' })
-}
 
 const events = ref([])
 const loading = ref(true)
@@ -47,16 +41,9 @@ onMounted(load)
 
 <template>
   <div class="my-events-page">
-    <div class="my-events-header">
-      <h1 style="min-width: 200px;">Mis Eventos</h1>
-      <div class="header-actions">
-        <router-link to="/invitations" class="btn btn-secondary">Mis invitaciones</router-link>
-        <router-link to="/villains" class="btn btn-secondary">Gestionar villanos</router-link>
-        <router-link to="/inter-pod-cards" class="btn btn-secondary">Gestionar cartas inter-nodo</router-link>
-        <router-link to="/create-event" class="btn btn-primary">+ Crear nuevo evento</router-link>
-        <button class="btn btn-logout" @click="logout">Cerrar sesión</button>
-      </div>
-    </div>
+    <OrganizerPageHeader :show-home-button="false">
+      <h1 class="page-title my-events-title">Mis Eventos</h1>
+    </OrganizerPageHeader>
 
     <div v-if="loading" class="loading-text">Cargando eventos…</div>
 
@@ -117,24 +104,12 @@ onMounted(load)
 
 <style scoped>
 .my-events-page {
-  min-width: 900px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 32px 24px;
 }
 
-.my-events-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.my-events-header h1 {
+.my-events-title {
   margin: 0;
 }
 

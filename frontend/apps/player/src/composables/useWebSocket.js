@@ -4,10 +4,20 @@ import SockJS from 'sockjs-client'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
 
+const DEFAULT_NOTIFICATION_LABEL = 'Se ha producido una actualización de la partida.'
+const REALTIME_NOTIFICATION_TIMEOUT = 8000
+const FINAL_RESULT_NOTIFICATION_TIMEOUT = 12000
+
+function normalizeNotificationCode(notification) {
+  return typeof notification === 'string' ? notification.trim() : ''
+}
+
 export function resolveNotificationType(notification) {
-  if (notification?.startsWith('INTER_POD_CARD_')) return 'info'
-  if (notification.includes('VICTORY')) return 'success'
-  if (notification.includes('DEFEAT')) return 'error'
+  const code = normalizeNotificationCode(notification)
+  if (!code) return 'info'
+  if (code.startsWith('INTER_POD_CARD_')) return 'info'
+  if (code.includes('VICTORY')) return 'success'
+  if (code.includes('DEFEAT')) return 'error'
   return 'warning'
 }
 
@@ -23,6 +33,7 @@ export const NOTIFICATION_LABELS = {
   INTER_POD_CARD_CREATED: 'Se ha creado una carta inter-nodo en tu pod.',
   INTER_POD_CARD_DAMAGED: 'Una carta inter-nodo de tu pod ha recibido daño.',
   INTER_POD_CARD_THREAT_UPDATED: 'Se ha actualizado la amenaza de una carta inter-nodo de tu pod.',
+  INTER_POD_CARD_THREAT_REDUCED: 'Se ha actualizado la amenaza de una carta inter-nodo de tu pod.',
   INTER_POD_CARD_STATUS_UPDATED: 'Se ha actualizado el estado de una carta inter-nodo de tu pod.',
   INTER_POD_CARD_DELETED: 'Se ha eliminado una carta inter-nodo de tu pod.',
   EVENT_FINISHED_PLAYERS_VICTORY: '¡Victoria! ¡El villano ha sido derrotado!',
@@ -31,7 +42,22 @@ export const NOTIFICATION_LABELS = {
 }
 
 export function mapNotificationLabel(notification) {
-  return NOTIFICATION_LABELS[notification] || notification
+  const code = normalizeNotificationCode(notification)
+  if (!code) {
+    return DEFAULT_NOTIFICATION_LABEL
+  }
+
+  return NOTIFICATION_LABELS[code] || DEFAULT_NOTIFICATION_LABEL
+}
+
+export function isFinalResultNotification(notification) {
+  return normalizeNotificationCode(notification).startsWith('EVENT_FINISHED_')
+}
+
+export function resolveNotificationTimeout(notification) {
+  return isFinalResultNotification(notification)
+    ? FINAL_RESULT_NOTIFICATION_TIMEOUT
+    : REALTIME_NOTIFICATION_TIMEOUT
 }
 
 function normalizePodId(podId) {
@@ -52,12 +78,23 @@ export function isRealtimeEventRelevantToPod(payload, podId) {
 function pushRealtimeNotifications(payload, notifStore) {
   if (!payload.notifications?.length) return
 
-  for (const notification of payload.notifications) {
-    if (notification.startsWith('EVENT_FINISHED_')) {
+  const targetPodId = payload?.targetPodId ?? null
+
+  for (const rawNotification of payload.notifications) {
+    const notification = normalizeNotificationCode(rawNotification)
+    if (!notification || isFinalResultNotification(notification)) {
       continue
     }
 
-    notifStore.add(mapNotificationLabel(notification), resolveNotificationType(notification), 8000)
+    if (notifStore.consumeSuppressedRealtimeNotification(notification, { targetPodId })) {
+      continue
+    }
+
+    notifStore.add(
+      mapNotificationLabel(notification),
+      resolveNotificationType(notification),
+      resolveNotificationTimeout(notification),
+    )
   }
 }
 
@@ -67,7 +104,7 @@ export function useWebSocket(eventId, options = {}) {
   const gameStore = useGameStateStore()
   const notifStore = useNotificationsStore()
   const podScopedRealtimeQueue = []
-  const podScopeEnabled = Object.prototype.hasOwnProperty.call(options, 'podId')
+  const podScopeEnabled = Object.hasOwn(options, 'podId')
   let client = null
 
   function rememberRealtimeEvent(payload) {
@@ -81,7 +118,7 @@ export function useWebSocket(eventId, options = {}) {
 
   function isPodScopeReady() {
     if (!podScopeEnabled) return true
-    if (!Object.prototype.hasOwnProperty.call(options, 'podScopeReady')) return true
+    if (!Object.hasOwn(options, 'podScopeReady')) return true
     return Boolean(unref(options.podScopeReady))
   }
 
@@ -148,7 +185,10 @@ export function useWebSocket(eventId, options = {}) {
 
         client.subscribe(`/topic/events/${eventId}/notifications`, (msg) => {
           const payload = JSON.parse(msg.body)
-          if (payload.message) {
+          if (
+            payload.message
+            && (payload?.targetPodId == null || isRealtimeEventRelevantToPod(payload, unref(options.podId)))
+          ) {
             notifStore.info(payload.message)
           }
         })
@@ -157,8 +197,20 @@ export function useWebSocket(eventId, options = {}) {
           const payload = JSON.parse(msg.body)
           gameStore.applySnapshot(payload.snapshot)
           const notificationKey = `EVENT_FINISHED_${payload.snapshot?.eventResult}`
+
+          if (
+            notificationKey
+            && notifStore.consumeSuppressedRealtimeNotification(notificationKey, { targetPodId: payload?.targetPodId ?? null })
+          ) {
+            return
+          }
+
           if (NOTIFICATION_LABELS[notificationKey]) {
-            notifStore.add(mapNotificationLabel(notificationKey), 'warning', 0)
+            notifStore.add(
+              mapNotificationLabel(notificationKey),
+              resolveNotificationType(notificationKey),
+              resolveNotificationTimeout(notificationKey),
+            )
           }
         })
       },

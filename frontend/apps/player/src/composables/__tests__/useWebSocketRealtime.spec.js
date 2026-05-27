@@ -43,6 +43,28 @@ const Harness = defineComponent({
   },
 })
 
+function buildSnapshot(overrides = {}) {
+  return {
+    eventId: 42,
+    eventStatus: 'IN_PROGRESS',
+    eventResult: null,
+    villainName: 'Loki',
+    villainType: 'TRICKSTER',
+    villainHpCurrent: 40,
+    villainHpMax: 60,
+    schemeThreatCurrent: 3,
+    schemeThreatTarget: 6,
+    timerRemainingSeconds: 7200,
+    timerStatus: 'RUNNING',
+    totalReportedVillainDamage: 20,
+    startedAt: null,
+    finishedAt: null,
+    updatedAt: '2026-05-21T18:00:00Z',
+    finalSummary: null,
+    ...overrides,
+  }
+}
+
 function mountHarness() {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -121,5 +143,61 @@ describe('player useWebSocket realtime filtering', () => {
     expect(notifStore.items[0].message).toBe('¡Amenaza al 50%!')
 
     wrapper.unmount()
+  })
+
+  it('skips locally suppressed pod-scoped realtime notifications', async () => {
+    const wrapper = mountHarness()
+    const notifStore = useNotificationsStore()
+
+    clientState.config.onConnect()
+    podId.value = 7
+    podScopeReady.value = true
+    await nextTick()
+
+    notifStore.suppressRealtimeNotification('INTER_POD_CARD_DAMAGED', { targetPodId: 7 })
+
+    publish('/topic/events/42/game-state', {
+      operation: 'INTER_POD_CARD_DAMAGED',
+      snapshot: buildSnapshot(),
+      notifications: ['INTER_POD_CARD_DAMAGED'],
+      targetPodId: 7,
+      emittedAt: '2026-05-21T18:06:00Z',
+    })
+
+    expect(notifStore.items).toHaveLength(0)
+
+    wrapper.unmount()
+  })
+
+  it('shows final results with resolved severity and finite timeout', () => {
+    vi.useFakeTimers()
+
+    const wrapper = mountHarness()
+    const notifStore = useNotificationsStore()
+
+    clientState.config.onConnect()
+
+    publish('/topic/events/42/game-finished', {
+      snapshot: buildSnapshot({
+        eventStatus: 'FINISHED',
+        eventResult: 'PLAYERS_VICTORY',
+        finishedAt: '2026-05-21T18:07:00Z',
+        finalSummary: {
+          result: 'PLAYERS_VICTORY',
+          cause: 'VILLAIN_HP_ZERO',
+        },
+      }),
+      emittedAt: '2026-05-21T18:07:00Z',
+    })
+
+    expect(notifStore.items).toHaveLength(1)
+    expect(notifStore.items[0].message).toBe('¡Victoria! ¡El villano ha sido derrotado!')
+    expect(notifStore.items[0].type).toBe('success')
+
+    vi.advanceTimersByTime(12000)
+    expect(notifStore.items).toHaveLength(0)
+
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 })

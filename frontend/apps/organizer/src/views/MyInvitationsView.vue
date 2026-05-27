@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import OrganizerPageHeader from '@/components/OrganizerPageHeader.vue'
 import {
   acceptCoOrganizerInvitation,
   getMyCoOrganizerInvitations,
@@ -78,17 +79,20 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="invitations-page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Mis invitaciones</h1>
-        <p class="text-muted">
-          Revisa las invitaciones pendientes para incorporarte como co-organizador a otros eventos.
-        </p>
-      </div>
-      <router-link :to="{ name: 'my-events' }" class="btn btn-secondary">Volver a mis eventos</router-link>
-    </div>
+  <div style="margin: 32px 24px">
+    <OrganizerPageHeader>
+        <div class="page-header-copy">
+          <h1 class="page-title">Mis invitaciones</h1>
+          
+        </div>
+      </OrganizerPageHeader>
+      <p class="text-muted">
+            Revisa las invitaciones pendientes para incorporarte como co-organizador a otros eventos.
+          </p>
+  </div>
 
+  <div class="invitations-page">
+    
     <div v-if="loading" class="card text-muted">Cargando invitaciones…</div>
 
     <div v-else-if="!invitations.length" class="card empty-state">
@@ -143,17 +147,11 @@ onMounted(load)
 
 <style scoped>
 .invitations-page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 32px 24px;
+  margin: 32px 32px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
+.page-header-copy .page-title {
+  margin-bottom: 8px;
 }
 
 .invitation-list {
