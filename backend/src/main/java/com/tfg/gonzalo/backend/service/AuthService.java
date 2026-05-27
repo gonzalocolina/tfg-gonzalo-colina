@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private static final String BEARER = "Bearer";
-    private static final String DEFAULT_PLAYER_NAME_PREFIX = "Jugador";
+    private static final String DEFAULT_PLAYER_NAME_PREFIX = "Mesa";
     private static final int MAX_GROUP_IDENTIFIER_LENGTH = 40;
     private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
 

@@ -267,7 +267,7 @@ onMounted(() => {
 
         <form class="create-pod-card__form" @submit.prevent="handleCreatePod">
           <div class="form-group" style="margin-bottom: 0">
-            <label for="newPodName">Nombre del nodo</label>
+            <label for="newPodName">Nombre del nodo(opcional)</label>
             <input
               id="newPodName"
               v-model="newPodName"

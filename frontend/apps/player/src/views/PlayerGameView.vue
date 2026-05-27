@@ -75,7 +75,7 @@ const playerActionNotice = computed(() => {
 
   if (isPaused.value) {
     return {
-      icon: '⏸',
+      iconType: 'pause',
       title: 'Partida pausada',
       message: 'No puedes realizar acciones hasta que el organizador la reanude.',
     }
@@ -83,7 +83,7 @@ const playerActionNotice = computed(() => {
 
   if (isTimerPendingStart.value) {
     return {
-      icon: '⏱',
+      iconType: 'timer',
       title: 'Contador pendiente de inicio',
       message: 'La partida ya ha comenzado, pero el organizador todavía no ha iniciado el contador. Las acciones están bloqueadas temporalmente.',
     }
@@ -394,7 +394,35 @@ onUnmounted(() => {
     <div class="app-content" :class="{ 'app-content--no-actions': !showActions }">
       <div v-if="playerActionNotice" class="pause-overlay">
         <div class="pause-overlay-content">
-          <span class="pause-icon">{{ playerActionNotice.icon }}</span>
+          <span class="pause-icon" aria-hidden="true">
+            <svg
+              v-if="playerActionNotice.iconType === 'pause'"
+              class="pause-icon-svg"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect x="6.5" y="5" width="4.25" height="14" rx="1.5" fill="currentColor" />
+              <rect x="13.25" y="5" width="4.25" height="14" rx="1.5" fill="currentColor" />
+            </svg>
+            <svg
+              v-else-if="playerActionNotice.iconType === 'timer'"
+              class="pause-icon-svg"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="13" r="7" />
+              <path d="M12 13V9.5" />
+              <path d="M12 13L14.5 15.5" />
+              <path d="M9 2H15" />
+              <path d="M12 6V2" />
+            </svg>
+            <template v-else>{{ playerActionNotice.icon }}</template>
+          </span>
           <strong>{{ playerActionNotice.title }}</strong>
           <span>{{ playerActionNotice.message }}</span>
         </div>
@@ -616,7 +644,15 @@ onUnmounted(() => {
   gap: 4px;
 }
 .pause-icon {
-  font-size: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.6rem;
+}
+.pause-icon-svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
 }
 @keyframes pulse-pause {
   0%, 100% { opacity: 1; }

@@ -140,7 +140,7 @@ class EventSetupControllerIntegrationTest {
                         .content("""
                                 {
                                   "code": "%s",
-                                                                                                                                        "groupLabel": "Jugador Uno"
+                                                                                                                                        "groupLabel": "Mesa Uno"
                                 }
                                 """.formatted(eventCode)))
                 .andExpect(status().isOk())
