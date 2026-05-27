@@ -69,7 +69,7 @@ async function load({ silent = false } = {}) {
 }
 
 async function handleCreatePod() {
-  const resolvedName = newPodName.value.trim() || structure.value?.suggestedPodName || `Pod ${(pods.value.length || 0) + 1}`
+  const resolvedName = newPodName.value.trim() || structure.value?.suggestedPodName || `Nodo ${(pods.value.length || 0) + 1}`
 
   creatingPod.value = true
   try {
@@ -267,7 +267,7 @@ onMounted(() => {
 
         <form class="create-pod-card__form" @submit.prevent="handleCreatePod">
           <div class="form-group" style="margin-bottom: 0">
-            <label for="newPodName">Nombre del nodo(opcional)</label>
+            <label for="newPodName">Nombre del nodo (opcional)</label>
             <input
               id="newPodName"
               v-model="newPodName"

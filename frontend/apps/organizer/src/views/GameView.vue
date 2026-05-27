@@ -66,11 +66,40 @@ const canCorrectFinishedMetricOutcome = computed(
 )
 const canManageDelegatedReports = computed(() => isInProgress.value || canCorrectFinishedMetricOutcome.value)
 const pendingGroups = computed(() => eventStructure.value?.unassignedGroups || [])
-const canStartGame = computed(() => eventStructure.value !== null && pendingGroups.value.length === 0)
+const pods = computed(() => eventStructure.value?.pods || [])
+const totalGroupCount = computed(() => Number(eventStructure.value?.currentGroupCount ?? 0))
+const hasConfiguredGroups = computed(() => totalGroupCount.value > 0)
+const emptyPods = computed(() => pods.value.filter((pod) => (pod.groups?.length ?? 0) === 0))
+const hasEmptyPods = computed(() => emptyPods.value.length > 0)
+const canStartGame = computed(
+  () => eventStructure.value !== null
+    && hasConfiguredGroups.value
+    && pendingGroups.value.length === 0
+    && !hasEmptyPods.value,
+)
 
 const pendingGroupsSummary = computed(() => pendingGroups.value.map((group) => group.identifier).join(', '))
+const emptyPodsSummary = computed(() => emptyPods.value.map((pod) => pod.name).join(', '))
+const startBlockedMessage = computed(() => {
+  if (eventStructure.value === null) {
+    return 'No se ha podido validar la estructura del evento todavía.'
+  }
 
-const pods = computed(() => eventStructure.value?.pods || [])
+  if (!hasConfiguredGroups.value) {
+    return 'No puedes iniciar la partida todavía: crea al menos una mesa.'
+  }
+
+  if (pendingGroups.value.length > 0) {
+    return 'No puedes iniciar la partida todavía: hay mesas pendientes de asignación.'
+  }
+
+  if (hasEmptyPods.value) {
+    return 'No puedes iniciar la partida todavía: hay nodos sin mesas asignadas.'
+  }
+
+  return ''
+})
+
 const availableGroups = computed(() => {
   const assignedGroups = pods.value.flatMap((pod) =>
     (pod.groups || []).map((group) => ({
@@ -176,7 +205,7 @@ async function loadStructure({ silent = false } = {}) {
 
 async function handleStart() {
   if (!canStartGame.value) {
-    notif.error('No puedes iniciar la partida mientras haya mesas pendientes de asignación.')
+    notif.error(startBlockedMessage.value || 'La estructura del evento todavía no permite iniciar la partida.')
     return
   }
 
@@ -522,13 +551,16 @@ onUnmounted(() => {
           El evento está listo. Inicia la partida cuando todos estén preparados.
         </template>
       </p>
-      <div v-if="!canStartGame" class="warn-box" style="text-align: left; margin-bottom: 12px">
-        No puedes iniciar la partida todavía: hay mesas pendientes de asignación.
-        <div v-if="pendingGroupsSummary" style="margin-top: 6px; font-size: 0.85rem">
+      <div v-if="eventStructure && !canStartGame" class="warn-box" style="text-align: left; margin-bottom: 12px">
+        {{ startBlockedMessage }}
+        <div v-if="pendingGroupsSummary && pendingGroups.length" style="margin-top: 6px; font-size: 0.85rem">
           {{ pendingGroupsSummary }}
         </div>
+        <div v-else-if="emptyPodsSummary && hasEmptyPods" style="margin-top: 6px; font-size: 0.85rem">
+          {{ emptyPodsSummary }}
+        </div>
       </div>
-      <button class="btn btn-primary" :disabled="structureLoading || !canStartGame" @click="handleStart">
+      <button data-testid="start-game-button" class="btn btn-primary" :disabled="structureLoading || !canStartGame" @click="handleStart">
         Iniciar partida
       </button>
     </div>

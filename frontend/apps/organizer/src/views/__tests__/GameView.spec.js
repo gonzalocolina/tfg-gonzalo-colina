@@ -206,6 +206,87 @@ describe('GameView', () => {
     wrapper.unmount()
   })
 
+  it('blocks game start when there are no tables configured', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        currentGroupCount: 0,
+        assignedPlayerCount: 0,
+        unassignedGroupCount: 0,
+        unassignedPlayerCount: 0,
+        pods: [],
+        unassignedGroups: [],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const startButton = wrapper.get('[data-testid="start-game-button"]')
+
+    expect(wrapper.text()).toContain('No puedes iniciar la partida todavía: crea al menos una mesa.')
+    expect(startButton.attributes('disabled')).toBeDefined()
+
+    await startButton.trigger('click')
+    await flushPromises()
+
+    expect(startGame).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('blocks game start when any pod is empty', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        pods: [
+          {
+            id: 7,
+            name: 'Pod 1',
+            sortOrder: 0,
+            totalGroups: 1,
+            totalPlayers: 4,
+            warnings: [],
+            groups: [
+              {
+                id: 19,
+                podId: 7,
+                identifier: 'Mesa Alfa',
+                playerCount: 4,
+                representativeCode: 'REP-ALFA',
+                observerCode: 'OBS-ALFA',
+              },
+            ],
+          },
+          {
+            id: 8,
+            name: 'Pod 2',
+            sortOrder: 1,
+            totalGroups: 0,
+            totalPlayers: 0,
+            warnings: [],
+            groups: [],
+          },
+        ],
+        unassignedGroups: [],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const startButton = wrapper.get('[data-testid="start-game-button"]')
+
+    expect(wrapper.text()).toContain('No puedes iniciar la partida todavía: hay nodos sin mesas asignadas.')
+    expect(wrapper.text()).toContain('Pod 2')
+    expect(startButton.attributes('disabled')).toBeDefined()
+
+    await startButton.trigger('click')
+    await flushPromises()
+
+    expect(startGame).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
   it('allows delegated registration, delegated reversals, and exact global corrections without justification text', async () => {
     getGameState.mockResolvedValue({ data: buildSnapshot({ eventStatus: 'IN_PROGRESS' }) })
     getEventStructure.mockResolvedValue({

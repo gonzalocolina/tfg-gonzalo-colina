@@ -53,11 +53,11 @@ function buildStructure(overrides = {}) {
     unassignedGroupCount: 1,
     unassignedPlayerCount: 3,
     schemeThreatTarget: 6,
-    suggestedPodName: 'Pod 2',
+    suggestedPodName: 'Nodo 2',
     pods: [
       {
         id: 7,
-        name: 'Pod 1',
+        name: 'Nodo 1',
         totalGroups: 2,
         totalPlayers: 5,
         warnings: [],
@@ -100,7 +100,7 @@ describe('EventSetupView', () => {
     __websocketState.realtimeEvent.value = null
     __websocketState.connect.mockClear()
     getEventStructure.mockResolvedValue({ data: buildStructure() })
-    createPod.mockResolvedValue({ data: { id: 8, name: 'Pod 2' } })
+    createPod.mockResolvedValue({ data: { id: 8, name: 'Nodo 2' } })
     assignGroupToPod.mockResolvedValue({ data: { id: 20, podId: 7 } })
     updateGroup.mockResolvedValue({ data: { id: 20 } })
     updatePod.mockResolvedValue({ data: { id: 7 } })
@@ -122,7 +122,7 @@ describe('EventSetupView', () => {
     expect(wrapper.text()).toContain('Reparto de mesas')
     expect(wrapper.text()).toContain('Sin asignar')
     expect(wrapper.text()).toContain('Mesa Beta')
-    expect(wrapper.get('#newPodName').element.value).toBe('Pod 2')
+    expect(wrapper.get('#newPodName').element.value).toBe('Nodo 2')
     expect(wrapper.text()).not.toContain('Código Representante')
     expect(wrapper.text()).not.toContain('Código Observador')
     expect(wrapper.find('[data-testid="create-pod-card"]').exists()).toBe(true)

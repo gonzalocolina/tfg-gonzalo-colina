@@ -346,14 +346,14 @@ onMounted(load)
             <thead>
               <tr>
                 <th>Mesa</th>
-                <th>Pod</th>
+                <th>Nodo</th>
                 <th>Jug.</th>
                 <th>Daño</th>
                 <th>Amenaza +</th>
                 <th>Amenaza -</th>
                 <th>Balance</th>
                 <th>Actividad</th>
-                <th>Inter-pod</th>
+                <th>Inter-nodo</th>
                 <th>Hitos</th>
               </tr>
             </thead>

@@ -185,6 +185,48 @@ class EventSetupControllerIntegrationTest {
     }
 
     @Test
+    void structureSuggestsNodoNamesAndSkipsLegacyPodOrdinals() throws Exception {
+                String organizerToken = registerOrganizer("setupsuggested", "setupsuggested@example.com", "Password123");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Suggested",
+                                  "configuredPlayerCount": 4,
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long eventId = extractId(createEventResult.getResponse().getContentAsString());
+
+        mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestedPodName").value("Nodo 1"));
+
+        mockMvc.perform(post("/api/events/{eventId}/pods", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pod 1",
+                                  "sortOrder": 0
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Pod 1"));
+
+        mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestedPodName").value("Nodo 2"));
+    }
+
+    @Test
     void organizerCanRenamePodsAndTablesAndDeletePodsReturningTablesToPending() throws Exception {
                 String organizerToken = registerOrganizer("setuprename", "setuprename@example.com", "Password123");
 

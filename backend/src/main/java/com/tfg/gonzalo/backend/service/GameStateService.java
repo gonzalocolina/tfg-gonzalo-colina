@@ -19,6 +19,7 @@ import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.GameState;
+import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventResult;
@@ -29,6 +30,7 @@ import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.GameStateRepository;
+import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
@@ -47,6 +49,7 @@ public class GameStateService {
     private final EventRepository eventRepository;
     private final GameStateRepository gameStateRepository;
     private final EventGroupRepository eventGroupRepository;
+    private final PodRepository podRepository;
     private final EventLogRepository eventLogRepository;
     private final EventLogService eventLogService;
     private final AccessControlService accessControlService;
@@ -55,6 +58,7 @@ public class GameStateService {
     public GameStateService(EventRepository eventRepository,
                             GameStateRepository gameStateRepository,
                             EventGroupRepository eventGroupRepository,
+                            PodRepository podRepository,
                             EventLogRepository eventLogRepository,
                             EventLogService eventLogService,
                             AccessControlService accessControlService,
@@ -62,6 +66,7 @@ public class GameStateService {
         this.eventRepository = eventRepository;
         this.gameStateRepository = gameStateRepository;
         this.eventGroupRepository = eventGroupRepository;
+        this.podRepository = podRepository;
         this.eventLogRepository = eventLogRepository;
         this.eventLogService = eventLogService;
         this.accessControlService = accessControlService;
@@ -88,7 +93,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureNotFinished(event);
@@ -119,7 +124,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureNotFinished(event);
@@ -149,7 +154,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureNotFinished(event);
@@ -175,7 +180,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
@@ -211,7 +216,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_VILLAIN_HP);
@@ -251,7 +256,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
@@ -285,7 +290,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
         ensureMetricCorrectionAllowed(event, gameState, CORRECTION_TARGET_THREAT);
@@ -425,7 +430,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         markEventAsStarted(event);
         refreshTimerState(event, gameState, notifications);
 
@@ -443,7 +448,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         if (gameState.getTimerStatus() == TimerStatus.NOT_CONFIGURED) {
             throw new BusinessRuleException("El evento no tiene temporizador configurado.");
         }
@@ -499,7 +504,7 @@ public class GameStateService {
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
-        ensureNoPendingAssignments(eventId);
+        ensureStructureReadyForGame(eventId);
         if (gameState.getTimerStatus() == TimerStatus.NOT_CONFIGURED) {
             throw new BusinessRuleException("El evento no tiene temporizador configurado.");
         }
@@ -598,13 +603,37 @@ public class GameStateService {
         }
     }
 
-    private void ensureNoPendingAssignments(Long eventId) {
-        boolean hasPendingAssignments = eventGroupRepository.findByEventId(eventId).stream()
+    private void ensureStructureReadyForGame(Long eventId) {
+        List<EventGroup> groups = eventGroupRepository.findByEventId(eventId);
+
+        if (groups.isEmpty()) {
+            throw new BusinessRuleException("No se puede iniciar ni continuar la partida sin al menos una mesa.");
+        }
+
+        boolean hasPendingAssignments = groups.stream()
                 .anyMatch(group -> group.getPod() == null
                         || LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(group.getPod().getName()));
         if (hasPendingAssignments) {
             throw new BusinessRuleException("No se puede iniciar ni continuar la partida mientras haya mesas pendientes de asignación a un pod.");
         }
+
+        List<Long> assignedPodIds = groups.stream()
+                .map(EventGroup::getPod)
+                .filter(this::isRealPod)
+                .map(Pod::getId)
+                .distinct()
+                .toList();
+
+        boolean hasEmptyPods = podRepository.findByEventIdOrderBySortOrderAsc(eventId).stream()
+                .filter(this::isRealPod)
+                .anyMatch(pod -> !assignedPodIds.contains(pod.getId()));
+        if (hasEmptyPods) {
+            throw new BusinessRuleException("No se puede iniciar ni continuar la partida mientras haya nodos sin mesas asignadas.");
+        }
+    }
+
+    private boolean isRealPod(Pod pod) {
+        return pod != null && !LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(pod.getName());
     }
 
     private void ensureRepresentativeActionsAllowed(GameState gameState) {

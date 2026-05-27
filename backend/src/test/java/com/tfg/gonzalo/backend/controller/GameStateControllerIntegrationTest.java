@@ -252,6 +252,8 @@ class GameStateControllerIntegrationTest {
     void timerFlowStartPauseResumeAdjustAndTimeout() throws Exception {
         long eventId = createEvent("evento-timer", 2);
         String organizerToken = loginOrganizer("evento-timer", "Password123");
+                long podId = createPod(eventId, "Pod Timer", organizerToken);
+                createGroup(eventId, podId, "T1", 2, organizerToken);
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -333,6 +335,31 @@ class GameStateControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("pendientes de asignación")));
     }
+
+        @Test
+        void startGameRejectsEventsWithoutTables() throws Exception {
+                long eventId = createEvent("evento-sin-mesas", 4);
+                String organizerToken = loginOrganizer("evento-sin-mesas", "Password123");
+
+                mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.message").value(containsString("sin al menos una mesa")));
+        }
+
+        @Test
+        void startGameRejectsEventsWithEmptyPods() throws Exception {
+                long eventId = createEvent("evento-pod-vacio", 4);
+                String organizerToken = loginOrganizer("evento-pod-vacio", "Password123");
+                long podWithGroupId = createPod(eventId, "Pod A", organizerToken);
+                createGroup(eventId, podWithGroupId, "A1", 4, organizerToken);
+                createPod(eventId, "Pod B", organizerToken);
+
+                mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                                                .header("Authorization", "Bearer " + organizerToken))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.message").value(containsString("nodos sin mesas asignadas")));
+        }
 
     @Test
     void representativeActionsAreBlockedWhilePaused() throws Exception {

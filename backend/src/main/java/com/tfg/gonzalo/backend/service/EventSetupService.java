@@ -34,8 +34,8 @@ public class EventSetupService {
 
     private static final String EVENT_NOT_FOUND_MESSAGE = "No existe el evento solicitado.";
     private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
-    private static final String DEFAULT_POD_NAME_PREFIX = "Pod";
-    private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^pod\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
+    private static final String DEFAULT_POD_NAME_PREFIX = "Nodo";
+    private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^(?:pod|nodo)\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
 
     private final EventRepository eventRepository;
