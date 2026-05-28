@@ -13,6 +13,7 @@ public class RealtimeEventPublisher {
     private static final String GAME_STATE_TOPIC = "/topic/events/%d/game-state";
     private static final String NOTIFICATIONS_TOPIC = "/topic/events/%d/notifications";
     private static final String GAME_FINISHED_TOPIC = "/topic/events/%d/game-finished";
+    private static final String FINAL_RESULT_NOTIFICATION_PREFIX = "EVENT_FINISHED_";
 
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -34,6 +35,8 @@ public class RealtimeEventPublisher {
                                        Long targetPodId) {
         List<String> safeNotifications = notifications == null ? List.of() : List.copyOf(notifications);
         boolean eventFinished = snapshot != null && snapshot.finalSummary() != null;
+        boolean shouldPublishGameFinished = safeNotifications.stream()
+            .anyMatch(RealtimeEventPublisher::isFinalResultNotification);
         GameStateRealtimeMessage message = new GameStateRealtimeMessage();
         message.setOperation(operation);
         message.setSnapshot(snapshot);
@@ -46,9 +49,13 @@ public class RealtimeEventPublisher {
         if (!safeNotifications.isEmpty()) {
             messagingTemplate.convertAndSend(NOTIFICATIONS_TOPIC.formatted(eventId), message);
         }
-        if (eventFinished) {
+        if (shouldPublishGameFinished) {
             messagingTemplate.convertAndSend(GAME_FINISHED_TOPIC.formatted(eventId), message);
         }
+    }
+
+    private static boolean isFinalResultNotification(String notification) {
+        return notification != null && notification.startsWith(FINAL_RESULT_NOTIFICATION_PREFIX);
     }
 
     public void publishEventOperation(Long eventId, String operation) {
