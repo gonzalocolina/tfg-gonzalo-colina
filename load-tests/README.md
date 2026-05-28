@@ -80,3 +80,6 @@ La primera iteración del arnés mide correctamente login, conexión realtime, l
 .\run-load-tests.ps1 -Scenario nominal-100-10writers -NoInstall --clients 100 --writer-count 20 --pods 25 --groups-per-pod 4 --hold-ms 30000 --ramp-step 100 --ramp-interval-ms 1000
 
 .\run-load-tests.ps1 -Scenario nominal-100-10writers -NoInstall --clients 100 --writer-count 100 --pods 10 --groups-per-pod 10 --hold-ms 30000 --ramp-step 100 --ramp-interval-ms 1000
+
+
+Estos dos comandos son los que han sido utilizados para las pruebas de carga que se describen y analizan en la memoria del TFG.

@@ -455,6 +455,8 @@ class EventRolesAndAlertsIntegrationTest {
     void optionalTimerCanBeDisabledAndGameCanStillStart() throws Exception {
         long eventId = createEvent("evento-sin-timer", 2, 0);
         String organizerToken = loginOrganizer("evento-sin-timer", "Password123");
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      createGroupAndGetResult(eventId, podId, organizerToken, "A1", 2);
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))

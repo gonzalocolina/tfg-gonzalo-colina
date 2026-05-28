@@ -20,7 +20,7 @@ class AuthControllerIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void registerReturnsBusinessErrorWhenEmailAlreadyExists() throws Exception {
+    void testRegisterDuplicateEmail() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -46,7 +46,7 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void loginIsCaseInsensitiveForUsername() throws Exception {
+    void testLoginCaseInsensitive() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -71,7 +71,7 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void registerReturnsFriendlyMessageEvenIfConstraintViolationLeaksThrough() throws Exception {
+    void testRegisterDuplicateUsername() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

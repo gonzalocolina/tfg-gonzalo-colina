@@ -146,6 +146,6 @@ describe('CreateEventView', () => {
     const wrapper = mountView()
     const link = wrapper.find('[data-test="organizer-home-link"]')
     expect(link.exists()).toBe(true)
-    expect(link.text()).toContain('Volver al home')
+    expect(link.text()).toContain('Mis eventos')
   })
 })

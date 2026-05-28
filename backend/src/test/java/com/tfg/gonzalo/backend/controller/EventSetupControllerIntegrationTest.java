@@ -145,7 +145,7 @@ class EventSetupControllerIntegrationTest {
                                 """.formatted(eventCode)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("GROUP_REPRESENTATIVE"))
-                                                                .andExpect(jsonPath("$.groupLabel").value("Jugador Uno"))
+                                                                                                                                                                                                                                                                .andExpect(jsonPath("$.groupLabel").value("Mesa Uno"))
                 .andReturn();
 
         String joinBody = joinResult.getResponse().getContentAsString();
@@ -160,7 +160,7 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.unassignedGroupCount").value(1))
                 .andExpect(jsonPath("$.unassignedPlayerCount").value(1))
                 .andExpect(jsonPath("$.pods[0].name").value("Pod 1"))
-                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Jugador Uno"));
+                .andExpect(jsonPath("$.unassignedGroups[0].identifier").value("Mesa Uno"));
 
         mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}/pod", eventId, groupId)
                         .header("Authorization", "Bearer " + organizerToken)
@@ -172,7 +172,7 @@ class EventSetupControllerIntegrationTest {
                                 """.formatted(podId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.podId").value((int) podId))
-                .andExpect(jsonPath("$.identifier").value("Jugador Uno"));
+                                                                .andExpect(jsonPath("$.identifier").value("Mesa Uno"));
 
         mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -181,7 +181,7 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.assignedPlayerCount").value(1))
                 .andExpect(jsonPath("$.unassignedGroupCount").value(0))
                 .andExpect(jsonPath("$.pods[0].name").value("Pod 1"))
-                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("Jugador Uno"));
+                .andExpect(jsonPath("$.pods[0].groups[0].identifier").value("Mesa Uno"));
     }
 
     @Test

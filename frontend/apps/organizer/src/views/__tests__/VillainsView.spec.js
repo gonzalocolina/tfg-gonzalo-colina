@@ -121,7 +121,7 @@ describe('VillainsView', () => {
     await flushPromises()
 
     expect(getEvent).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Volver al home')
+    expect(wrapper.text()).toContain('Mis eventos')
     expect(wrapper.text()).toContain('Gestión de Villanos')
     expect(wrapper.text()).not.toContain('Selección para el evento')
   })

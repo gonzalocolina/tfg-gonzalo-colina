@@ -169,6 +169,8 @@ class CoOrganizerInvitationIntegrationTest {
         long eventId = createEvent("Evento Revocacion Tras Inicio", organizerToken);
 
         long invitationId = inviteUser(eventId, organizerToken, "started-user");
+        long podId = createPod(eventId, organizerToken, "Pod A");
+        createGroup(eventId, podId, organizerToken, "A1", 4);
 
         mockMvc.perform(post("/api/co-organizer-invitations/{invitationId}/accept", invitationId)
                         .header("Authorization", "Bearer " + inviteeToken))
@@ -268,6 +270,39 @@ class CoOrganizerInvitationIntegrationTest {
 
         return extractId(result.getResponse().getContentAsString());
     }
+
+                private long createPod(long eventId, String organizerToken, String name) throws Exception {
+                                MvcResult result = mockMvc.perform(post("/api/events/{eventId}/pods", eventId)
+                                                                                                .header("Authorization", "Bearer " + organizerToken)
+                                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                                .content("""
+                                                                                                                                {
+                                                                                                                                        "name": "%s",
+                                                                                                                                        "sortOrder": 0
+                                                                                                                                }
+                                                                                                                                """.formatted(name)))
+                                                                .andExpect(status().isCreated())
+                                                                .andReturn();
+
+                                return extractId(result.getResponse().getContentAsString());
+                }
+
+                private long createGroup(long eventId, long podId, String organizerToken, String identifier, int playerCount)
+                                                throws Exception {
+                                MvcResult result = mockMvc.perform(post("/api/events/{eventId}/pods/{podId}/groups", eventId, podId)
+                                                                                                .header("Authorization", "Bearer " + organizerToken)
+                                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                                .content("""
+                                                                                                                                {
+                                                                                                                                        "identifier": "%s",
+                                                                                                                                        "playerCount": %d
+                                                                                                                                }
+                                                                                                                                """.formatted(identifier, playerCount)))
+                                                                .andExpect(status().isCreated())
+                                                                .andReturn();
+
+                                return extractId(result.getResponse().getContentAsString());
+                }
 
                 private String registerOrganizer(String username, String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")

@@ -134,7 +134,7 @@ describe('InterPodCardsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Volver al home')
+    expect(wrapper.text()).toContain('Mis eventos')
     expect(syncImageUrls).toHaveBeenCalledWith(
       [{ id: 10, url: '/api/inter-pod-card-definitions/10/image' }],
       { force: false },
