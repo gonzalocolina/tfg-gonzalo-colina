@@ -270,7 +270,7 @@ function isMinionCategory(category) {
 }
 
 function definitionMetricLabel(definition) {
-  return isMinionCategory(definition.cardCategory) ? 'HP' : 'Amenaza'
+  return isMinionCategory(definition.cardCategory) ? 'HP base' : 'Amenaza base'
 }
 
 function definitionMetricValue(definition) {
@@ -435,6 +435,9 @@ onUnmounted(() => {
             Marca qué cartas inter-nodo estarán disponibles en <strong>{{ event?.name || 'este evento' }}</strong>.
             Esta selección es específica del evento y no modifica el catálogo global.
           </p>
+          <p class="text-muted" style="font-size: 0.85rem; margin-top: 6px">
+            El valor real de cada carta será su valor base multiplicado por el número de mesas del nodo donde aparezca.
+          </p>
         </div>
         <span v-if="event?.status" class="badge" :class="eventStatusBadgeClass(event.status)">
           {{ formatEventStatus(event.status) }}
@@ -477,7 +480,7 @@ onUnmounted(() => {
             <div class="selection-card-content">
               <div class="selection-card-title">{{ prettyCardName(definition.name) }}</div>
               <div class="selection-card-meta">
-                {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}
+                {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}/mesa
               </div>
               <div class="selection-card-tags">
 
@@ -522,6 +525,9 @@ onUnmounted(() => {
       <p v-if="isEventScoped" class="text-muted" style="margin-bottom: 12px; font-size: 0.9rem">
         Las cartas que crees aquí se añaden a tu catálogo personal. Después podrás marcarlas arriba para este evento.
       </p>
+      <p class="text-muted" style="margin-bottom: 12px; font-size: 0.85rem">
+        El valor real de cada instancia se calcula como valor base × nº de mesas del nodo.
+      </p>
       <form @submit.prevent="handleCreate">
         <div class="form-group">
           <label for="new-card-name">Nombre</label>
@@ -545,7 +551,7 @@ onUnmounted(() => {
           </div>
           <div class="form-group">
             <label :for="isMinionCategory(createForm.cardCategory) ? 'new-card-hp' : 'new-card-threat'">
-              {{ isMinionCategory(createForm.cardCategory) ? 'HP por defecto' : 'Amenaza inicial' }}
+              {{ isMinionCategory(createForm.cardCategory) ? 'HP base por mesa' : 'Amenaza base por mesa' }}
             </label>
             <input
               v-if="isMinionCategory(createForm.cardCategory)"
@@ -626,7 +632,7 @@ onUnmounted(() => {
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Categoría</th>
-              <th>Valor inicial</th>
+              <th>Valor base / mesa</th>
               <th>Estado por defecto</th>
               <th>Imagen</th>
               <th>Propietario</th>
@@ -730,7 +736,7 @@ onUnmounted(() => {
                   </span>
                 </td>
                 <td>{{ formatCardCategory(definition.cardCategory) }}</td>
-                <td>{{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}</td>
+                <td>{{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}/mesa</td>
                 <td>{{ formatCardStatus(definition.defaultStatus) }}</td>
                 <td>
                   <button

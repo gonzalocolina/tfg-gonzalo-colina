@@ -49,9 +49,9 @@ function prettyCardName(name) {
 
 function definitionMetricText(definition) {
   if (definition.cardCategory === 'ESBIRRO') {
-    return `HP ${definition.defaultHpMax}`
+    return `HP base ${definition.defaultHpMax}/mesa`
   }
-  return `Amenaza ${definition.defaultThreatMax}`
+  return `Amenaza base ${definition.defaultThreatMax}/mesa`
 }
 
 function toggleInterPodCardDefinition(definitionId) {
@@ -154,6 +154,9 @@ onMounted(async () => {
 
         <div class="form-group">
           <p style="margin: 0 0 8px; font-weight: 500">Cartas inter-nodo para este evento</p>
+          <small class="text-muted" style="display: block; margin-bottom: 8px">
+            El valor real de cada carta se calcula como base × nº de mesas del nodo donde aparezca.
+          </small>
           <div v-if="loadingInterPodCardDefinitions" class="text-muted">Cargando cartas inter-nodo…</div>
           <div v-else-if="!interPodCardDefinitions.length" class="text-muted">
             No hay cartas inter-nodo disponibles. <router-link to="/inter-pod-cards">Créelas aquí</router-link>.

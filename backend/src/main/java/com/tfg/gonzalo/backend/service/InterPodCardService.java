@@ -82,6 +82,7 @@ public class InterPodCardService {
             request.interPodCardDefinitionId(),
             request.cardName()
         );
+        int tableCountInPod = resolveTableCountInPod(sourceGroup);
         InterPodCardStatus initialStatus = request.status() == null
             ? selectedDefinition.getDefaultStatus()
             : request.status();
@@ -93,8 +94,8 @@ public class InterPodCardService {
         card.setInterPodCardDefinition(selectedDefinition);
         card.setCardName(selectedDefinition.getName());
         card.setCardCategory(selectedDefinition.getCardCategory());
-        card.setHpMax(resolveHpMax(selectedDefinition, request));
-        card.setThreatMax(resolveThreatMax(selectedDefinition));
+        card.setHpMax(resolveHpMax(selectedDefinition, request, tableCountInPod));
+        card.setThreatMax(resolveThreatMax(selectedDefinition, tableCountInPod));
         initializeProgress(card, initialStatus);
         card.setStatus(initialStatus);
         card = interPodCardRepository.save(card);
@@ -306,18 +307,26 @@ public class InterPodCardService {
         }
     }
 
-    private int resolveHpMax(InterPodCardDefinition definition, CreateInterPodCardRequest request) {
+    private int resolveTableCountInPod(EventGroup sourceGroup) {
+        long configuredTableCount = eventGroupRepository.countByPodId(sourceGroup.getPod().getId());
+        return Math.max(1, Math.toIntExact(configuredTableCount));
+    }
+
+    private int resolveHpMax(InterPodCardDefinition definition,
+                             CreateInterPodCardRequest request,
+                             int tableCountInPod) {
         if (definition.getCardCategory() != InterPodCardCategory.ESBIRRO) {
             return 0;
         }
-        return request.hpMax() == null ? definition.getDefaultHpMax() : request.hpMax();
+        int baseHpMax = request.hpMax() == null ? definition.getDefaultHpMax() : request.hpMax();
+        return baseHpMax * tableCountInPod;
     }
 
-    private int resolveThreatMax(InterPodCardDefinition definition) {
+    private int resolveThreatMax(InterPodCardDefinition definition, int tableCountInPod) {
         if (definition.getCardCategory() != InterPodCardCategory.PLAN) {
             return 0;
         }
-        return definition.getDefaultThreatMax();
+        return definition.getDefaultThreatMax() * tableCountInPod;
     }
 
     private void initializeProgress(InterPodCard card, InterPodCardStatus initialStatus) {

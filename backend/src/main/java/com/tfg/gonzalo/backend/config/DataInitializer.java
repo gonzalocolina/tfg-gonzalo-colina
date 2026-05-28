@@ -35,8 +35,8 @@ public class DataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     private static final String DEFAULT_ORGANIZER_USERNAME = "organizer";
-    private static final int DEFAULT_PREDEFINED_CARD_HP = 8;
-    private static final int DEFAULT_PREDEFINED_CARD_THREAT = 8;
+    private static final int MANGOG_BASE_HP_PER_TABLE = 10;
+    private static final int DOOR_BETWEEN_WORLDS_BASE_THREAT_PER_TABLE = 7;
     private static final InterPodCardStatus DEFAULT_PREDEFINED_CARD_STATUS = InterPodCardStatus.REVELADA;
     private static final String DEFAULT_PREDEFINED_CARD_IMAGE_CONTENT_TYPE = "image/jpeg";
     private static final String MANGOG_IMAGE_URL = "https://marvelcdb.com/bundles/cards/55041.jpg";
@@ -221,25 +221,37 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void ensurePredefinedInterPodCards() {
-        canonicalizePredefinedInterPodCard("THE_MANGOG", InterPodCardCategory.ESBIRRO, MANGOG_IMAGE_URL);
-        canonicalizePredefinedInterPodCard("DOOR_BETWEEN_WORLDS", InterPodCardCategory.PLAN, DOOR_BETWEEN_WORLDS_IMAGE_URL);
+        canonicalizePredefinedInterPodCard(
+                "THE_MANGOG",
+                InterPodCardCategory.ESBIRRO,
+                MANGOG_IMAGE_URL,
+                MANGOG_BASE_HP_PER_TABLE,
+                0);
+        canonicalizePredefinedInterPodCard(
+                "DOOR_BETWEEN_WORLDS",
+                InterPodCardCategory.PLAN,
+                DOOR_BETWEEN_WORLDS_IMAGE_URL,
+                0,
+                DOOR_BETWEEN_WORLDS_BASE_THREAT_PER_TABLE);
     }
 
-        private void canonicalizePredefinedInterPodCard(String name,
-                                InterPodCardCategory category,
-                                String imageUrl) {
+    private void canonicalizePredefinedInterPodCard(String name,
+                                                    InterPodCardCategory category,
+                                                    String imageUrl,
+                                                    int defaultHpMax,
+                                                    int defaultThreatMax) {
         List<InterPodCardDefinition> definitions = interPodCardDefinitionRepository
                 .findByTypeAndNameIgnoreCaseOrderByIdAsc(InterPodCardDefinitionType.PREDEFINED, name);
 
         InterPodCardDefinition canonical = definitions.isEmpty()
-            ? createPredefinedInterPodCard(name, category, imageUrl)
+            ? createPredefinedInterPodCard(name, category, imageUrl, defaultHpMax, defaultThreatMax)
                 : definitions.get(0);
 
         canonical.setName(name);
         canonical.setType(InterPodCardDefinitionType.PREDEFINED);
         canonical.setCardCategory(category);
-        canonical.setDefaultHpMax(category == InterPodCardCategory.ESBIRRO ? DEFAULT_PREDEFINED_CARD_HP : 0);
-        canonical.setDefaultThreatMax(category == InterPodCardCategory.PLAN ? DEFAULT_PREDEFINED_CARD_THREAT : 0);
+        canonical.setDefaultHpMax(defaultHpMax);
+        canonical.setDefaultThreatMax(defaultThreatMax);
         canonical.setDefaultStatus(DEFAULT_PREDEFINED_CARD_STATUS);
         canonical.setImagePath(imageUrl);
         canonical.setImageContentType(DEFAULT_PREDEFINED_CARD_IMAGE_CONTENT_TYPE);
@@ -259,13 +271,15 @@ public class DataInitializer implements ApplicationRunner {
 
     private InterPodCardDefinition createPredefinedInterPodCard(String name,
                                                                 InterPodCardCategory category,
-                                                                String imageUrl) {
+                                                                String imageUrl,
+                                                                int defaultHpMax,
+                                                                int defaultThreatMax) {
         InterPodCardDefinition definition = new InterPodCardDefinition();
         definition.setName(name);
         definition.setType(InterPodCardDefinitionType.PREDEFINED);
         definition.setCardCategory(category);
-        definition.setDefaultHpMax(category == InterPodCardCategory.ESBIRRO ? DEFAULT_PREDEFINED_CARD_HP : 0);
-        definition.setDefaultThreatMax(category == InterPodCardCategory.PLAN ? DEFAULT_PREDEFINED_CARD_THREAT : 0);
+        definition.setDefaultHpMax(defaultHpMax);
+        definition.setDefaultThreatMax(defaultThreatMax);
         definition.setDefaultStatus(DEFAULT_PREDEFINED_CARD_STATUS);
         definition.setImagePath(imageUrl);
         definition.setImageContentType(DEFAULT_PREDEFINED_CARD_IMAGE_CONTENT_TYPE);

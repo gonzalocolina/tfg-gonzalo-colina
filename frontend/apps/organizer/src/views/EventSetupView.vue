@@ -1,11 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, unref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { assignGroupToPod, createPod, getEventStructure } from '@/api/setup'
+import { assignGroupToPod, createPod, deletePod, getEventStructure } from '@/api/setup'
 import { useWebSocket } from '@/composables/useWebSocket'
 import GroupItem from '@/components/GroupItem.vue'
 import PodCard from '@/components/PodCard.vue'
 import { useNotificationsStore } from '@/stores/notifications'
+
+const TARGET_GROUPS_PER_POD = 4
+const DEFAULT_POD_NAME_PREFIX = 'Nodo'
+const DEFAULT_POD_NAME_PATTERN = /^(?:pod|nodo)\s+(\d+)$/i
 
 const route = useRoute()
 const notif = useNotificationsStore()
@@ -16,6 +20,7 @@ const socketConnected = computed(() => Boolean(unref(connected)))
 const structure = ref(null)
 const loading = ref(true)
 const creatingPod = ref(false)
+const autoArrangeMode = ref(null)
 const movingGroupId = ref(null)
 const activeDragGroup = ref(null)
 const activeDropColumn = ref(null)
@@ -24,6 +29,9 @@ const newPodName = ref('')
 const pods = computed(() => structure.value?.pods || [])
 const pendingGroups = computed(() => structure.value?.unassignedGroups || [])
 const hasPendingGroups = computed(() => pendingGroups.value.length > 0)
+const isAutoArranging = computed(() => autoArrangeMode.value !== null)
+const canRebalanceAll = computed(() => !loading.value && !isAutoArranging.value && (structure.value?.currentGroupCount ?? 0) > 0)
+const canAutoAssignPending = computed(() => !loading.value && !isAutoArranging.value && pendingGroups.value.length > 0)
 
 const assignedGroupCount = computed(() => {
   const total = structure.value?.currentGroupCount ?? 0
@@ -42,8 +50,221 @@ const playerAssignedPercent = computed(() => {
 const groupsReady = computed(() => (structure.value?.unassignedGroupCount ?? 1) === 0)
 const playersReady = computed(() => (structure.value?.unassignedPlayerCount ?? 1) === 0)
 
+function normalizePodSortOrder(pod, fallbackIndex = -1) {
+  const numericSortOrder = Number(pod?.sortOrder)
+  return Number.isFinite(numericSortOrder) ? numericSortOrder : fallbackIndex
+}
+
 function computeNextSortOrder(podList = pods.value) {
-  return podList.reduce((maxSortOrder, pod) => Math.max(maxSortOrder, Number(pod.sortOrder ?? -1)), -1) + 1
+  return podList.reduce((maxSortOrder, pod, index) => Math.max(maxSortOrder, normalizePodSortOrder(pod, index)), -1) + 1
+}
+
+function comparePods(leftPod, rightPod) {
+  return normalizePodSortOrder(leftPod) - normalizePodSortOrder(rightPod)
+}
+
+function getOrderedPods(structureSnapshot = structure.value) {
+  return [...(structureSnapshot?.pods || [])].sort(comparePods)
+}
+
+function getPodGroupCount(pod) {
+  if (Array.isArray(pod?.groups)) {
+    return pod.groups.length
+  }
+
+  return Number(pod?.totalGroups ?? 0)
+}
+
+function getAllGroupsInCurrentOrder(structureSnapshot = structure.value) {
+  const orderedPods = getOrderedPods(structureSnapshot)
+  return [...orderedPods.flatMap((pod) => pod.groups || []), ...(structureSnapshot?.unassignedGroups || [])]
+}
+
+function resolveSuggestedPodNameForList(podList = pods.value) {
+  const usedOrdinals = new Set(
+    podList
+      .map((pod) => {
+        const normalizedName = typeof pod?.name === 'string' ? pod.name.trim() : ''
+        const match = normalizedName.match(DEFAULT_POD_NAME_PATTERN)
+        return match ? Number.parseInt(match[1], 10) : null
+      })
+      .filter((ordinal) => Number.isInteger(ordinal) && ordinal > 0),
+  )
+
+  let nextOrdinal = 1
+  while (usedOrdinals.has(nextOrdinal)) {
+    nextOrdinal += 1
+  }
+
+  return `${DEFAULT_POD_NAME_PREFIX} ${nextOrdinal}`
+}
+
+function buildBalancedCounts(totalGroups, podCount) {
+  if (totalGroups <= 0 || podCount <= 0) {
+    return []
+  }
+
+  const baseCount = Math.floor(totalGroups / podCount)
+  const remainder = totalGroups % podCount
+
+  return Array.from({ length: podCount }, (_, index) => baseCount + (index < remainder ? 1 : 0))
+}
+
+function buildDistributionScore(counts) {
+  const positiveCounts = counts.filter((count) => count > 0)
+  const emptyPods = counts.filter((count) => count === 0).length
+  const singletonPods = counts.filter((count) => count === 1).length
+  const overCapacity = counts.reduce((sum, count) => sum + Math.max(0, count - TARGET_GROUPS_PER_POD), 0)
+  const spread = positiveCounts.length > 1
+    ? Math.max(...positiveCounts) - Math.min(...positiveCounts)
+    : 0
+
+  return {
+    emptyPods,
+    singletonPods,
+    overCapacity,
+    spread,
+    usedPods: positiveCounts.length,
+  }
+}
+
+function compareDistributionScores(leftScore, rightScore) {
+  const scoreKeys = ['emptyPods', 'singletonPods', 'overCapacity', 'spread', 'usedPods']
+
+  for (const scoreKey of scoreKeys) {
+    if (leftScore[scoreKey] !== rightScore[scoreKey]) {
+      return leftScore[scoreKey] - rightScore[scoreKey]
+    }
+  }
+
+  return 0
+}
+
+function resolveOptimalPodCount(totalGroups) {
+  if (totalGroups <= 0) {
+    return 0
+  }
+
+  let bestPodCount = 1
+  let bestScore = null
+
+  for (let podCount = 1; podCount <= totalGroups; podCount += 1) {
+    const candidateScore = buildDistributionScore(buildBalancedCounts(totalGroups, podCount))
+    if (!bestScore || compareDistributionScores(candidateScore, bestScore) < 0) {
+      bestPodCount = podCount
+      bestScore = candidateScore
+    }
+  }
+
+  return bestPodCount
+}
+
+function findLowestCountPodIndex(podStates) {
+  let bestIndex = 0
+
+  for (let index = 1; index < podStates.length; index += 1) {
+    const candidate = podStates[index]
+    const currentBest = podStates[bestIndex]
+
+    if (candidate.currentCount < currentBest.currentCount) {
+      bestIndex = index
+      continue
+    }
+
+    if (candidate.currentCount === currentBest.currentCount && candidate.priority < currentBest.priority) {
+      bestIndex = index
+    }
+  }
+
+  return bestIndex
+}
+
+function simulatePendingDistribution(podList, pendingCount, additionalPodCount) {
+  const nextSortOrder = computeNextSortOrder(podList)
+  const podStates = [
+    ...podList.map((pod, index) => ({
+      currentCount: getPodGroupCount(pod),
+      priority: index,
+      sortOrder: normalizePodSortOrder(pod, index),
+    })),
+    ...Array.from({ length: additionalPodCount }, (_, index) => ({
+      currentCount: 0,
+      priority: podList.length + index,
+      sortOrder: nextSortOrder + index,
+    })),
+  ]
+
+  const assignments = []
+
+  for (let pendingIndex = 0; pendingIndex < pendingCount; pendingIndex += 1) {
+    const destinationIndex = findLowestCountPodIndex(podStates)
+    podStates[destinationIndex].currentCount += 1
+    assignments.push(destinationIndex)
+  }
+
+  return {
+    additionalPodCount,
+    assignments,
+    score: buildDistributionScore(podStates.map((podState) => podState.currentCount)),
+  }
+}
+
+function resolvePendingDistribution(podList, pendingCount) {
+  const minimumAdditionalPods = podList.length ? 0 : 1
+  let bestCandidate = null
+
+  for (let additionalPodCount = minimumAdditionalPods; additionalPodCount <= pendingCount; additionalPodCount += 1) {
+    const candidate = simulatePendingDistribution(podList, pendingCount, additionalPodCount)
+    if (!bestCandidate || compareDistributionScores(candidate.score, bestCandidate.score) < 0) {
+      bestCandidate = candidate
+    }
+  }
+
+  return bestCandidate
+}
+
+function buildPodDraftFromResponse(podResponse, fallbackSortOrder, fallbackName = resolveSuggestedPodNameForList()) {
+  return {
+    id: podResponse?.id,
+    name: podResponse?.name || fallbackName,
+    sortOrder: podResponse?.sortOrder ?? fallbackSortOrder,
+    totalGroups: 0,
+    totalPlayers: 0,
+    warnings: [],
+    groups: [],
+  }
+}
+
+async function ensurePodPoolSize(targetPodCount, podList) {
+  const podPool = [...podList]
+  let nextSortOrder = computeNextSortOrder(podPool)
+
+  while (podPool.length < targetPodCount) {
+    const nextPodName = resolveSuggestedPodNameForList(podPool)
+    const { data } = await createPod(eventId.value, {
+      name: nextPodName,
+      sortOrder: nextSortOrder,
+    })
+    podPool.push(buildPodDraftFromResponse(data, nextSortOrder, nextPodName))
+    nextSortOrder += 1
+  }
+
+  return podPool
+}
+
+async function assignGroupsSequentially(assignments) {
+  for (const assignment of assignments) {
+    await assignGroupToPod(eventId.value, assignment.groupId, assignment.podId)
+  }
+}
+
+async function finalizeAutoArrangement() {
+  clearDragState()
+  try {
+    await load({ silent: true })
+  } finally {
+    autoArrangeMode.value = null
+  }
 }
 
 function applySuggestedPodDefaults() {
@@ -87,6 +308,111 @@ async function handleCreatePod() {
   }
 }
 
+async function handleAutoRebalanceAll() {
+  const structureSnapshot = structure.value
+  const totalGroups = structureSnapshot?.currentGroupCount ?? 0
+  if (totalGroups <= 0) {
+    notif.info('No hay mesas para reorganizar.')
+    return
+  }
+
+  const currentPods = getOrderedPods(structureSnapshot)
+  const allGroups = getAllGroupsInCurrentOrder(structureSnapshot)
+  const targetPodCount = resolveOptimalPodCount(allGroups.length)
+  const podsToDelete = currentPods.slice(targetPodCount)
+
+  if (currentPods.length === targetPodCount) {
+    const targetCounts = buildBalancedCounts(allGroups.length, targetPodCount)
+    let groupIndex = 0
+    const reassignmentNeeded = currentPods.some((pod, podIndex) => {
+      const countForPod = targetCounts[podIndex] ?? 0
+      for (let countIndex = 0; countIndex < countForPod; countIndex += 1) {
+        const group = allGroups[groupIndex]
+        groupIndex += 1
+        if ((group?.podId ?? null) !== pod.id) {
+          return true
+        }
+      }
+      return false
+    })
+
+    if (!reassignmentNeeded) {
+      notif.info('La distribución actual ya es óptima.')
+      return
+    }
+  }
+
+  autoArrangeMode.value = 'rebalance'
+
+  try {
+    const podPool = await ensurePodPoolSize(targetPodCount, currentPods)
+    const targetPods = podPool.slice(0, targetPodCount)
+    const targetCounts = buildBalancedCounts(allGroups.length, targetPodCount)
+    const assignments = []
+
+    let groupIndex = 0
+    for (let podIndex = 0; podIndex < targetPods.length; podIndex += 1) {
+      const targetPod = targetPods[podIndex]
+      const countForPod = targetCounts[podIndex] ?? 0
+
+      for (let countIndex = 0; countIndex < countForPod; countIndex += 1) {
+        const group = allGroups[groupIndex]
+        groupIndex += 1
+
+        if ((group?.podId ?? null) !== targetPod.id) {
+          assignments.push({
+            groupId: group.id,
+            podId: targetPod.id,
+          })
+        }
+      }
+    }
+
+    await assignGroupsSequentially(assignments)
+
+    for (const pod of podsToDelete) {
+      await deletePod(eventId.value, pod.id)
+    }
+
+    notif.success(`Mesas reorganizadas automáticamente en ${targetPodCount} nodo${targetPodCount === 1 ? '' : 's'}.`)
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al reorganizar las mesas')
+  } finally {
+    await finalizeAutoArrangement()
+  }
+}
+
+async function handleAutoAssignPending() {
+  const structureSnapshot = structure.value
+  const pendingGroupList = [...(structureSnapshot?.unassignedGroups || [])]
+
+  if (!pendingGroupList.length) {
+    notif.info('No hay mesas pendientes de asignación.')
+    return
+  }
+
+  const currentPods = getOrderedPods(structureSnapshot)
+  const pendingDistribution = resolvePendingDistribution(currentPods, pendingGroupList.length)
+  autoArrangeMode.value = 'pending'
+
+  try {
+    const podPool = await ensurePodPoolSize(currentPods.length + pendingDistribution.additionalPodCount, currentPods)
+    const resolvedDistribution = simulatePendingDistribution(podPool, pendingGroupList.length, 0)
+    const assignments = pendingGroupList.map((group, index) => ({
+      groupId: group.id,
+      podId: podPool[resolvedDistribution.assignments[index]].id,
+    }))
+
+    await assignGroupsSequentially(assignments)
+
+    notif.success(`Mesas pendientes asignadas automáticamente a ${resolvedDistribution.score.usedPods} nodo${resolvedDistribution.score.usedPods === 1 ? '' : 's'}.`)
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al asignar las mesas pendientes')
+  } finally {
+    await finalizeAutoArrangement()
+  }
+}
+
 function clearDragState() {
   activeDragGroup.value = null
   activeDropColumn.value = null
@@ -97,7 +423,7 @@ function resolveColumnKey(podId) {
 }
 
 function handleGroupDragStart(group) {
-  if (movingGroupId.value) return
+  if (movingGroupId.value || isAutoArranging.value) return
   activeDragGroup.value = {
     id: group.id,
     identifier: group.identifier,
@@ -122,15 +448,17 @@ function setActiveDropColumn(targetPodId) {
 }
 
 function handleUnassignedDragOver() {
+  if (isAutoArranging.value) return
   setActiveDropColumn(null)
 }
 
 function handlePodDragOver(pod) {
+  if (isAutoArranging.value) return
   setActiveDropColumn(pod?.id ?? null)
 }
 
 async function moveActiveGroup(targetPodId, targetLabel) {
-  if (!activeDragGroup.value) return
+  if (!activeDragGroup.value || isAutoArranging.value) return
 
   const draggedGroup = activeDragGroup.value
   const currentPodId = draggedGroup.podId ?? null
@@ -159,16 +487,22 @@ async function moveActiveGroup(targetPodId, targetLabel) {
 }
 
 async function handleUnassignedDrop() {
+  if (isAutoArranging.value) return
   await moveActiveGroup(null, 'Sin asignar')
 }
 
 async function handlePodDrop(pod) {
+  if (isAutoArranging.value) return
   await moveActiveGroup(pod?.id ?? null, pod?.name || 'este nodo')
 }
 
 watch(
   () => realtimeEvent?.value,
   (nextRealtimeEvent) => {
+    if (isAutoArranging.value) {
+      return
+    }
+
     if (nextRealtimeEvent?.operation === 'EVENT_STRUCTURE_UPDATED') {
       void load({ silent: true })
     }
@@ -176,6 +510,10 @@ watch(
 )
 
 watch(socketConnected, (isNowConnected) => {
+  if (isAutoArranging.value) {
+    return
+  }
+
   if (isNowConnected) {
     void load({ silent: true })
   }
@@ -273,11 +611,12 @@ onMounted(() => {
               v-model="newPodName"
               class="form-control"
               maxlength="80"
+              :disabled="creatingPod || isAutoArranging"
               :placeholder="structure.suggestedPodName || 'Nodo 1'"
             />
           </div>
 
-          <button class="btn btn-primary create-pod-card__button" :disabled="creatingPod">
+          <button class="btn btn-primary create-pod-card__button" :disabled="creatingPod || isAutoArranging">
             {{ creatingPod ? 'Creando…' : 'Crear nodo' }}
           </button>
         </form>
@@ -285,16 +624,41 @@ onMounted(() => {
 
       <section class="card board-card">
         <div class="card-header board-card__header">
-          <div>
+          <div class="board-card__header-main">
             <h3>Reparto de mesas</h3>
             <p class="text-muted board-card__copy">
               Arrastra cada mesa entre columnas para distribuirla en nodos. Si la sueltas en
               <strong>Sin asignar</strong>, quedará desasignada.
             </p>
           </div>
-          <span v-if="hasPendingGroups" class="board-card__warning-badge">
-            Hay mesas pendientes de asignación
-          </span>
+          <div class="board-card__header-side">
+            <div class="board-card__actions">
+              <button
+                type="button"
+                class="btn btn-primary board-card__action"
+                data-testid="auto-rebalance-button"
+                :disabled="!canRebalanceAll"
+                @click="handleAutoRebalanceAll"
+              >
+                {{ autoArrangeMode === 'rebalance' ? 'Reorganizando…' : 'Reorganizar todas' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary board-card__action"
+                data-testid="auto-assign-pending-button"
+                :disabled="!canAutoAssignPending"
+                @click="handleAutoAssignPending"
+              >
+                {{ autoArrangeMode === 'pending' ? 'Asignando…' : 'Asignar pendientes' }}
+              </button>
+            </div>
+            <span v-if="hasPendingGroups" class="board-card__warning-badge">
+              Hay mesas pendientes de asignación
+            </span>
+            <p class="board-card__hint text-muted">
+              La distribución automática busca que hayan 4 mesas por nodo y evita crear nodos con muy pocas mesas siempre que sea posible.
+            </p>
+          </div>
         </div>
 
         <div class="setup-board">
@@ -377,6 +741,22 @@ onMounted(() => {
   gap: 16px;
 }
 
+.board-card__header {
+  justify-content: space-between;
+}
+
+.board-card__header-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.board-card__header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .create-pod-card__copy,
 .board-card__copy {
   margin-top: 6px;
@@ -400,6 +780,18 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.board-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.board-card__action {
+  min-width: 190px;
+  justify-content: center;
+}
+
 .board-card__warning-badge {
   display: inline-flex;
   align-items: center;
@@ -410,6 +802,13 @@ onMounted(() => {
   color: var(--c-text);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.board-card__hint {
+  max-width: 48ch;
+  margin: 0;
+  font-size: 0.82rem;
+  text-align: right;
 }
 
 .setup-board {
@@ -610,6 +1009,25 @@ onMounted(() => {
   .status-stat {
     text-align: left;
     min-width: unset;
+  }
+
+  .board-card__header-side,
+  .board-card__actions {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .board-card__header-side {
+    width: 100%;
+  }
+
+  .board-card__action {
+    width: 100%;
+  }
+
+  .board-card__hint {
+    max-width: none;
+    text-align: left;
   }
 }
 </style>

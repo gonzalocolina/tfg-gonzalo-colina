@@ -60,7 +60,7 @@ describe('CreateEventView', () => {
           id: 10,
           name: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
-          defaultHpMax: 8,
+          defaultHpMax: 10,
           defaultThreatMax: 0,
           defaultStatus: 'REVELADA',
         },

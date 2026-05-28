@@ -58,6 +58,7 @@ function buildStructure(overrides = {}) {
       {
         id: 7,
         name: 'Nodo 1',
+        sortOrder: 0,
         totalGroups: 2,
         totalPlayers: 5,
         warnings: [],
@@ -100,7 +101,7 @@ describe('EventSetupView', () => {
     __websocketState.realtimeEvent.value = null
     __websocketState.connect.mockClear()
     getEventStructure.mockResolvedValue({ data: buildStructure() })
-    createPod.mockResolvedValue({ data: { id: 8, name: 'Nodo 2' } })
+    createPod.mockResolvedValue({ data: { id: 8, name: 'Nodo 2', sortOrder: 1 } })
     assignGroupToPod.mockResolvedValue({ data: { id: 20, podId: 7 } })
     updateGroup.mockResolvedValue({ data: { id: 20 } })
     updatePod.mockResolvedValue({ data: { id: 7 } })
@@ -222,6 +223,227 @@ describe('EventSetupView', () => {
       identifier: 'Mesa Beta Prime',
       playerCount: 4,
     })
+
+    wrapper.unmount()
+  })
+
+  it('reorganizes all tables into an optimal balanced distribution and creates pods when needed', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        configuredPlayerCount: 24,
+        currentGroupCount: 9,
+        assignedPlayerCount: 21,
+        unassignedGroupCount: 1,
+        unassignedPlayerCount: 3,
+        suggestedPodName: 'Nodo 3',
+        pods: [
+          {
+            id: 7,
+            name: 'Nodo 1',
+            sortOrder: 0,
+            totalGroups: 4,
+            totalPlayers: 10,
+            warnings: [],
+            groups: [
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP2', observerCode: 'OBS2' },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2, representativeCode: 'REP3', observerCode: 'OBS3' },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3, representativeCode: 'REP4', observerCode: 'OBS4' },
+            ],
+          },
+          {
+            id: 8,
+            name: 'Nodo 2',
+            sortOrder: 1,
+            totalGroups: 4,
+            totalPlayers: 11,
+            warnings: [],
+            groups: [
+              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
+              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 3, representativeCode: 'REP6', observerCode: 'OBS6' },
+              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 3, representativeCode: 'REP7', observerCode: 'OBS7' },
+              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 3, representativeCode: 'REP8', observerCode: 'OBS8' },
+            ],
+          },
+        ],
+        unassignedGroups: [
+          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 3, representativeCode: 'REP9', observerCode: 'OBS9' },
+        ],
+      }),
+    })
+    createPod.mockResolvedValueOnce({ data: { id: 9, name: 'Nodo 3', sortOrder: 2 } })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="auto-rebalance-button"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(createPod).toHaveBeenCalledWith(42, { name: 'Nodo 3', sortOrder: 2 })
+    expect(assignGroupToPod).toHaveBeenCalledTimes(4)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(1, 42, 23, 8)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(2, 42, 26, 9)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(3, 42, 27, 9)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(4, 42, 20, 9)
+    expect(deletePod).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('assigns only pending tables and creates a new pod when that avoids overloading existing ones', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        configuredPlayerCount: 16,
+        currentGroupCount: 6,
+        assignedPlayerCount: 11,
+        unassignedGroupCount: 2,
+        unassignedPlayerCount: 5,
+        suggestedPodName: 'Nodo 2',
+        pods: [
+          {
+            id: 7,
+            name: 'Nodo 1',
+            sortOrder: 0,
+            totalGroups: 4,
+            totalPlayers: 11,
+            warnings: [],
+            groups: [
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP2', observerCode: 'OBS2' },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3, representativeCode: 'REP4', observerCode: 'OBS4' },
+            ],
+          },
+        ],
+        unassignedGroups: [
+          { id: 20, podId: null, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
+          { id: 24, podId: null, identifier: 'Mesa Zeta', playerCount: 3, representativeCode: 'REP6', observerCode: 'OBS6' },
+        ],
+      }),
+    })
+    createPod.mockResolvedValueOnce({ data: { id: 8, name: 'Nodo 2', sortOrder: 1 } })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="auto-assign-pending-button"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(createPod).toHaveBeenCalledWith(42, { name: 'Nodo 2', sortOrder: 1 })
+    expect(assignGroupToPod).toHaveBeenCalledTimes(2)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(1, 42, 20, 8)
+    expect(assignGroupToPod).toHaveBeenNthCalledWith(2, 42, 24, 8)
+    expect(assignGroupToPod.mock.calls.every(([, groupId]) => [20, 24].includes(groupId))).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('assigns a single pending table to an existing pod instead of creating a nearly empty new pod', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        configuredPlayerCount: 18,
+        currentGroupCount: 9,
+        assignedPlayerCount: 16,
+        unassignedGroupCount: 1,
+        unassignedPlayerCount: 2,
+        suggestedPodName: 'Nodo 3',
+        pods: [
+          {
+            id: 7,
+            name: 'Nodo 1',
+            sortOrder: 0,
+            totalGroups: 4,
+            totalPlayers: 8,
+            warnings: [],
+            groups: [
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 2, representativeCode: 'REP2', observerCode: 'OBS2' },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2, representativeCode: 'REP3', observerCode: 'OBS3' },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 2, representativeCode: 'REP4', observerCode: 'OBS4' },
+            ],
+          },
+          {
+            id: 8,
+            name: 'Nodo 2',
+            sortOrder: 1,
+            totalGroups: 4,
+            totalPlayers: 8,
+            warnings: [],
+            groups: [
+              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
+              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 2, representativeCode: 'REP6', observerCode: 'OBS6' },
+              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 2, representativeCode: 'REP7', observerCode: 'OBS7' },
+              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 2, representativeCode: 'REP8', observerCode: 'OBS8' },
+            ],
+          },
+        ],
+        unassignedGroups: [
+          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 2, representativeCode: 'REP9', observerCode: 'OBS9' },
+        ],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="auto-assign-pending-button"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(createPod).not.toHaveBeenCalled()
+    expect(assignGroupToPod).toHaveBeenCalledWith(42, 20, 7)
+
+    wrapper.unmount()
+  })
+
+  it('removes surplus pods when a full rebalance can consolidate the tables', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        configuredPlayerCount: 4,
+        currentGroupCount: 2,
+        assignedPlayerCount: 4,
+        unassignedGroupCount: 0,
+        unassignedPlayerCount: 0,
+        suggestedPodName: 'Nodo 3',
+        pods: [
+          {
+            id: 7,
+            name: 'Nodo 1',
+            sortOrder: 0,
+            totalGroups: 1,
+            totalPlayers: 2,
+            warnings: [],
+            groups: [
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
+            ],
+          },
+          {
+            id: 8,
+            name: 'Nodo 2',
+            sortOrder: 1,
+            totalGroups: 1,
+            totalPlayers: 2,
+            warnings: [],
+            groups: [
+              { id: 20, podId: 8, identifier: 'Mesa Beta', playerCount: 2, representativeCode: 'REP2', observerCode: 'OBS2' },
+            ],
+          },
+        ],
+        unassignedGroups: [],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="auto-rebalance-button"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(assignGroupToPod).toHaveBeenCalledWith(42, 20, 7)
+    expect(deletePod).toHaveBeenCalledWith(42, 8)
 
     wrapper.unmount()
   })

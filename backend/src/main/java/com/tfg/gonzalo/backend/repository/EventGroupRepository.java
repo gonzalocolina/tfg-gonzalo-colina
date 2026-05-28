@@ -15,6 +15,8 @@ public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
 
     List<EventGroup> findByPodId(Long podId);
 
+    long countByPodId(Long podId);
+
     List<EventGroup> findByEventIdAndPodIsNull(Long eventId);
 
     Optional<EventGroup> findByEventIdAndIdentifierIgnoreCase(Long eventId, String identifier);

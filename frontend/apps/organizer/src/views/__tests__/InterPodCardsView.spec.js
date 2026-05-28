@@ -254,7 +254,7 @@ describe('InterPodCardsView', () => {
           name: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
           defaultHpMax: 0,
-          defaultThreatMax: 8,
+          defaultThreatMax: 7,
         }),
       ],
     })
@@ -262,6 +262,6 @@ describe('InterPodCardsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Amenaza 8')
+    expect(wrapper.text()).toContain('Amenaza base 7/mesa')
   })
 })

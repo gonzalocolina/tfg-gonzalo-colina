@@ -139,7 +139,7 @@ class EventRolesAndAlertsIntegrationTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.cardName").value("THE_MANGOG"))
         .andExpect(jsonPath("$.cardCategory").value("ESBIRRO"))
-        .andExpect(jsonPath("$.hpCurrent").value(8))
+        .andExpect(jsonPath("$.hpCurrent").value(10))
         .andExpect(jsonPath("$.threatCurrent").value(0))
         .andReturn();
 
@@ -166,7 +166,7 @@ class EventRolesAndAlertsIntegrationTest {
             }
             """.formatted(groupA.representativeCode())))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.hpCurrent").value(5));
+          .andExpect(jsonPath("$.hpCurrent").value(7));
 
       mockMvc.perform(patch("/api/events/{eventId}/inter-pod-cards/{cardId}/status", eventId, cardId)
           .header("Authorization", "Bearer " + organizerToken)
@@ -237,7 +237,7 @@ class EventRolesAndAlertsIntegrationTest {
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.cardCategory").value("PLAN"))
               .andExpect(jsonPath("$.hpCurrent").value(0))
-              .andExpect(jsonPath("$.threatCurrent").value(8))
+                          .andExpect(jsonPath("$.threatCurrent").value(7))
               .andReturn()
               .getResponse()
               .getContentAsString());
@@ -264,7 +264,7 @@ class EventRolesAndAlertsIntegrationTest {
                         }
                         """.formatted(group.representativeCode())))
               .andExpect(status().isOk())
-              .andExpect(jsonPath("$.threatCurrent").value(5))
+              .andExpect(jsonPath("$.threatCurrent").value(4))
               .andExpect(jsonPath("$.status").value("REVELADA"));
 
       mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
@@ -291,6 +291,76 @@ class EventRolesAndAlertsIntegrationTest {
                         """.formatted(group.representativeCode())))
               .andExpect(status().isBadRequest())
               .andExpect(jsonPath("$.message").value(containsString("ya está derrotada")));
+    }
+
+    @Test
+    void interPodCardsScaleStatsByNumberOfTablesInEachPod() throws Exception {
+      long eventId = createEvent("evento-cartas-escaladas", 16, 180);
+      String organizerToken = loginOrganizer("evento-cartas-escaladas", "Password123");
+
+      long podAId = createPod(eventId, organizerToken, "Pod A");
+      GroupCreationResult groupA1 = createGroupAndGetResult(eventId, podAId, organizerToken, "A1", 4);
+      createGroupAndGetResult(eventId, podAId, organizerToken, "A2", 4);
+      createGroupAndGetResult(eventId, podAId, organizerToken, "A3", 4);
+
+      long podBId = createPod(eventId, organizerToken, "Pod B");
+      GroupCreationResult groupB1 = createGroupAndGetResult(eventId, podBId, organizerToken, "B1", 4);
+
+      String representativeAToken = loginGroup(eventId, groupA1.representativeCode());
+      String representativeBToken = loginGroup(eventId, groupB1.representativeCode());
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                      .header("Authorization", "Bearer " + organizerToken))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.snapshot.timerStatus").value("RUNNING"));
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+                      .file(new MockMultipartFile(
+                              "payload",
+                              "payload.json",
+                              MediaType.APPLICATION_JSON_VALUE,
+                              """
+                                {
+                                  "representativeCode": "%s",
+                                  "cardName": "THE_MANGOG"
+                                }
+                                """.formatted(groupA1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                      .header("Authorization", "Bearer " + representativeAToken))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.hpMax").value(30))
+              .andExpect(jsonPath("$.hpCurrent").value(30));
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+                      .file(new MockMultipartFile(
+                              "payload",
+                              "payload.json",
+                              MediaType.APPLICATION_JSON_VALUE,
+                              """
+                                {
+                                  "representativeCode": "%s",
+                                  "cardName": "THE_MANGOG"
+                                }
+                                """.formatted(groupB1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                      .header("Authorization", "Bearer " + representativeBToken))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.hpMax").value(10))
+              .andExpect(jsonPath("$.hpCurrent").value(10));
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+                      .file(new MockMultipartFile(
+                              "payload",
+                              "payload.json",
+                              MediaType.APPLICATION_JSON_VALUE,
+                              """
+                                {
+                                  "representativeCode": "%s",
+                                  "cardName": "DOOR_BETWEEN_WORLDS"
+                                }
+                                """.formatted(groupA1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                      .header("Authorization", "Bearer " + representativeAToken))
+              .andExpect(status().isCreated())
+              .andExpect(jsonPath("$.threatMax").value(21))
+              .andExpect(jsonPath("$.threatCurrent").value(21));
     }
 
     @Test
