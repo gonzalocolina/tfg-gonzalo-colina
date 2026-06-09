@@ -31,8 +31,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class InterPodCardService {
 
-    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
-
     private final EventRepository eventRepository;
     private final EventGroupRepository eventGroupRepository;
     private final InterPodCardRepository interPodCardRepository;
@@ -74,8 +72,7 @@ public class InterPodCardService {
         ensureGroupHasAssignedPod(sourceGroup);
         InterPodCardDefinition selectedDefinition = interPodCardDefinitionService.resolveDefinitionForEvent(
             event,
-            request.interPodCardDefinitionId(),
-            request.cardName()
+            request.interPodCardDefinitionId()
         );
         ensureGroupHasNotReportedDefinition(eventId, sourceGroup, selectedDefinition);
         int tableCountInPod = resolveTableCountInPod(sourceGroup);
@@ -292,7 +289,7 @@ public class InterPodCardService {
     }
 
     private void ensureGroupHasAssignedPod(EventGroup group) {
-        if (group.getPod() == null || LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(group.getPod().getName())) {
+        if (group.getPod() == null) {
             throw new BusinessRuleException("Tu mesa todavía no está asignada a un pod.");
         }
     }

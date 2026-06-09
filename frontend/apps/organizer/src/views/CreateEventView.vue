@@ -78,6 +78,27 @@ async function loadInterPodCardDefinitions() {
   }
 }
 
+function toOptionalNumber(value) {
+  if (value === '' || value == null) {
+    return null
+  }
+
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function buildCreateEventPayload() {
+  const timeLimitMinutes = toOptionalNumber(form.value.timeLimitMinutes)
+  return {
+    name: form.value.name.trim(),
+    timeLimitMinutes,
+    villainDefinitionId: toOptionalNumber(form.value.villainDefinitionId),
+    interPodCardDefinitionIds: form.value.interPodCardDefinitionIds
+      .map(toOptionalNumber)
+      .filter((definitionId) => definitionId != null),
+  }
+}
+
 async function handleCreate() {
   errorMsg.value = ''
   if (!form.value.villainDefinitionId) {
@@ -86,7 +107,7 @@ async function handleCreate() {
   }
   loading.value = true
   try {
-    const { data: event } = await createEvent(form.value)
+    const { data: event } = await createEvent(buildCreateEventPayload())
     notif.success('Evento creado correctamente')
     router.push({ name: 'dashboard', params: { eventId: event.id } })
   } catch (err) {

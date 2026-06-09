@@ -10,8 +10,6 @@ public interface InterPodCardDefinitionRepository extends JpaRepository<InterPod
 
     List<InterPodCardDefinition> findByTypeOrderByNameAsc(InterPodCardDefinitionType type);
 
-    List<InterPodCardDefinition> findByTypeAndNameIgnoreCaseOrderByIdAsc(InterPodCardDefinitionType type, String name);
-
     List<InterPodCardDefinition> findByOwnerIdOrderByNameAsc(Long ownerId);
 
     Optional<InterPodCardDefinition> findByIdAndOwnerId(Long id, Long ownerId);

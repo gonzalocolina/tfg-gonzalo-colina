@@ -40,7 +40,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class GameStateService {
 
-    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
     private static final String CORRECTION_TARGET_VILLAIN_HP = "la vida del villano";
     private static final String CORRECTION_TARGET_THREAT = "la amenaza";
 
@@ -585,29 +584,22 @@ public class GameStateService {
         }
 
         boolean hasPendingAssignments = groups.stream()
-                .anyMatch(group -> group.getPod() == null
-                        || LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(group.getPod().getName()));
+                .anyMatch(group -> group.getPod() == null);
         if (hasPendingAssignments) {
             throw new BusinessRuleException("No se puede iniciar ni continuar la partida mientras haya mesas pendientes de asignación a un pod.");
         }
 
         List<Long> assignedPodIds = groups.stream()
                 .map(EventGroup::getPod)
-                .filter(this::isRealPod)
                 .map(Pod::getId)
                 .distinct()
                 .toList();
 
         boolean hasEmptyPods = podRepository.findByEventIdOrderBySortOrderAsc(eventId).stream()
-                .filter(this::isRealPod)
                 .anyMatch(pod -> !assignedPodIds.contains(pod.getId()));
         if (hasEmptyPods) {
             throw new BusinessRuleException("No se puede iniciar ni continuar la partida mientras haya nodos sin mesas asignadas.");
         }
-    }
-
-    private boolean isRealPod(Pod pod) {
-        return pod != null && !LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(pod.getName());
     }
 
     private void ensureRepresentativeActionsAllowed(Event event) {

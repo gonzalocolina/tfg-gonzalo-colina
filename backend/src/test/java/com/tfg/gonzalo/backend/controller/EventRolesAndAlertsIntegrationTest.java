@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.tfg.gonzalo.backend.model.enums.InterPodCardDefinitionType;
+import com.tfg.gonzalo.backend.repository.InterPodCardDefinitionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +32,9 @@ class EventRolesAndAlertsIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private InterPodCardDefinitionRepository interPodCardDefinitionRepository;
 
     private record GroupCreationResult(Long groupId, String representativeCode) {
     }
@@ -115,6 +120,7 @@ class EventRolesAndAlertsIntegrationTest {
 
       String representativeAToken = loginGroup(eventId, groupA.representativeCode());
       String representativeBToken = loginGroup(eventId, groupB.representativeCode());
+      long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -128,9 +134,9 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG"
+            "interPodCardDefinitionId": %d
           }
-          """.formatted(groupA.representativeCode()).getBytes(StandardCharsets.UTF_8)
+          """.formatted(groupA.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       MvcResult cardResult = mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -213,6 +219,7 @@ class EventRolesAndAlertsIntegrationTest {
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
       String representativeToken = loginGroup(eventId, group.representativeCode());
+      long doorDefinitionId = predefinedInterPodCardDefinitionId("DOOR_BETWEEN_WORLDS");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                       .header("Authorization", "Bearer " + organizerToken))
@@ -226,9 +233,9 @@ class EventRolesAndAlertsIntegrationTest {
               """
                 {
                   "representativeCode": "%s",
-                  "cardName": "DOOR_BETWEEN_WORLDS"
+                  "interPodCardDefinitionId": %d
                 }
-                """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+                """.formatted(group.representativeCode(), doorDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -309,6 +316,8 @@ class EventRolesAndAlertsIntegrationTest {
       String representativeAToken = loginGroup(eventId, groupA1.representativeCode());
       String representativeA2Token = loginGroup(eventId, groupA2.representativeCode());
       String representativeBToken = loginGroup(eventId, groupB1.representativeCode());
+      long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
+      long doorDefinitionId = predefinedInterPodCardDefinitionId("DOOR_BETWEEN_WORLDS");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                       .header("Authorization", "Bearer " + organizerToken))
@@ -323,9 +332,9 @@ class EventRolesAndAlertsIntegrationTest {
                               """
                                 {
                                   "representativeCode": "%s",
-                                  "cardName": "THE_MANGOG"
+                                  "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(groupA1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.hpMax").value(30))
@@ -339,9 +348,9 @@ class EventRolesAndAlertsIntegrationTest {
                               """
                                 {
                                   "representativeCode": "%s",
-                                  "cardName": "THE_MANGOG"
+                                  "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(groupA1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isBadRequest())
               .andExpect(jsonPath("$.message").value(containsString("ya ha indicado")));
@@ -354,9 +363,9 @@ class EventRolesAndAlertsIntegrationTest {
                               """
                                 {
                                   "representativeCode": "%s",
-                                  "cardName": "THE_MANGOG"
+                                  "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA2.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(groupA2.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeA2Token))
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.hpMax").value(30))
@@ -370,9 +379,9 @@ class EventRolesAndAlertsIntegrationTest {
                               """
                                 {
                                   "representativeCode": "%s",
-                                  "cardName": "THE_MANGOG"
+                                  "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupB1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(groupB1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeBToken))
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.hpMax").value(10))
@@ -386,9 +395,9 @@ class EventRolesAndAlertsIntegrationTest {
                               """
                                 {
                                   "representativeCode": "%s",
-                                  "cardName": "DOOR_BETWEEN_WORLDS"
+                                  "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode()).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(groupA1.representativeCode(), doorDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.threatMax").value(21))
@@ -403,6 +412,7 @@ class EventRolesAndAlertsIntegrationTest {
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
       String representativeToken = loginGroup(eventId, group.representativeCode());
+      long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -416,9 +426,9 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG"
+            "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -464,9 +474,9 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG"
+            "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -484,6 +494,7 @@ class EventRolesAndAlertsIntegrationTest {
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
       String representativeToken = loginGroup(eventId, group.representativeCode());
+      long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       MockMultipartFile organizerCreatePayload = new MockMultipartFile(
         "payload",
@@ -492,9 +503,9 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG"
+            "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -541,9 +552,9 @@ class EventRolesAndAlertsIntegrationTest {
         """
           {
             "representativeCode": "%s",
-            "cardName": "THE_MANGOG"
+            "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode()).getBytes(StandardCharsets.UTF_8)
+          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -691,6 +702,13 @@ class EventRolesAndAlertsIntegrationTest {
                 .andReturn();
 
         return extractToken(result.getResponse().getContentAsString());
+    }
+
+    private long predefinedInterPodCardDefinitionId(String name) {
+        return interPodCardDefinitionRepository
+                .findByTypeAndNameIgnoreCase(InterPodCardDefinitionType.PREDEFINED, name)
+                .orElseThrow(() -> new IllegalStateException("No existe la carta inter-pod predefinida: " + name))
+                .getId();
     }
 
     private String extractToken(String responseBody) {

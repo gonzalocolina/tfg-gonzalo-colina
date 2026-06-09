@@ -62,12 +62,10 @@ export function createAppConfig({ appRoot, appName, basePath, port }) {
       },
     },
     optimizeDeps: {
-      esbuildOptions: {
+      rolldownOptions: {
         define: {
           global: 'globalThis',
         },
-      },
-      rolldownOptions: {
         plugins: [replaceGlobalPlugin()],
       },
     },

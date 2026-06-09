@@ -198,32 +198,18 @@ public class InterPodCardDefinitionService {
 
     @Transactional(readOnly = true)
     public InterPodCardDefinition resolveDefinitionForEvent(Event event,
-                                                            Long interPodCardDefinitionId,
-                                                            String legacyCardName) {
+                                                            Long interPodCardDefinitionId) {
         List<InterPodCardDefinition> selectedDefinitions = listDefinitionsVisibleToOrganizer(event.getOrganizer().getId());
         if (selectedDefinitions.isEmpty()) {
             throw new BusinessRuleException(
                 "No hay cartas inter-pod disponibles para este organizador.");
         }
 
-        if (interPodCardDefinitionId != null) {
-            return selectedDefinitions.stream()
-                    .filter(definition -> definition.getId().equals(interPodCardDefinitionId))
-                    .findFirst()
-                    .orElseThrow(() -> new BusinessRuleException(
-                    "La carta inter-pod indicada no está disponible para este evento."));
-        }
-
-        if (legacyCardName != null && !legacyCardName.isBlank()) {
-            String normalized = normalizeCardName(legacyCardName);
-            return selectedDefinitions.stream()
-                .filter(definition -> normalizeCardName(definition.getName()).equals(normalized))
-                    .findFirst()
-                    .orElseThrow(() -> new BusinessRuleException(
-                            "La carta inter-pod indicada no está disponible para este evento."));
-        }
-
-        throw new BusinessRuleException("Debes indicar una carta inter-pod para crear la instancia.");
+        return selectedDefinitions.stream()
+                .filter(definition -> definition.getId().equals(interPodCardDefinitionId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(
+                        "La carta inter-pod indicada no está disponible para este evento."));
     }
 
     @Transactional(readOnly = true)

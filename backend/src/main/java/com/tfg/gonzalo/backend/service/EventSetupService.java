@@ -32,7 +32,6 @@ import org.springframework.stereotype.Service;
 public class EventSetupService {
 
     private static final String EVENT_NOT_FOUND_MESSAGE = "No existe el evento solicitado.";
-    private static final String LEGACY_UNASSIGNED_POD_NAME = "Sin asignar";
     private static final String DEFAULT_POD_NAME_PREFIX = "Nodo";
     private static final Pattern DEFAULT_POD_NAME_PATTERN = Pattern.compile("^(?:pod|nodo)\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
@@ -154,7 +153,6 @@ public class EventSetupService {
 
         String previousName = pod.getName();
         String nextName = request.name().trim();
-        validatePodName(nextName);
         pod.setName(nextName);
         pod = podRepository.save(pod);
 
@@ -280,7 +278,7 @@ public class EventSetupService {
     private Pod findPod(Long podId, Long eventId) {
         Pod pod = podRepository.findById(podId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el pod solicitado."));
-        if (!pod.getEvent().getId().equals(eventId) || !isRealPod(pod)) {
+        if (!pod.getEvent().getId().equals(eventId)) {
             throw new BusinessRuleException("El pod no pertenece al evento indicado.");
         }
         return pod;
@@ -294,17 +292,11 @@ public class EventSetupService {
     }
 
     private List<Pod> listRealPods(Long eventId) {
-        return podRepository.findByEventIdOrderBySortOrderAsc(eventId).stream()
-                .filter(this::isRealPod)
-                .toList();
-    }
-
-    private boolean isRealPod(Pod pod) {
-        return pod != null && !LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(pod.getName());
+        return podRepository.findByEventIdOrderBySortOrderAsc(eventId);
     }
 
     private boolean hasAssignedPod(EventGroup group) {
-        return group.getPod() != null && isRealPod(group.getPod());
+        return group.getPod() != null;
     }
 
     private String resolveCurrentPodName(EventGroup group) {
@@ -324,14 +316,7 @@ public class EventSetupService {
         }
 
         String normalizedName = requestedName.trim();
-        validatePodName(normalizedName);
         return normalizedName;
-    }
-
-    private void validatePodName(String podName) {
-        if (LEGACY_UNASSIGNED_POD_NAME.equalsIgnoreCase(podName)) {
-            throw new BusinessRuleException("El nombre 'Sin asignar' está reservado para mesas pendientes de asignación.");
-        }
     }
 
     private String resolveSuggestedPodName(List<Pod> currentPods) {

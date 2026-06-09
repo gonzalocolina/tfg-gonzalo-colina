@@ -142,6 +142,29 @@ describe('CreateEventView', () => {
     expect(wrapper.find('.form-error').text()).toBe('Error al crear evento.')
   })
 
+  it('normalizes empty numeric fields before creating an event', async () => {
+    const wrapper = mountView()
+
+    createEvent.mockResolvedValue({ data: { id: 100, name: 'Evento sin temporizador explícito' } })
+
+    await new Promise((r) => setTimeout(r, 0))
+    await wrapper.find('#name').setValue('  Evento sin temporizador explícito  ')
+    await wrapper.find('#villain').setValue('1')
+    await wrapper.find('#time').setValue('')
+    await wrapper.find('form').trigger('submit')
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Evento sin temporizador explícito',
+        timeLimitMinutes: null,
+        villainDefinitionId: 1,
+        interPodCardDefinitionIds: [10],
+      }),
+    )
+  })
+
   it('shows the shared home shortcut in the header actions', () => {
     const wrapper = mountView()
     const link = wrapper.find('[data-test="organizer-home-link"]')
