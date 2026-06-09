@@ -30,6 +30,8 @@ vi.mock('@/api/interPodCardDefinitions', () => ({
 function buildCard(overrides = {}) {
   return {
     id: 42,
+    sourceGroupId: 20,
+    interPodCardDefinitionId: 10,
     cardName: 'THE_MANGOG',
     cardCategory: 'ESBIRRO',
     hpCurrent: 7,
@@ -223,6 +225,50 @@ describe('InterPodAlertDialog', () => {
       interPodCardDefinitionId: 10,
     })
     expect(wrapper.emitted('refresh-requested')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('only offers inter-pod definitions not already reported by the current table', async () => {
+    getEventInterPodCardDefinitions.mockResolvedValue({
+      data: [
+        { id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultThreatMax: 0, defaultStatus: 'REVELADA' },
+        { id: 11, name: 'DOOR_BETWEEN_WORLDS', cardCategory: 'PLAN', defaultHpMax: 0, defaultThreatMax: 7, defaultStatus: 'REVELADA' },
+      ],
+    })
+    const wrapper = mountDialog({
+      cards: [
+        buildCard({
+          sourceGroupId: 20,
+          interPodCardDefinitionId: 10,
+        }),
+        buildCard({
+          id: 43,
+          sourceGroupId: 21,
+          interPodCardDefinitionId: 11,
+          cardName: 'DOOR_BETWEEN_WORLDS',
+          cardCategory: 'PLAN',
+          hpCurrent: 0,
+          hpMax: 0,
+          threatCurrent: 7,
+          threatMax: 7,
+          sourceGroupIdentifier: 'Mesa Alfa',
+        }),
+      ],
+    })
+
+    await flushPromises()
+
+    const options = wrapper.findAll('#card-definition option')
+    expect(options.map((option) => option.text())).not.toContain('The Mangog')
+    expect(options.map((option) => option.text())).toContain('Door Between Worlds')
+
+    await wrapper.get('.btn.btn-primary').trigger('click')
+
+    expect(createInterPodCard).toHaveBeenCalledWith(1, {
+      representativeCode: 'REP001',
+      interPodCardDefinitionId: 11,
+    })
 
     wrapper.unmount()
   })

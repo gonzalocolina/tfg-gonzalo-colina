@@ -18,7 +18,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "inter_pod_cards")
+@Table(name = "event_inter_pod_card")
 public class InterPodCard extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

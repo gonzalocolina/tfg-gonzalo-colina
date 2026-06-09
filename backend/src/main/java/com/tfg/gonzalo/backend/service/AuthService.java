@@ -10,15 +10,15 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
-import com.tfg.gonzalo.backend.model.GameState;
+import com.tfg.gonzalo.backend.model.EventVillain;
+import com.tfg.gonzalo.backend.model.enums.CoOrganizerInvitationStatus;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
-import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
+import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
-import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import java.util.Locale;
 import com.tfg.gonzalo.backend.security.TokenService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,10 +33,9 @@ public class AuthService {
     private static final String STRUCTURE_UPDATED_OPERATION = "EVENT_STRUCTURE_UPDATED";
 
     private final AppUserRepository appUserRepository;
-    private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
+    private final CoOrganizerInvitationRepository coOrganizerInvitationRepository;
     private final EventGroupRepository eventGroupRepository;
     private final EventRepository eventRepository;
-    private final GameStateRepository gameStateRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final CodeGeneratorService codeGeneratorService;
@@ -46,10 +45,9 @@ public class AuthService {
     private final RealtimeEventPublisher realtimeEventPublisher;
 
     public AuthService(AppUserRepository appUserRepository,
-                       CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
+                       CoOrganizerInvitationRepository coOrganizerInvitationRepository,
                        EventGroupRepository eventGroupRepository,
                        EventRepository eventRepository,
-                       GameStateRepository gameStateRepository,
                        PasswordEncoder passwordEncoder,
                        TokenService tokenService,
                        CodeGeneratorService codeGeneratorService,
@@ -58,10 +56,9 @@ public class AuthService {
                        EventPlayerMetricsService eventPlayerMetricsService,
                        RealtimeEventPublisher realtimeEventPublisher) {
         this.appUserRepository = appUserRepository;
-        this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
+        this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.eventRepository = eventRepository;
-        this.gameStateRepository = gameStateRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.codeGeneratorService = codeGeneratorService;
@@ -131,8 +128,10 @@ public class AuthService {
             throw new BusinessRuleException("Credenciales inválidas.");
         }
 
-        var assignments = coOrganizerAssignmentRepository.findByEventId(request.eventId()).stream()
-                .filter(assignment -> assignment.getUser().getId().equals(user.getId()))
+        var assignments = coOrganizerInvitationRepository
+            .findByEventIdAndStatusOrderByCreatedAtDesc(request.eventId(), CoOrganizerInvitationStatus.ACCEPTED)
+            .stream()
+            .filter(invitation -> invitation.getInvitee().getId().equals(user.getId()))
                 .toList();
         if (assignments.isEmpty()) {
             throw new BusinessRuleException("El co-organizador no está asignado al evento indicado.");
@@ -283,16 +282,16 @@ public class AuthService {
     }
 
     private void recalculateThreatTarget(Event event) {
-        GameState gameState = gameStateRepository.findByEventId(event.getId()).orElse(null);
-        if (gameState == null) {
+        EventVillain villain = event.getVillain();
+        if (villain == null) {
             return;
         }
         int currentGroupCount = eventGroupRepository.findByEventId(event.getId()).size();
-        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
-                event.getVillainThreatRuleTypeSnapshot(),
-                event.getVillainThreatRuleValueSnapshot(),
+        event.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+                villain.getThreatRuleType(),
+                villain.getThreatRuleValue(),
                 currentGroupCount
         ));
-        gameStateRepository.save(gameState);
+        eventRepository.save(event);
     }
 }

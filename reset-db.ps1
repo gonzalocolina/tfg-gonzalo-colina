@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
-$dbBasePath = Join-Path $root "backend\data\god_of_lies"
+$dbBasePath = Join-Path $root "backend\data\mc_database"
 $dbFiles = @(
     "$dbBasePath.mv.db",
     "$dbBasePath.trace.db",

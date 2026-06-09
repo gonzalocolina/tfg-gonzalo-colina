@@ -14,7 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "event_groups")
+@Table(name = "player_table")
 public class EventGroup extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

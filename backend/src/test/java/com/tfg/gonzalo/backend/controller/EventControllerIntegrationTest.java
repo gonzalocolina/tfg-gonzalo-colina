@@ -3,6 +3,7 @@ package com.tfg.gonzalo.backend.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,8 +47,9 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Evento Prueba"))
           .andExpect(jsonPath("$.configuredPlayerCount").value(0))
-          .andExpect(jsonPath("$.villainHpMax").value(0))
-          .andExpect(jsonPath("$.villainHpCurrent").value(0))
+                  .andExpect(jsonPath("$.villainName").isString())
+                  .andExpect(jsonPath("$.villainHpMax").isNumber())
+                  .andExpect(jsonPath("$.villainHpCurrent").isNumber())
                 .andExpect(jsonPath("$.schemeThreatTarget").value(0))
                 .andExpect(jsonPath("$.timerRemainingSeconds").value(10800))
                 .andExpect(jsonPath("$.organizerUsername").value("organizer1"));
@@ -90,9 +92,9 @@ class EventControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].id").value((int) definitionId))
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].imageUrl")
-                        .value("/api/inter-pod-card-definitions/" + definitionId + "/image"));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + definitionId)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                  "\"imageUrl\":\"/api/inter-pod-card-definitions/" + definitionId + "/image\"")));
     }
 
                 @Test
@@ -127,12 +129,13 @@ class EventControllerIntegrationTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(requestBody))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].id").value((int) definitionId))
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].imageUrl").value(externalImageUrl));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + definitionId)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"imageUrl\":\"" + externalImageUrl + "\"")));
                 }
 
                 @Test
-                void updateEventUpdatesAndClearsSelectedInterPodDefinitions() throws Exception {
+                void updateEventKeepsOrganizerVisibleInterPodCatalog() throws Exception {
               String organizerToken = registerOrganizer("organizer3", "orga3@example.com", "Password123");
 
               long firstDefinitionId = createInterPodCardDefinition(organizerToken, "FIRST_CUSTOM_CARD");
@@ -161,8 +164,8 @@ class EventControllerIntegrationTest {
                       """.formatted(secondDefinitionId)
                   ))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions.length()").value(1))
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions[0].id").value((int) secondDefinitionId));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + firstDefinitionId)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + secondDefinitionId)));
 
               mockMvc.perform(put("/api/events/{eventId}", eventId)
                   .header("Authorization", "Bearer " + organizerToken)
@@ -178,7 +181,8 @@ class EventControllerIntegrationTest {
                   ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.selectedInterPodCardDefinitions").isArray())
-                .andExpect(jsonPath("$.selectedInterPodCardDefinitions").isEmpty());
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + firstDefinitionId)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + secondDefinitionId)));
                 }
 
     private String registerOrganizer(String username, String email, String password) throws Exception {

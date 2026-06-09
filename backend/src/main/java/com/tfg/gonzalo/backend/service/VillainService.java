@@ -10,7 +10,7 @@ import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.VillainDefinition;
 import com.tfg.gonzalo.backend.model.enums.VillainDefinitionType;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
-import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.repository.EventVillainRepository;
 import com.tfg.gonzalo.backend.repository.VillainDefinitionRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
@@ -25,16 +25,16 @@ public class VillainService {
 
     private final VillainDefinitionRepository villainDefinitionRepository;
     private final AppUserRepository appUserRepository;
-    private final EventRepository eventRepository;
+    private final EventVillainRepository eventVillainRepository;
     private final AccessControlService accessControlService;
 
     public VillainService(VillainDefinitionRepository villainDefinitionRepository,
                           AppUserRepository appUserRepository,
-                          EventRepository eventRepository,
+                          EventVillainRepository eventVillainRepository,
                           AccessControlService accessControlService) {
         this.villainDefinitionRepository = villainDefinitionRepository;
         this.appUserRepository = appUserRepository;
-        this.eventRepository = eventRepository;
+        this.eventVillainRepository = eventVillainRepository;
         this.accessControlService = accessControlService;
     }
 
@@ -107,7 +107,7 @@ public class VillainService {
         VillainDefinition villain = villainDefinitionRepository.findByIdAndOwnerId(villainId, organizer.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("No existe un villano personalizado con ese identificador."));
 
-        if (eventRepository.existsByVillainDefinitionId(villain.getId())) {
+        if (eventVillainRepository.existsByVillainDefinitionId(villain.getId())) {
             throw new BusinessRuleException("No se puede eliminar un villano que ya está siendo usado por un evento.");
         }
 

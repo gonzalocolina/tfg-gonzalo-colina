@@ -2,9 +2,8 @@ package com.tfg.gonzalo.backend.model;
 
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerInvitationStatus;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
-import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -22,7 +21,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "co_organizer_invitations")
+@Table(name = "invitations")
 public class CoOrganizerInvitation extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -30,23 +29,18 @@ public class CoOrganizerInvitation extends BaseEntity {
     private Event event;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invitee_user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private AppUser invitee;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invited_by_user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invited_by_user_id")
     private AppUser invitedBy;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CoOrganizerInvitationStatus status = CoOrganizerInvitationStatus.PENDING;
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "co_organizer_invitation_responsibilities",
-            joinColumns = @JoinColumn(name = "invitation_id")
-    )
-    @Enumerated(EnumType.STRING)
-    @Column(name = "responsibility", nullable = false, length = 20)
+    @Convert(converter = CoOrganizerResponsibilitiesConverter.class)
+    @Column(name = "responsibilities", nullable = false, length = 100)
     private Set<CoOrganizerResponsibility> responsibilities = new LinkedHashSet<>();
 }

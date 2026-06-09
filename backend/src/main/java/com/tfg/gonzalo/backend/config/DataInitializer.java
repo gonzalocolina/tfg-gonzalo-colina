@@ -291,7 +291,6 @@ public class DataInitializer implements ApplicationRunner {
                                                        InterPodCardDefinition canonical) {
         for (InterPodCardDefinition duplicate : duplicates) {
             reassignInterPodCardInstances(duplicate, canonical);
-            reassignEventSelections(duplicate, canonical);
         }
     }
 
@@ -306,25 +305,6 @@ public class DataInitializer implements ApplicationRunner {
             card.setInterPodCardDefinition(canonical);
         }
         interPodCardRepository.saveAll(cards);
-    }
-
-    private void reassignEventSelections(InterPodCardDefinition duplicate,
-                                         InterPodCardDefinition canonical) {
-        List<Event> updatedEvents = new ArrayList<>();
-
-        for (Event event : eventRepository.findAll()) {
-            boolean removed = event.getInterPodCardDefinitions().removeIf(definition -> duplicate.getId().equals(definition.getId()));
-            if (!removed) {
-                continue;
-            }
-
-            event.getInterPodCardDefinitions().add(canonical);
-            updatedEvents.add(event);
-        }
-
-        if (!updatedEvents.isEmpty()) {
-            eventRepository.saveAll(updatedEvents);
-        }
     }
 
     private String resolveSeedOrganizerPassword() {

@@ -11,14 +11,13 @@ import com.tfg.gonzalo.backend.dto.setup.UpdatePodRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
+import com.tfg.gonzalo.backend.model.EventVillain;
 import com.tfg.gonzalo.backend.model.EventGroup;
-import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
-import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import jakarta.transaction.Transactional;
@@ -41,7 +40,6 @@ public class EventSetupService {
     private final EventRepository eventRepository;
     private final PodRepository podRepository;
     private final EventGroupRepository eventGroupRepository;
-    private final GameStateRepository gameStateRepository;
     private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
     private final VillainFormulaService villainFormulaService;
@@ -52,7 +50,6 @@ public class EventSetupService {
     public EventSetupService(EventRepository eventRepository,
                              PodRepository podRepository,
                              EventGroupRepository eventGroupRepository,
-                             GameStateRepository gameStateRepository,
                              EventLogService eventLogService,
                              CodeGeneratorService codeGeneratorService,
                              VillainFormulaService villainFormulaService,
@@ -62,7 +59,6 @@ public class EventSetupService {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
         this.eventGroupRepository = eventGroupRepository;
-        this.gameStateRepository = gameStateRepository;
         this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
         this.villainFormulaService = villainFormulaService;
@@ -106,14 +102,14 @@ public class EventSetupService {
         group.setObserverCode(generateUniqueGroupCode(false));
         group = eventGroupRepository.save(group);
 
-        GameState gameState = findGameState(eventId);
+        EventVillain villain = requireVillain(event);
         int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
-        gameState.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
-                event.getVillainThreatRuleTypeSnapshot(),
-                event.getVillainThreatRuleValueSnapshot(),
+        event.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
+            villain.getThreatRuleType(),
+            villain.getThreatRuleValue(),
                 currentGroupCount
         ));
-        gameStateRepository.save(gameState);
+        eventRepository.save(event);
         eventPlayerMetricsService.synchronizePlayerMetrics(event);
 
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
@@ -226,7 +222,6 @@ public class EventSetupService {
             .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
         accessControlService.requireReadAccessToEvent(event);
         eventPlayerMetricsService.synchronizePlayerMetrics(event);
-        GameState gameState = findGameState(eventId);
         List<Pod> pods = listRealPods(eventId);
         List<EventGroup> groups = eventGroupRepository.findByEventId(eventId);
         List<EventGroup> assignedGroups = groups.stream()
@@ -255,7 +250,7 @@ public class EventSetupService {
                 assignedPlayerCount,
                 unassignedGroups.size(),
                 unassignedPlayerCount,
-                gameState.getSchemeThreatTarget(),
+                event.getSchemeThreatTarget(),
                 resolveSuggestedPodName(pods),
                 podResponses,
                 unassignedGroups.stream().map(this::mapGroupResponse).toList()
@@ -291,9 +286,11 @@ public class EventSetupService {
         return pod;
     }
 
-    private GameState findGameState(Long eventId) {
-        return gameStateRepository.findByEventId(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
+    private EventVillain requireVillain(Event event) {
+        if (event.getVillain() == null) {
+            throw new ResourceNotFoundException("No existe configuración de villano para el evento solicitado.");
+        }
+        return event.getVillain();
     }
 
     private List<Pod> listRealPods(Long eventId) {

@@ -67,6 +67,15 @@ const previewTransformStyle = computed(() => ({
 }))
 const activeCards = computed(() => props.cards.filter((card) => !isInterPodCardDefeated(card)))
 const defeatedCards = computed(() => props.cards.filter((card) => isInterPodCardDefeated(card)))
+const reportedDefinitionIdsByCurrentGroup = computed(() => new Set(
+  props.cards
+    .filter((card) => Number(card.sourceGroupId) === Number(auth.groupId))
+    .map((card) => Number(card.interPodCardDefinitionId))
+    .filter(Number.isFinite),
+))
+const availableDefinitions = computed(() => selectedDefinitions.value.filter(
+  (definition) => !reportedDefinitionIdsByCurrentGroup.value.has(Number(definition.id)),
+))
 
 const actionsDisabledReason = computed(() => {
   if (!auth.isRepresentative) {
@@ -85,6 +94,17 @@ const actionsDisabledReason = computed(() => {
 })
 
 const actionsDisabled = computed(() => Boolean(actionsDisabledReason.value))
+
+function syncSelectedDefinition() {
+  if (!availableDefinitions.value.length) {
+    interPodCardDefinitionId.value = null
+    return
+  }
+
+  if (!availableDefinitions.value.some((definition) => Number(definition.id) === Number(interPodCardDefinitionId.value))) {
+    interPodCardDefinitionId.value = availableDefinitions.value[0].id
+  }
+}
 
 function prettyCardName(name) {
   if (!name) return '-'
@@ -148,16 +168,10 @@ async function loadSelectedDefinitions() {
   try {
     const { data } = await getEventInterPodCardDefinitions(auth.eventId)
     selectedDefinitions.value = data || []
-    if (!selectedDefinitions.value.length) {
-      interPodCardDefinitionId.value = null
-      return
-    }
-
-    if (!selectedDefinitions.value.some((definition) => definition.id === interPodCardDefinitionId.value)) {
-      interPodCardDefinitionId.value = selectedDefinitions.value[0].id
-    }
+    syncSelectedDefinition()
   } catch {
     selectedDefinitions.value = []
+    interPodCardDefinitionId.value = null
   } finally {
     loadingDefinitions.value = false
   }
@@ -169,7 +183,11 @@ async function handleCreate() {
     return
   }
   if (!interPodCardDefinitionId.value) {
-    notif.error('No hay cartas inter-nodo seleccionadas para este evento.')
+    notif.error(
+      selectedDefinitions.value.length
+        ? 'Tu mesa ya ha indicado todas las cartas inter-nodo disponibles.'
+        : 'No hay cartas inter-nodo seleccionadas para este evento.',
+    )
     return
   }
 
@@ -527,6 +545,13 @@ watch(
   },
 )
 
+watch(
+  () => availableDefinitions.value.map((definition) => definition.id).join(','),
+  () => {
+    syncSelectedDefinition()
+  },
+)
+
 onMounted(async () => {
   lockBackgroundScroll()
 
@@ -566,12 +591,12 @@ onUnmounted(() => {
           id="card-definition"
           v-model.number="interPodCardDefinitionId"
           class="form-control"
-          :disabled="loadingDefinitions || !selectedDefinitions.length || actionsDisabled"
+          :disabled="loadingDefinitions || !availableDefinitions.length || actionsDisabled"
         >
           <option :value="null" disabled>
             {{ loadingDefinitions ? 'Cargando cartas…' : 'Selecciona una carta' }}
           </option>
-          <option v-for="definition in selectedDefinitions" :key="definition.id" :value="definition.id">
+          <option v-for="definition in availableDefinitions" :key="definition.id" :value="definition.id">
             {{ prettyCardName(definition.name) }}
           </option>
         </select>
@@ -580,10 +605,13 @@ onUnmounted(() => {
       <p v-if="!loadingDefinitions && !selectedDefinitions.length" class="text-muted" style="font-size: 0.85rem">
         Este evento no tiene cartas inter-nodo habilitadas.
       </p>
+      <p v-else-if="!loadingDefinitions && !availableDefinitions.length" class="text-muted" style="font-size: 0.85rem">
+        Tu mesa ya ha indicado todas las cartas inter-nodo disponibles para esta partida.
+      </p>
 
       <button
         class="btn btn-primary btn-block btn-lg"
-        :disabled="creating || loadingDefinitions || !selectedDefinitions.length || actionsDisabled"
+        :disabled="creating || loadingDefinitions || !availableDefinitions.length || actionsDisabled"
         @click="handleCreate"
       >
         {{ creating ? 'Enviando…' : 'Me ha aparecido esta carta' }}

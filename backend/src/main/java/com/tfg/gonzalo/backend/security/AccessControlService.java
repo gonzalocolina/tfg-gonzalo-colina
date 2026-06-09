@@ -3,8 +3,9 @@ package com.tfg.gonzalo.backend.security;
 import com.tfg.gonzalo.backend.exception.ForbiddenOperationException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
+import com.tfg.gonzalo.backend.model.enums.CoOrganizerInvitationStatus;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
-import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
+import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -12,10 +13,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class AccessControlService {
 
-    private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
+    private final CoOrganizerInvitationRepository coOrganizerInvitationRepository;
 
-    public AccessControlService(CoOrganizerAssignmentRepository coOrganizerAssignmentRepository) {
-        this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
+    public AccessControlService(CoOrganizerInvitationRepository coOrganizerInvitationRepository) {
+        this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
     }
 
     public AuthPrincipal requireAuthenticatedPrincipal() {
@@ -75,12 +76,20 @@ public class AccessControlService {
             return false;
         }
         if (principal.isOrganizer()) {
-            return !coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty();
+            return coOrganizerInvitationRepository.existsByEventIdAndInviteeIdAndStatus(
+                    event.getId(),
+                    principal.userId(),
+                    CoOrganizerInvitationStatus.ACCEPTED
+            );
         }
         if (principal.isCoOrganizer()) {
             return principal.eventId() != null
                     && principal.eventId().equals(event.getId())
-                    && !coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), principal.userId()).isEmpty();
+                    && coOrganizerInvitationRepository.existsByEventIdAndInviteeIdAndStatus(
+                            event.getId(),
+                            principal.userId(),
+                            CoOrganizerInvitationStatus.ACCEPTED
+                    );
         }
         return false;
     }
@@ -95,9 +104,12 @@ public class AccessControlService {
                 && (principal.eventId() == null || !principal.eventId().equals(event.getId()))) {
             return false;
         }
-        return coOrganizerAssignmentRepository.findByEventIdAndResponsibility(event.getId(), responsibility)
-                .filter(assignment -> assignment.getUser().getId().equals(principal.userId()))
-                .isPresent();
+        return coOrganizerInvitationRepository.findByEventIdAndStatusOrderByCreatedAtDesc(
+                event.getId(),
+                CoOrganizerInvitationStatus.ACCEPTED
+            ).stream()
+            .anyMatch(invitation -> invitation.getInvitee().getId().equals(principal.userId())
+                && invitation.getResponsibilities().contains(responsibility));
     }
 
     public void requireRepresentativeOrOrganizerForGroup(Event event, EventGroup group, String representativeCode) {

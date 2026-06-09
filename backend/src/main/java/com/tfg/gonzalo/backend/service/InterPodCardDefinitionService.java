@@ -73,7 +73,7 @@ public class InterPodCardDefinitionService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
         accessControlService.requireReadAccessToEvent(event);
 
-        return deduplicateDefinitions(event.getInterPodCardDefinitions().stream().toList()).stream()
+        return listDefinitionsVisibleToOrganizer(event.getOrganizer().getId()).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -144,10 +144,6 @@ public class InterPodCardDefinitionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No existe una carta inter-pod personalizada con ese identificador."));
 
-        if (eventRepository.existsByInterPodCardDefinitionsId(definitionId)) {
-            throw new BusinessRuleException(
-                    "No se puede eliminar una carta inter-pod que está seleccionada en algún evento.");
-        }
         if (interPodCardRepository.existsByInterPodCardDefinitionId(definitionId)) {
             throw new BusinessRuleException(
                     "No se puede eliminar una carta inter-pod que ya tiene instancias creadas.");
@@ -204,12 +200,10 @@ public class InterPodCardDefinitionService {
     public InterPodCardDefinition resolveDefinitionForEvent(Event event,
                                                             Long interPodCardDefinitionId,
                                                             String legacyCardName) {
-        List<InterPodCardDefinition> selectedDefinitions = event.getInterPodCardDefinitions()
-            .stream()
-            .toList();
+        List<InterPodCardDefinition> selectedDefinitions = listDefinitionsVisibleToOrganizer(event.getOrganizer().getId());
         if (selectedDefinitions.isEmpty()) {
             throw new BusinessRuleException(
-                    "El evento no tiene cartas inter-pod seleccionadas. Configúralas al crear el evento.");
+                "No hay cartas inter-pod disponibles para este organizador.");
         }
 
         if (interPodCardDefinitionId != null) {
@@ -217,7 +211,7 @@ public class InterPodCardDefinitionService {
                     .filter(definition -> definition.getId().equals(interPodCardDefinitionId))
                     .findFirst()
                     .orElseThrow(() -> new BusinessRuleException(
-                            "La carta inter-pod indicada no está seleccionada para este evento."));
+                    "La carta inter-pod indicada no está disponible para este evento."));
         }
 
         if (legacyCardName != null && !legacyCardName.isBlank()) {
@@ -226,10 +220,21 @@ public class InterPodCardDefinitionService {
                 .filter(definition -> normalizeCardName(definition.getName()).equals(normalized))
                     .findFirst()
                     .orElseThrow(() -> new BusinessRuleException(
-                            "La carta inter-pod indicada no está seleccionada para este evento."));
+                            "La carta inter-pod indicada no está disponible para este evento."));
         }
 
         throw new BusinessRuleException("Debes indicar una carta inter-pod para crear la instancia.");
+    }
+
+    @Transactional(readOnly = true)
+    public List<InterPodCardDefinition> listDefinitionsVisibleToOrganizer(Long organizerId) {
+        List<InterPodCardDefinition> definitions = new ArrayList<>();
+        definitions.addAll(interPodCardDefinitionRepository
+                .findByTypeOrderByNameAsc(InterPodCardDefinitionType.PREDEFINED));
+        if (organizerId != null) {
+            definitions.addAll(interPodCardDefinitionRepository.findByOwnerIdOrderByNameAsc(organizerId));
+        }
+        return deduplicateDefinitions(definitions);
     }
 
     private void ensureSelectableForOrganizer(InterPodCardDefinition definition, Long organizerId) {

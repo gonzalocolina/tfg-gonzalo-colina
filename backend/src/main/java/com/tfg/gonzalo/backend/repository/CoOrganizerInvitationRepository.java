@@ -19,6 +19,8 @@ public interface CoOrganizerInvitationRepository extends JpaRepository<CoOrganiz
     List<CoOrganizerInvitation> findByInviteeIdAndStatusOrderByCreatedAtDesc(Long inviteeId,
                                                                              CoOrganizerInvitationStatus status);
 
+    List<CoOrganizerInvitation> findByEventIdAndInviteeIdOrderByCreatedAtDesc(Long eventId, Long inviteeId);
+
     Optional<CoOrganizerInvitation> findByIdAndEventId(Long id, Long eventId);
 
     Optional<CoOrganizerInvitation> findByIdAndInviteeId(Long id, Long inviteeId);

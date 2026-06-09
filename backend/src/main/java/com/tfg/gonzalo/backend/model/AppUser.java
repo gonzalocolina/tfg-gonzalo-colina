@@ -14,7 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "app_users")
+@Table(name = "event_organizers")
 public class AppUser extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 60)

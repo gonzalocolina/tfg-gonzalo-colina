@@ -21,9 +21,9 @@ public class LegacyUserColumnCleanup implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            jdbcTemplate.execute("ALTER TABLE app_users DROP COLUMN IF EXISTS display_name");
+            jdbcTemplate.execute("ALTER TABLE event_organizers DROP COLUMN IF EXISTS display_name");
         } catch (Exception exception) {
-            log.warn("No se ha podido eliminar la columna legacy app_users.display_name: {}", exception.getMessage());
+            log.warn("No se ha podido eliminar la columna legacy event_organizers.display_name: {}", exception.getMessage());
         }
     }
 }

@@ -13,7 +13,6 @@ import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
-import com.tfg.gonzalo.backend.repository.CoOrganizerAssignmentRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
@@ -30,7 +29,6 @@ public class CoOrganizerInvitationService {
 
     private final EventRepository eventRepository;
     private final AppUserRepository appUserRepository;
-    private final CoOrganizerAssignmentRepository coOrganizerAssignmentRepository;
     private final CoOrganizerInvitationRepository coOrganizerInvitationRepository;
     private final EventRoleService eventRoleService;
     private final EventLogService eventLogService;
@@ -38,14 +36,12 @@ public class CoOrganizerInvitationService {
 
     public CoOrganizerInvitationService(EventRepository eventRepository,
                                         AppUserRepository appUserRepository,
-                                        CoOrganizerAssignmentRepository coOrganizerAssignmentRepository,
                                         CoOrganizerInvitationRepository coOrganizerInvitationRepository,
                                         EventRoleService eventRoleService,
                                         EventLogService eventLogService,
                                         AccessControlService accessControlService) {
         this.eventRepository = eventRepository;
         this.appUserRepository = appUserRepository;
-        this.coOrganizerAssignmentRepository = coOrganizerAssignmentRepository;
         this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
         this.eventRoleService = eventRoleService;
         this.eventLogService = eventLogService;
@@ -115,10 +111,12 @@ public class CoOrganizerInvitationService {
         CoOrganizerInvitation invitation = findMine(invitationId);
         ensurePending(invitation);
 
-        eventRoleService.ensureCoOrganizerSlotAvailable(invitation.getEvent().getId(), invitation.getInvitee().getId());
-        eventRoleService.assignResponsibilities(invitation.getEvent(), invitation.getInvitee(), invitation.getResponsibilities());
-        invitation.setStatus(CoOrganizerInvitationStatus.ACCEPTED);
-        invitation = coOrganizerInvitationRepository.save(invitation);
+        invitation = eventRoleService.activateCoOrganizer(
+            invitation.getEvent(),
+            invitation.getInvitee(),
+            invitation.getInvitedBy(),
+            invitation.getResponsibilities()
+        );
 
         eventLogService.appendLog(
                 invitation.getEvent(),
@@ -240,7 +238,11 @@ public class CoOrganizerInvitationService {
         if (invitee.getId().equals(inviter.getId())) {
             throw new BusinessRuleException("No puedes enviarte una invitación a ti mismo.");
         }
-        if (!coOrganizerAssignmentRepository.findByEventIdAndUserId(event.getId(), invitee.getId()).isEmpty()) {
+        if (coOrganizerInvitationRepository.existsByEventIdAndInviteeIdAndStatus(
+                event.getId(),
+                invitee.getId(),
+                CoOrganizerInvitationStatus.ACCEPTED
+        )) {
             throw new BusinessRuleException("El usuario indicado ya está vinculado al evento como co-organizador.");
         }
         if (coOrganizerInvitationRepository.existsByEventIdAndInviteeIdAndStatus(

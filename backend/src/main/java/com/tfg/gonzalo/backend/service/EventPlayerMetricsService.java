@@ -1,11 +1,9 @@
 package com.tfg.gonzalo.backend.service;
 
 import com.tfg.gonzalo.backend.model.Event;
-import com.tfg.gonzalo.backend.model.GameState;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
-import com.tfg.gonzalo.backend.repository.GameStateRepository;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 
@@ -14,16 +12,13 @@ public class EventPlayerMetricsService {
 
     private final EventGroupRepository eventGroupRepository;
     private final EventRepository eventRepository;
-    private final GameStateRepository gameStateRepository;
     private final VillainFormulaService villainFormulaService;
 
     public EventPlayerMetricsService(EventGroupRepository eventGroupRepository,
                                      EventRepository eventRepository,
-                                     GameStateRepository gameStateRepository,
                                      VillainFormulaService villainFormulaService) {
         this.eventGroupRepository = eventGroupRepository;
         this.eventRepository = eventRepository;
-        this.gameStateRepository = gameStateRepository;
         this.villainFormulaService = villainFormulaService;
     }
 
@@ -39,24 +34,27 @@ public class EventPlayerMetricsService {
             return totalPlayers;
         }
 
-        gameStateRepository.findByEventId(event.getId()).ifPresent(gameState -> syncVillainHp(event, gameState, totalPlayers));
+        syncVillainHp(event, totalPlayers);
         return totalPlayers;
     }
 
-    private void syncVillainHp(Event event, GameState gameState, int totalPlayers) {
+    private void syncVillainHp(Event event, int totalPlayers) {
+        if (event.getVillain() == null) {
+            return;
+        }
         int villainHpMax = villainFormulaService.computeVillainHp(
-                event.getVillainHpRuleTypeSnapshot(),
-                event.getVillainHpRuleValueSnapshot(),
+                event.getVillain().getHpRuleType(),
+                event.getVillain().getHpRuleValue(),
                 totalPlayers
         );
 
-        if (Objects.equals(gameState.getVillainHpMax(), villainHpMax)
-                && Objects.equals(gameState.getVillainHpCurrent(), villainHpMax)) {
+        if (Objects.equals(event.getVillainHpMax(), villainHpMax)
+                && Objects.equals(event.getVillainHpCurrent(), villainHpMax)) {
             return;
         }
 
-        gameState.setVillainHpMax(villainHpMax);
-        gameState.setVillainHpCurrent(villainHpMax);
-        gameStateRepository.save(gameState);
+        event.setVillainHpMax(villainHpMax);
+        event.setVillainHpCurrent(villainHpMax);
+        eventRepository.save(event);
     }
 }
