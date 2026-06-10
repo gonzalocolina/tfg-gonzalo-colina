@@ -40,7 +40,7 @@ describe('MyEventsView', () => {
         {
           id: 8,
           name: 'Evento Compartido',
-          status: 'READY',
+          status: 'DRAFT',
           configuredPlayerCount: 12,
           timeLimitMinutes: 180,
           eventCode: 'ABC123',

@@ -11,7 +11,7 @@ import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardDefinitionType;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
+import com.tfg.gonzalo.backend.model.enums.VillainRuleType;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.InterPodCardDefinitionRepository;
@@ -73,9 +73,15 @@ public class InterPodCardDefinitionService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
         accessControlService.requireReadAccessToEvent(event);
 
-        return listDefinitionsVisibleToOrganizer(event.getOrganizer().getId()).stream()
+        return listSelectedDefinitionsForEventEntity(event).stream()
+                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<InterPodCardDefinition> listSelectedDefinitionsForEventEntity(Event event) {
+        return event.getSelectedInterPodCardDefinitions();
     }
 
     @Transactional
@@ -85,17 +91,14 @@ public class InterPodCardDefinitionService {
 
         String name = request.name().trim();
         validateUniqueName(organizer.getId(), name, null);
-        InterPodCardMetrics metrics = resolveMetrics(request.cardCategory(), request.defaultHpMax(), request.defaultThreatMax());
+        int defaultMetricMax = requirePositiveMetricMax(request.cardCategory(), request.defaultMetricMax());
 
         InterPodCardDefinition definition = new InterPodCardDefinition();
         definition.setName(name);
         definition.setType(InterPodCardDefinitionType.CUSTOM);
         definition.setCardCategory(request.cardCategory());
-        definition.setDefaultHpMax(metrics.hpMax());
-        definition.setDefaultThreatMax(metrics.threatMax());
-        definition.setDefaultStatus(request.defaultStatus() == null
-                ? InterPodCardStatus.REVELADA
-                : request.defaultStatus());
+        definition.setDefaultMetricMax(defaultMetricMax);
+        definition.setRuleType(resolveRuleType(request.ruleType()));
         definition.setOwner(organizer);
 
         definition = interPodCardDefinitionRepository.save(definition);
@@ -119,15 +122,12 @@ public class InterPodCardDefinitionService {
 
         String name = request.name().trim();
         validateUniqueName(organizer.getId(), name, definition.getId());
-        InterPodCardMetrics metrics = resolveMetrics(request.cardCategory(), request.defaultHpMax(), request.defaultThreatMax());
+        int defaultMetricMax = requirePositiveMetricMax(request.cardCategory(), request.defaultMetricMax());
 
         definition.setName(name);
         definition.setCardCategory(request.cardCategory());
-        definition.setDefaultHpMax(metrics.hpMax());
-        definition.setDefaultThreatMax(metrics.threatMax());
-        definition.setDefaultStatus(request.defaultStatus() == null
-                ? InterPodCardStatus.REVELADA
-                : request.defaultStatus());
+        definition.setDefaultMetricMax(defaultMetricMax);
+        definition.setRuleType(resolveRuleType(request.ruleType()));
 
         replaceDefinitionImage(definition, image, request.imageUrl());
 
@@ -199,10 +199,10 @@ public class InterPodCardDefinitionService {
     @Transactional(readOnly = true)
     public InterPodCardDefinition resolveDefinitionForEvent(Event event,
                                                             Long interPodCardDefinitionId) {
-        List<InterPodCardDefinition> selectedDefinitions = listDefinitionsVisibleToOrganizer(event.getOrganizer().getId());
+        List<InterPodCardDefinition> selectedDefinitions = listSelectedDefinitionsForEventEntity(event);
         if (selectedDefinitions.isEmpty()) {
             throw new BusinessRuleException(
-                "No hay cartas inter-pod disponibles para este organizador.");
+                "No hay cartas inter-pod seleccionadas para este evento.");
         }
 
         return selectedDefinitions.stream()
@@ -266,9 +266,8 @@ public class InterPodCardDefinitionService {
                 definition.getName(),
                 definition.getType(),
                 definition.getCardCategory(),
-                definition.getDefaultHpMax(),
-                definition.getDefaultThreatMax(),
-                definition.getDefaultStatus(),
+                definition.getDefaultMetricMax(),
+                definition.getRuleType(),
                 imageStorageService.resolveDefinitionImageUrl(definition.getId(), definition.getImagePath()),
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),
@@ -307,29 +306,24 @@ public class InterPodCardDefinitionService {
         definition.setImageContentType(imageStorageService.inferContentTypeFromLocation(externalImageUrl));
     }
 
-    private InterPodCardMetrics resolveMetrics(InterPodCardCategory category,
-                                               Integer requestedHpMax,
-                                               Integer requestedThreatMax) {
+    private VillainRuleType resolveRuleType(VillainRuleType ruleType) {
+        return ruleType == null ? VillainRuleType.MULTIPLIER : ruleType;
+    }
+
+    private int requirePositiveMetricMax(InterPodCardCategory category, Integer requestedMetricMax) {
         if (category == null) {
             throw new BusinessRuleException("Debes indicar una categoría válida para la carta inter-pod.");
         }
 
-        return switch (category) {
-            case ESBIRRO -> new InterPodCardMetrics(requirePositive(requestedHpMax,
-                    "Los esbirros inter-pod deben tener HP inicial mayor que 0."), 0);
-            case PLAN -> new InterPodCardMetrics(0, requirePositive(requestedThreatMax,
-                    "Los planes inter-pod deben tener amenaza inicial mayor que 0."));
+        String message = switch (category) {
+            case ESBIRRO -> "Los esbirros inter-pod deben tener HP inicial mayor que 0.";
+            case PLAN -> "Los planes inter-pod deben tener amenaza inicial mayor que 0.";
         };
-    }
 
-    private int requirePositive(Integer value, String message) {
-        if (value == null || value < 1) {
+        if (requestedMetricMax == null || requestedMetricMax < 1) {
             throw new BusinessRuleException(message);
         }
-        return value;
-    }
-
-    private record InterPodCardMetrics(int hpMax, int threatMax) {
+        return requestedMetricMax;
     }
 
     private List<InterPodCardDefinition> deduplicateDefinitions(List<InterPodCardDefinition> definitions) {

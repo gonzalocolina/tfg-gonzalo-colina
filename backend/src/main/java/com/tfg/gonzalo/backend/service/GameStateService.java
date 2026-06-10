@@ -14,6 +14,7 @@ import com.tfg.gonzalo.backend.dto.gamestate.ReportThreatRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.ReportVillainDamageRequest;
 import com.tfg.gonzalo.backend.dto.gamestate.TimerAdjustRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
+import com.tfg.gonzalo.backend.exception.ForbiddenOperationException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
@@ -30,6 +31,7 @@ import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
+import com.tfg.gonzalo.backend.security.AuthPrincipal;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
 import java.time.Instant;
@@ -48,6 +50,7 @@ public class GameStateService {
     private final PodRepository podRepository;
     private final EventLogRepository eventLogRepository;
     private final EventLogService eventLogService;
+    private final EventStateCalculator eventStateCalculator;
     private final AccessControlService accessControlService;
     private final RealtimeEventPublisher realtimeEventPublisher;
 
@@ -56,6 +59,7 @@ public class GameStateService {
                             PodRepository podRepository,
                             EventLogRepository eventLogRepository,
                             EventLogService eventLogService,
+                            EventStateCalculator eventStateCalculator,
                             AccessControlService accessControlService,
                             RealtimeEventPublisher realtimeEventPublisher) {
         this.eventRepository = eventRepository;
@@ -63,6 +67,7 @@ public class GameStateService {
         this.podRepository = podRepository;
         this.eventLogRepository = eventLogRepository;
         this.eventLogService = eventLogService;
+        this.eventStateCalculator = eventStateCalculator;
         this.accessControlService = accessControlService;
         this.realtimeEventPublisher = realtimeEventPublisher;
     }
@@ -78,10 +83,8 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse reportVillainDamage(Long eventId, ReportVillainDamageRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
-        EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
-        accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
+        Event event = findMutableEvent(eventId);
+        EventGroup group = resolveAuthenticatedRepresentativeGroup(event);
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -91,14 +94,15 @@ public class GameStateService {
         ensureNotFinished(event);
         ensureRepresentativeActionsAllowed(event);
 
-        int before = event.getVillainHpCurrent();
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int before = eventStateCalculator.villainHpCurrent(event, hpMax);
         int newHp = Math.max(0, before - request.damage());
-        event.setVillainHpCurrent(newHp);
+        applyVillainHp(event, hpMax, newHp);
         event.setTotalReportedVillainDamage(event.getTotalReportedVillainDamage() + request.damage());
 
-        updateVillainHpMilestones(event, before, newHp, notifications);
+        updateVillainHpMilestones(hpMax, before, newHp, notifications);
         if (newHp == 0) {
-            finishGame(event, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
+            finishGame(event, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
 
         eventLogService.appendAuthenticatedLog(event, group, EventActionType.VILLAIN_DAMAGE_REPORTED,
@@ -108,10 +112,8 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse reportThreat(Long eventId, ReportThreatRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
-        EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
-        accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
+        Event event = findMutableEvent(eventId);
+        EventGroup group = resolveAuthenticatedRepresentativeGroup(event);
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -121,13 +123,14 @@ public class GameStateService {
         ensureNotFinished(event);
         ensureRepresentativeActionsAllowed(event);
 
+        int threatTarget = eventStateCalculator.threatTarget(event);
         int before = event.getSchemeThreatCurrent();
         int newThreat = before + request.threat();
         event.setSchemeThreatCurrent(newThreat);
-        updateThreatMilestones(event, before, newThreat, notifications);
+        updateThreatMilestones(threatTarget, before, newThreat, notifications);
 
-        if (newThreat >= event.getSchemeThreatTarget() && event.getSchemeThreatTarget() > 0) {
-            finishGame(event, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
+        if (newThreat >= threatTarget && threatTarget > 0) {
+            finishGame(event, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
 
         eventLogService.appendAuthenticatedLog(event, group, EventActionType.THREAT_REPORTED,
@@ -137,10 +140,8 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse removeThreat(Long eventId, RemoveThreatRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
-        EventGroup group = findRepresentativeGroup(eventId, request.representativeCode());
-        accessControlService.requireRepresentativeForGroup(event, group, request.representativeCode());
+        Event event = findMutableEvent(eventId);
+        EventGroup group = resolveAuthenticatedRepresentativeGroup(event);
         List<String> notifications = new ArrayList<>();
 
         ensureNotFinished(event);
@@ -150,10 +151,11 @@ public class GameStateService {
         ensureNotFinished(event);
         ensureRepresentativeActionsAllowed(event);
 
+        int threatTarget = eventStateCalculator.threatTarget(event);
         int before = event.getSchemeThreatCurrent();
         int newThreat = Math.max(0, before - request.threat());
         event.setSchemeThreatCurrent(newThreat);
-        updateThreatMilestones(event, before, newThreat, notifications);
+        updateThreatMilestones(threatTarget, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(event, group, EventActionType.THREAT_REMOVED,
                 String.valueOf(before), String.valueOf(newThreat), "Amenaza retirada del plan principal por la mesa.");
@@ -162,8 +164,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateVillainDamage(Long eventId, DelegatedVillainDamageRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
@@ -175,12 +176,13 @@ public class GameStateService {
         ensureMetricCorrectionAllowed(event, CORRECTION_TARGET_VILLAIN_HP);
         ensureDelegatedMetricActionsAllowed(event);
 
-        int before = event.getVillainHpCurrent();
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int before = eventStateCalculator.villainHpCurrent(event, hpMax);
         int newHp = Math.max(0, before - request.damage());
-        event.setVillainHpCurrent(newHp);
+        applyVillainHp(event, hpMax, newHp);
         event.setTotalReportedVillainDamage(event.getTotalReportedVillainDamage() + request.damage());
 
-        updateVillainHpMilestones(event, before, newHp, notifications);
+        updateVillainHpMilestones(hpMax, before, newHp, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -197,8 +199,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateRemoveVillainDamage(Long eventId, DelegatedVillainDamageRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
@@ -210,14 +211,15 @@ public class GameStateService {
         ensureMetricCorrectionAllowed(event, CORRECTION_TARGET_VILLAIN_HP);
         ensureDelegatedMetricActionsAllowed(event);
 
-        int before = event.getVillainHpCurrent();
-        int newHp = Math.min(event.getVillainHpMax(), before + request.damage());
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int before = eventStateCalculator.villainHpCurrent(event, hpMax);
+        int newHp = Math.min(hpMax, before + request.damage());
         int restoredHp = newHp - before;
-        event.setVillainHpCurrent(newHp);
+        applyVillainHp(event, hpMax, newHp);
         event.setTotalReportedVillainDamage(Math.max(0,
                 event.getTotalReportedVillainDamage() - restoredHp));
 
-        updateVillainHpMilestones(event, before, newHp, notifications);
+        updateVillainHpMilestones(hpMax, before, newHp, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -236,8 +238,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateThreat(Long eventId, DelegatedThreatRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
@@ -249,10 +250,11 @@ public class GameStateService {
         ensureMetricCorrectionAllowed(event, CORRECTION_TARGET_THREAT);
         ensureDelegatedMetricActionsAllowed(event);
 
+        int threatTarget = eventStateCalculator.threatTarget(event);
         int before = event.getSchemeThreatCurrent();
         int newThreat = before + request.threat();
         event.setSchemeThreatCurrent(newThreat);
-        updateThreatMilestones(event, before, newThreat, notifications);
+        updateThreatMilestones(threatTarget, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -269,8 +271,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse delegateRemoveThreat(Long eventId, DelegatedRemoveThreatRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
         EventGroup group = findGroup(eventId, request.groupId());
         List<String> notifications = new ArrayList<>();
@@ -282,10 +283,11 @@ public class GameStateService {
         ensureMetricCorrectionAllowed(event, CORRECTION_TARGET_THREAT);
         ensureDelegatedMetricActionsAllowed(event);
 
+        int threatTarget = eventStateCalculator.threatTarget(event);
         int before = event.getSchemeThreatCurrent();
         int newThreat = Math.max(0, before - request.threat());
         event.setSchemeThreatCurrent(newThreat);
-        updateThreatMilestones(event, before, newThreat, notifications);
+        updateThreatMilestones(threatTarget, before, newThreat, notifications);
 
         eventLogService.appendAuthenticatedLog(
                 event,
@@ -304,8 +306,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse updateVillainHp(Long eventId, ManualVillainHpUpdateRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.VILLAIN_HP);
         List<String> notifications = new ArrayList<>();
 
@@ -313,13 +314,14 @@ public class GameStateService {
         refreshTimerState(event, notifications);
         ensureNotFinished(event);
 
-        int before = event.getVillainHpCurrent();
-        int newHp = Math.min(event.getVillainHpMax(), request.value());
-        event.setVillainHpCurrent(newHp);
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int before = eventStateCalculator.villainHpCurrent(event, hpMax);
+        int newHp = Math.max(0, Math.min(hpMax, request.value()));
+        applyVillainHp(event, hpMax, newHp);
 
-        updateVillainHpMilestones(event, before, newHp, notifications);
+        updateVillainHpMilestones(hpMax, before, newHp, notifications);
         if (newHp == 0) {
-            finishGame(event, EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO, notifications);
+            finishGame(event, GameFinishCause.VILLAIN_HP_ZERO, notifications);
         }
 
         eventLogService.appendAuthenticatedLog(
@@ -334,8 +336,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse updateThreat(Long eventId, ManualThreatUpdateRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.THREAT);
         List<String> notifications = new ArrayList<>();
 
@@ -343,13 +344,14 @@ public class GameStateService {
         refreshTimerState(event, notifications);
         ensureNotFinished(event);
 
+        int threatTarget = eventStateCalculator.threatTarget(event);
         int before = event.getSchemeThreatCurrent();
         int newThreat = request.value();
         event.setSchemeThreatCurrent(newThreat);
 
-        updateThreatMilestones(event, before, newThreat, notifications);
-        if (newThreat >= event.getSchemeThreatTarget() && event.getSchemeThreatTarget() > 0) {
-            finishGame(event, EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED, notifications);
+        updateThreatMilestones(threatTarget, before, newThreat, notifications);
+        if (newThreat >= threatTarget && threatTarget > 0) {
+            finishGame(event, GameFinishCause.THREAT_TARGET_REACHED, notifications);
         }
 
         eventLogService.appendAuthenticatedLog(
@@ -364,8 +366,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse revertLog(Long eventId, Long logId, RevertEventLogRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         EventLog originalLog = eventLogRepository.findByIdAndEventId(logId, eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el log solicitado para este evento."));
         List<String> notifications = new ArrayList<>();
@@ -376,17 +377,19 @@ public class GameStateService {
         ensureMetricCorrectionAllowed(event, describeCorrectionTarget(originalLog.getActionType()));
         ensureLogCanBeReverted(eventId, originalLog);
 
-        ReversionResolution resolution = buildReversionResolution(originalLog, event);
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int threatTarget = eventStateCalculator.threatTarget(event);
+        ReversionResolution resolution = buildReversionResolution(originalLog, event, hpMax);
         if (resolution.metric() == ReversionMetric.VILLAIN_HP) {
-            int before = event.getVillainHpCurrent();
-            event.setVillainHpCurrent(resolution.newValue());
+            int before = eventStateCalculator.villainHpCurrent(event, hpMax);
+            applyVillainHp(event, hpMax, resolution.newValue());
             event.setTotalReportedVillainDamage(Math.max(0,
                     event.getTotalReportedVillainDamage() + resolution.totalReportedVillainDamageDelta()));
-            updateVillainHpMilestones(event, before, resolution.newValue(), notifications);
+            updateVillainHpMilestones(hpMax, before, resolution.newValue(), notifications);
         } else {
             int before = event.getSchemeThreatCurrent();
             event.setSchemeThreatCurrent(resolution.newValue());
-            updateThreatMilestones(event, before, resolution.newValue(), notifications);
+            updateThreatMilestones(threatTarget, before, resolution.newValue(), notifications);
         }
 
         eventLogService.appendAuthenticatedLog(
@@ -406,8 +409,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse startGame(Long eventId) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireOrganizerOrCoOrganizerForEvent(event);
         List<String> notifications = new ArrayList<>();
 
@@ -423,8 +425,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse startTimer(Long eventId) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
         List<String> notifications = new ArrayList<>();
 
@@ -442,7 +443,6 @@ public class GameStateService {
 
         event.setTimerStatus(TimerStatus.RUNNING);
         event.setTimerStartedAt(Instant.now());
-        event.setTimerPausedAt(null);
 
         eventLogService.appendAuthenticatedLog(event, EventActionType.TIMER_STARTED,
                 null, String.valueOf(event.getTimerRemainingSeconds()), "Temporizador iniciado.");
@@ -451,8 +451,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse pauseTimer(Long eventId) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
         List<String> notifications = new ArrayList<>();
 
@@ -467,7 +466,6 @@ public class GameStateService {
         }
 
         event.setTimerStatus(TimerStatus.PAUSED);
-        event.setTimerPausedAt(Instant.now());
         event.setTimerStartedAt(null);
 
         eventLogService.appendAuthenticatedLog(event, EventActionType.TIMER_PAUSED,
@@ -477,8 +475,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse resumeTimer(Long eventId) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
         List<String> notifications = new ArrayList<>();
 
@@ -498,7 +495,6 @@ public class GameStateService {
         markEventAsStarted(event);
         event.setTimerStatus(TimerStatus.RUNNING);
         event.setTimerStartedAt(Instant.now());
-        event.setTimerPausedAt(null);
 
         eventLogService.appendAuthenticatedLog(event, EventActionType.TIMER_RESUMED,
                 null, String.valueOf(event.getTimerRemainingSeconds()), "Temporizador reanudado.");
@@ -507,8 +503,7 @@ public class GameStateService {
 
     @Transactional
     public GameStateOperationResponse adjustTimer(Long eventId, TimerAdjustRequest request) {
-        MutableEventContext context = findMutableEventContext(eventId);
-        Event event = context.event();
+        Event event = findMutableEvent(eventId);
         accessControlService.requireGlobalResponsibility(event, CoOrganizerResponsibility.TIMER);
         List<String> notifications = new ArrayList<>();
 
@@ -523,15 +518,14 @@ public class GameStateService {
         int deltaSeconds = request.minutesDelta() * 60;
         int after = Math.max(0, before + deltaSeconds);
         event.setTimerRemainingSeconds(after);
-        event.setTimerTotalSeconds(Math.max(after, event.getTimerTotalSeconds() + deltaSeconds));
 
         if (event.getTimerStatus() == TimerStatus.RUNNING) {
             event.setTimerStartedAt(Instant.now());
         }
 
-        evaluateTimerMilestones(event, notifications);
+        addTimerThresholdNotifications(before, after, notifications);
         if (after == 0 && event.getStatus() != EventStatus.FINISHED) {
-            finishGame(event, EventResult.TIMEOUT_DEFEAT, GameFinishCause.TIMER_EXPIRED, notifications);
+            finishGame(event, GameFinishCause.TIMER_EXPIRED, notifications);
         }
 
         eventLogService.appendAuthenticatedLog(event, EventActionType.TIMER_ADJUSTED,
@@ -544,15 +538,22 @@ public class GameStateService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
     }
 
-    private MutableEventContext findMutableEventContext(Long eventId) {
-        Event event = eventRepository.findByIdForUpdate(eventId)
+    private Event findMutableEvent(Long eventId) {
+        return eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe estado global para el evento solicitado."));
-        return new MutableEventContext(event);
     }
 
-    private EventGroup findRepresentativeGroup(Long eventId, String representativeCode) {
-        return eventGroupRepository.findByEventIdAndRepresentativeCode(eventId, representativeCode)
-                .orElseThrow(() -> new BusinessRuleException("Código de representante inválido para el evento."));
+    private EventGroup resolveAuthenticatedRepresentativeGroup(Event event) {
+        AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
+        if (principal.isOrganizerLike()) {
+            throw new ForbiddenOperationException("Solo un representante de mesa puede ejecutar esta operación.");
+        }
+        if (principal.groupId() == null) {
+            throw new BusinessRuleException("No se pudo identificar la mesa autenticada.");
+        }
+        EventGroup group = findGroup(event.getId(), principal.groupId());
+        accessControlService.requireRepresentativeForGroup(event, group);
+        return group;
     }
 
     private EventGroup findGroup(Long eventId, Long groupId) {
@@ -631,12 +632,16 @@ public class GameStateService {
     }
 
     private void markEventAsStarted(Event event) {
-        if (event.getStatus() == EventStatus.DRAFT || event.getStatus() == EventStatus.READY) {
-            event.setStatus(EventStatus.IN_PROGRESS);
-            if (event.getStartedAt() == null) {
-                event.setStartedAt(Instant.now());
-            }
+        if (event.getStartedAt() == null && event.getFinishedAt() == null) {
+            event.setStartedAt(Instant.now());
         }
+    }
+
+    /**
+     * El daño recibido es la única columna persistida: el HP actual se deriva de hpMax - daño.
+     */
+    private void applyVillainHp(Event event, int hpMax, int newHp) {
+        event.setVillainDamageTaken(Math.max(0, hpMax - newHp));
     }
 
     private void refreshTimerState(Event event, List<String> notifications) {
@@ -655,18 +660,34 @@ public class GameStateService {
         event.setTimerRemainingSeconds(after);
         event.setTimerStartedAt(now);
 
-        evaluateTimerMilestones(event, notifications);
+        addTimerThresholdNotifications(before, after, notifications);
         if (after == 0 && event.getStatus() != EventStatus.FINISHED) {
-            finishGame(event, EventResult.TIMEOUT_DEFEAT, GameFinishCause.TIMER_EXPIRED, notifications);
+            finishGame(event, GameFinishCause.TIMER_EXPIRED, notifications);
         }
     }
 
-    private void updateVillainHpMilestones(Event event,
+    /**
+     * Emite alertas de tiempo cuando el contador cruza un umbral entre dos refrescos,
+     * sin necesidad de flags persistidos de idempotencia.
+     */
+    private void addTimerThresholdNotifications(int beforeSeconds, int afterSeconds, List<String> notifications) {
+        if (beforeSeconds > 1800 && afterSeconds <= 1800) {
+            notifications.add("TIMER_30_MINUTES");
+        }
+        if (beforeSeconds > 900 && afterSeconds <= 900) {
+            notifications.add("TIMER_15_MINUTES");
+        }
+        if (beforeSeconds > 300 && afterSeconds <= 300) {
+            notifications.add("TIMER_5_MINUTES");
+        }
+    }
+
+    private void updateVillainHpMilestones(int hpMax,
                                            int beforeHp,
                                            int newHp,
                                            List<String> notifications) {
-        int half = (int) Math.ceil(event.getVillainHpMax() * 0.5);
-        int quarter = (int) Math.ceil(event.getVillainHpMax() * 0.25);
+        int half = (int) Math.ceil(hpMax * 0.5);
+        int quarter = (int) Math.ceil(hpMax * 0.25);
 
         if (beforeHp > half && newHp <= half) {
             notifications.add("VILLAIN_HP_50_PERCENT");
@@ -674,20 +695,17 @@ public class GameStateService {
         if (beforeHp > quarter && newHp <= quarter) {
             notifications.add("VILLAIN_HP_25_PERCENT");
         }
-
-        event.setVillainHalfHpNotified(newHp <= half);
-        event.setVillainQuarterHpNotified(newHp <= quarter);
     }
 
-    private void updateThreatMilestones(Event event,
+    private void updateThreatMilestones(int threatTarget,
                                         int beforeThreat,
                                         int newThreat,
                                         List<String> notifications) {
-        if (event.getSchemeThreatTarget() <= 0) {
+        if (threatTarget <= 0) {
             return;
         }
-        int half = (int) Math.ceil(event.getSchemeThreatTarget() * 0.5);
-        int threeQuarter = (int) Math.ceil(event.getSchemeThreatTarget() * 0.75);
+        int half = (int) Math.ceil(threatTarget * 0.5);
+        int threeQuarter = (int) Math.ceil(threatTarget * 0.75);
 
         if (beforeThreat < half && newThreat >= half) {
             notifications.add("THREAT_50_PERCENT");
@@ -695,32 +713,12 @@ public class GameStateService {
         if (beforeThreat < threeQuarter && newThreat >= threeQuarter) {
             notifications.add("THREAT_75_PERCENT");
         }
-        if (beforeThreat < event.getSchemeThreatTarget() && newThreat >= event.getSchemeThreatTarget()) {
+        if (beforeThreat < threatTarget && newThreat >= threatTarget) {
             notifications.add("THREAT_100_PERCENT");
-        }
-
-        event.setThreatHalfNotified(newThreat >= half);
-        event.setThreatThreeQuarterNotified(newThreat >= threeQuarter);
-    }
-
-    private void evaluateTimerMilestones(Event event, List<String> notifications) {
-        int remaining = event.getTimerRemainingSeconds();
-        if (!event.isTimerThirtyMinutesNotified() && remaining <= 1800) {
-            event.setTimerThirtyMinutesNotified(true);
-            notifications.add("TIMER_30_MINUTES");
-        }
-        if (!event.isTimerFifteenMinutesNotified() && remaining <= 900) {
-            event.setTimerFifteenMinutesNotified(true);
-            notifications.add("TIMER_15_MINUTES");
-        }
-        if (!event.isTimerFiveMinutesNotified() && remaining <= 300) {
-            event.setTimerFiveMinutesNotified(true);
-            notifications.add("TIMER_5_MINUTES");
         }
     }
 
     private void finishGame(Event event,
-                            EventResult result,
                             GameFinishCause cause,
                             List<String> notifications) {
         if (event.getStatus() == EventStatus.FINISHED) {
@@ -728,8 +726,6 @@ public class GameStateService {
         }
 
         Instant now = Instant.now();
-        event.setStatus(EventStatus.FINISHED);
-        event.setResult(result);
         if (event.getStartedAt() == null) {
             event.setStartedAt(now);
         }
@@ -737,8 +733,8 @@ public class GameStateService {
         event.setFinishCause(cause);
         event.setTimerStatus(TimerStatus.FINISHED);
         event.setTimerStartedAt(null);
-        event.setTimerPausedAt(now);
 
+        EventResult result = event.getResult();
         notifications.add("EVENT_FINISHED_" + result.name());
         eventLogService.appendSystemLog(event, EventActionType.EVENT_FINISHED,
                 null, result.name(), "Partida finalizada por " + cause.name());
@@ -747,48 +743,45 @@ public class GameStateService {
     private void reconcileMetricOutcome(Event event,
                                         List<String> notifications,
                                         String reopenNote) {
-        OutcomeResolution desiredOutcome = resolveOutcome(event);
+        GameFinishCause desiredCause = resolveOutcomeCause(event);
 
         if (event.getStatus() == EventStatus.FINISHED) {
             if (event.getFinishCause() == GameFinishCause.TIMER_EXPIRED) {
                 return;
             }
 
-            if (desiredOutcome == null) {
+            if (desiredCause == null) {
                 reopenGame(event, reopenNote);
                 return;
             }
 
-            event.setResult(desiredOutcome.result());
-            event.setFinishCause(desiredOutcome.cause());
+            event.setFinishCause(desiredCause);
             return;
         }
 
-        if (desiredOutcome != null) {
-            finishGame(event, desiredOutcome.result(), desiredOutcome.cause(), notifications);
+        if (desiredCause != null) {
+            finishGame(event, desiredCause, notifications);
         }
     }
 
-    private OutcomeResolution resolveOutcome(Event event) {
-        if (event.getVillainHpCurrent() <= 0) {
-            return new OutcomeResolution(EventResult.PLAYERS_VICTORY, GameFinishCause.VILLAIN_HP_ZERO);
+    private GameFinishCause resolveOutcomeCause(Event event) {
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        if (eventStateCalculator.villainHpCurrent(event, hpMax) <= 0) {
+            return GameFinishCause.VILLAIN_HP_ZERO;
         }
-        if (event.getSchemeThreatTarget() > 0 && event.getSchemeThreatCurrent() >= event.getSchemeThreatTarget()) {
-            return new OutcomeResolution(EventResult.THREAT_DEFEAT, GameFinishCause.THREAT_TARGET_REACHED);
+        int threatTarget = eventStateCalculator.threatTarget(event);
+        if (threatTarget > 0 && event.getSchemeThreatCurrent() >= threatTarget) {
+            return GameFinishCause.THREAT_TARGET_REACHED;
         }
         return null;
     }
 
     private void reopenGame(Event event, String note) {
-        Instant now = Instant.now();
-        event.setStatus(EventStatus.IN_PROGRESS);
-        event.setResult(null);
         event.setFinishedAt(null);
         event.setFinishCause(null);
         event.setTimerStartedAt(null);
         if (event.getTimerStatus() != TimerStatus.NOT_CONFIGURED) {
             event.setTimerStatus(TimerStatus.PAUSED);
-            event.setTimerPausedAt(now);
         }
 
         eventLogService.appendAuthenticatedLog(event, EventActionType.EVENT_REOPENED,
@@ -815,17 +808,18 @@ public class GameStateService {
         }
     }
 
-    private ReversionResolution buildReversionResolution(EventLog originalLog, Event event) {
+    private ReversionResolution buildReversionResolution(EventLog originalLog, Event event, int villainHpMax) {
         int originalPreviousValue = requireNumericLogValue(originalLog.getPreviousValue(), "previousValue");
         int originalNewValue = requireNumericLogValue(originalLog.getNewValue(), "newValue");
+        int villainHpCurrent = eventStateCalculator.villainHpCurrent(event, villainHpMax);
 
         return switch (originalLog.getActionType()) {
             case VILLAIN_DAMAGE_REPORTED, VILLAIN_DAMAGE_DELEGATED -> {
                 int deltaHp = originalPreviousValue - originalNewValue;
-                int newHp = Math.min(event.getVillainHpMax(), event.getVillainHpCurrent() + deltaHp);
+                int newHp = Math.min(villainHpMax, villainHpCurrent + deltaHp);
                 yield new ReversionResolution(
                         ReversionMetric.VILLAIN_HP,
-                        event.getVillainHpCurrent(),
+                        villainHpCurrent,
                         newHp,
                         originalLog.getGroup(),
                         EventActionType.VILLAIN_DAMAGE_REVERTED,
@@ -834,10 +828,10 @@ public class GameStateService {
             }
             case VILLAIN_HP_CORRECTED -> {
                 int deltaHp = originalPreviousValue - originalNewValue;
-                int newHp = Math.max(0, Math.min(event.getVillainHpMax(), event.getVillainHpCurrent() + deltaHp));
+                int newHp = Math.max(0, Math.min(villainHpMax, villainHpCurrent + deltaHp));
                 yield new ReversionResolution(
                         ReversionMetric.VILLAIN_HP,
-                        event.getVillainHpCurrent(),
+                        villainHpCurrent,
                         newHp,
                         originalLog.getGroup(),
                         EventActionType.VILLAIN_HP_CORRECTED,
@@ -934,6 +928,10 @@ public class GameStateService {
     }
 
     private GameStateSnapshotResponse toSnapshot(Event event) {
+        int hpMax = eventStateCalculator.villainHpMax(event);
+        int hpCurrent = eventStateCalculator.villainHpCurrent(event, hpMax);
+        int threatTarget = eventStateCalculator.threatTarget(event);
+
         FinalSummaryResponse finalSummary = null;
         if (event.getStatus() == EventStatus.FINISHED && event.getResult() != null) {
             long duration = 0;
@@ -955,10 +953,10 @@ public class GameStateService {
                 event.getResult(),
                 event.getVillain() == null ? null : event.getVillain().getName(),
                 event.getVillain() == null ? null : event.getVillain().getType(),
-                event.getVillainHpCurrent(),
-                event.getVillainHpMax(),
+                hpCurrent,
+                hpMax,
                 event.getSchemeThreatCurrent(),
-                event.getSchemeThreatTarget(),
+                threatTarget,
                 event.getTimerRemainingSeconds(),
                 event.getTimerStatus(),
                 event.getTotalReportedVillainDamage(),
@@ -992,12 +990,6 @@ public class GameStateService {
                                        GameStateSnapshotResponse snapshot,
                                        List<String> notifications) {
         realtimeEventPublisher.publishGameStateUpdate(eventId, operation, snapshot, notifications);
-    }
-
-    private record MutableEventContext(Event event) {
-    }
-
-    private record OutcomeResolution(EventResult result, GameFinishCause cause) {
     }
 
     private record ReversionResolution(ReversionMetric metric,

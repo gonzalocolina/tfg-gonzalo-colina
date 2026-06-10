@@ -9,12 +9,8 @@ export function createInterPodCard(eventId, payload, imageFile) {
   return http.post(`/events/${eventId}/inter-pod-cards`, formData)
 }
 
-export function reportInterPodCardDamage(eventId, cardId, data) {
-  return http.post(`/events/${eventId}/inter-pod-cards/${cardId}/damage`, data)
-}
-
-export function reportInterPodCardThreat(eventId, cardId, data) {
-  return http.post(`/events/${eventId}/inter-pod-cards/${cardId}/threat`, data)
+export function reportInterPodCardProgress(eventId, cardId, data) {
+  return http.post(`/events/${eventId}/inter-pod-cards/${cardId}/progress`, data)
 }
 
 export function updateInterPodCardStatus(eventId, cardId, data) {

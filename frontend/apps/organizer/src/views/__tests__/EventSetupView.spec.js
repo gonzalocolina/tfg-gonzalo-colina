@@ -63,13 +63,13 @@ function buildStructure(overrides = {}) {
         totalPlayers: 5,
         warnings: [],
         groups: [
-          { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
-          { id: 21, podId: 7, identifier: 'Mesa Gamma', playerCount: 3, representativeCode: 'REP2', observerCode: 'OBS2' },
+          { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 },
+          { id: 21, podId: 7, identifier: 'Mesa Gamma', playerCount: 3 },
         ],
       },
     ],
     unassignedGroups: [
-      { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
+      { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3 },
     ],
     ...overrides,
   }
@@ -157,8 +157,8 @@ describe('EventSetupView', () => {
           unassignedGroupCount: 2,
           unassignedPlayerCount: 5,
           unassignedGroups: [
-            { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
-            { id: 22, podId: null, identifier: 'Mesa Delta', playerCount: 2, representativeCode: 'REP4', observerCode: 'OBS4' },
+            { id: 20, podId: null, identifier: 'Mesa Beta', playerCount: 3 },
+            { id: 22, podId: null, identifier: 'Mesa Delta', playerCount: 2 },
           ],
         }),
       })
@@ -245,10 +245,10 @@ describe('EventSetupView', () => {
             totalPlayers: 10,
             warnings: [],
             groups: [
-              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
-              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP2', observerCode: 'OBS2' },
-              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2, representativeCode: 'REP3', observerCode: 'OBS3' },
-              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3, representativeCode: 'REP4', observerCode: 'OBS4' },
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3 },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2 },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3 },
             ],
           },
           {
@@ -259,15 +259,15 @@ describe('EventSetupView', () => {
             totalPlayers: 11,
             warnings: [],
             groups: [
-              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
-              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 3, representativeCode: 'REP6', observerCode: 'OBS6' },
-              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 3, representativeCode: 'REP7', observerCode: 'OBS7' },
-              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 3, representativeCode: 'REP8', observerCode: 'OBS8' },
+              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2 },
+              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 3 },
+              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 3 },
+              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 3 },
             ],
           },
         ],
         unassignedGroups: [
-          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 3, representativeCode: 'REP9', observerCode: 'OBS9' },
+          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 3 },
         ],
       }),
     })
@@ -309,16 +309,16 @@ describe('EventSetupView', () => {
             totalPlayers: 11,
             warnings: [],
             groups: [
-              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
-              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3, representativeCode: 'REP2', observerCode: 'OBS2' },
-              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 3, representativeCode: 'REP3', observerCode: 'OBS3' },
-              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3, representativeCode: 'REP4', observerCode: 'OBS4' },
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 3 },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 3 },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 3 },
             ],
           },
         ],
         unassignedGroups: [
-          { id: 20, podId: null, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
-          { id: 24, podId: null, identifier: 'Mesa Zeta', playerCount: 3, representativeCode: 'REP6', observerCode: 'OBS6' },
+          { id: 20, podId: null, identifier: 'Mesa Epsilon', playerCount: 2 },
+          { id: 24, podId: null, identifier: 'Mesa Zeta', playerCount: 3 },
         ],
       }),
     })
@@ -358,10 +358,10 @@ describe('EventSetupView', () => {
             totalPlayers: 8,
             warnings: [],
             groups: [
-              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
-              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 2, representativeCode: 'REP2', observerCode: 'OBS2' },
-              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2, representativeCode: 'REP3', observerCode: 'OBS3' },
-              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 2, representativeCode: 'REP4', observerCode: 'OBS4' },
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 },
+              { id: 21, podId: 7, identifier: 'Mesa Beta', playerCount: 2 },
+              { id: 22, podId: 7, identifier: 'Mesa Gamma', playerCount: 2 },
+              { id: 23, podId: 7, identifier: 'Mesa Delta', playerCount: 2 },
             ],
           },
           {
@@ -372,15 +372,15 @@ describe('EventSetupView', () => {
             totalPlayers: 8,
             warnings: [],
             groups: [
-              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2, representativeCode: 'REP5', observerCode: 'OBS5' },
-              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 2, representativeCode: 'REP6', observerCode: 'OBS6' },
-              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 2, representativeCode: 'REP7', observerCode: 'OBS7' },
-              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 2, representativeCode: 'REP8', observerCode: 'OBS8' },
+              { id: 24, podId: 8, identifier: 'Mesa Epsilon', playerCount: 2 },
+              { id: 25, podId: 8, identifier: 'Mesa Zeta', playerCount: 2 },
+              { id: 26, podId: 8, identifier: 'Mesa Eta', playerCount: 2 },
+              { id: 27, podId: 8, identifier: 'Mesa Theta', playerCount: 2 },
             ],
           },
         ],
         unassignedGroups: [
-          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 2, representativeCode: 'REP9', observerCode: 'OBS9' },
+          { id: 20, podId: null, identifier: 'Mesa Iota', playerCount: 2 },
         ],
       }),
     })
@@ -416,7 +416,7 @@ describe('EventSetupView', () => {
             totalPlayers: 2,
             warnings: [],
             groups: [
-              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2, representativeCode: 'REP1', observerCode: 'OBS1' },
+              { id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 },
             ],
           },
           {
@@ -427,7 +427,7 @@ describe('EventSetupView', () => {
             totalPlayers: 2,
             warnings: [],
             groups: [
-              { id: 20, podId: 8, identifier: 'Mesa Beta', playerCount: 2, representativeCode: 'REP2', observerCode: 'OBS2' },
+              { id: 20, podId: 8, identifier: 'Mesa Beta', playerCount: 2 },
             ],
           },
         ],

@@ -9,8 +9,7 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
 - WebSocket STOMP endpoint: `/ws` (SockJS)
 
 ## 2) Roles de token
-- `ORGANIZER`: control total del evento.
-- `CO_ORGANIZER`: lectura + acciones segun responsabilidad asignada (`VILLAIN_HP`, `THREAT`, `TIMER`).
+- `ORGANIZER`: cuenta del panel organizer. Control total en eventos propios (`events.organizer_id`) y acciones delegadas en eventos donde tiene invitacion aceptada (`co_organizer_invitations`).
 - `GROUP_REPRESENTATIVE`: reporta dano/amenaza e inter-pod de su mesa.
 - `GROUP_OBSERVER`: solo lectura.
 
@@ -34,14 +33,17 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
 ## 4) Endpoints clave
 
 ### Auth
+- `POST /api/auth/register`
+  - req: `{ "username", "email", "password" }`
 - `POST /api/auth/organizer/login`
   - req: `{ "username", "password" }`
-- `POST /api/auth/co-organizer/login`
-  - req: `{ "eventId", "username", "password" }`
+  - nota: todas las cuentas del panel usan este login; el rol por evento se resuelve con `organizer_id` + `co_organizer_invitations`.
 - `POST /api/auth/group/login`
-  - req: `{ "eventId", "code" }`
+  - req: `{ "eventId", "identifier", "asObserver"? }`
+  - nota: `identifier` es el nombre de la mesa; `asObserver=true` emite token de solo lectura.
 - `POST /api/auth/group/login-by-code`
-  - req: `{ "code" }`
+  - req: `{ "code", "groupLabel"?, "playerCount"?, "asObserver"? }`
+  - nota: `code` es el código del evento; `groupLabel` identifica la mesa (se crea si no existe).
 - resp comun:
   - `{ "tokenType", "accessToken", "expiresInSeconds", "role", "eventId", "groupId", "username", "displayName" }`
 
@@ -58,21 +60,24 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
   - req: `{ "name", "sortOrder" }`
 - `POST /api/events/{eventId}/pods/{podId}/groups`
   - req: `{ "identifier", "playerCount" }`
-  - resp incluye `representativeCode` y `observerCode`.
+  - resp: `{ "id", "podId", "identifier", "playerCount" }`.
 - `GET /api/events/{eventId}/structure`
 
 ### Roles
-- `POST /api/events/{eventId}/roles/co-organizers`
-  - req: `{ "username", "displayName", "email", "password", "responsibilities": ["VILLAIN_HP"|"THREAT"|"TIMER"] }`
+- `POST /api/events/{eventId}/roles/co-organizer-invitations`
+  - req: `{ "username", "responsibilities": ["VILLAIN_HP"|"THREAT"|"TIMER"] }`
 - `GET /api/events/{eventId}/roles/co-organizers`
+- `GET /api/events/{eventId}/roles/co-organizer-invitations`
+- `POST /api/co-organizer-invitations/{invitationId}/accept`
+- `POST /api/co-organizer-invitations/{invitationId}/reject`
 
 ### Estado de partida
 - `GET /api/events/{eventId}/game-state`
 - `POST /api/events/{eventId}/game-state/start`
 - `POST /api/events/{eventId}/game-state/villain-damage`
-  - req: `{ "representativeCode", "damage" }`
+  - req: `{ "damage" }`
 - `POST /api/events/{eventId}/game-state/threat`
-  - req: `{ "representativeCode", "threat" }`
+  - req: `{ "threat" }` (token de representante con `groupId` en JWT)
 - `PATCH /api/events/{eventId}/game-state/villain-hp`
   - req: `{ "value" }`
 - `PATCH /api/events/{eventId}/game-state/threat`
@@ -85,15 +90,17 @@ Objetivo: guia minima para que un agente de frontend integre rapido este backend
 
 ### Inter-pod cards
 - `POST /api/events/{eventId}/inter-pod-cards` (multipart)
-  - part `payload` (json): `{ "representativeCode", "cardName": "THE_MANGOG"|"DOOR_BETWEEN_WORLDS", "hpMax", "status" }`
+  - part `payload` (json): `{ "interPodCardDefinitionId", "sourceGroupId"? (organizador), "metricMax"?, "status"? }`
   - part opcional `image`: png/jpg/jpeg/webp (max 5MB)
-- `POST /api/events/{eventId}/inter-pod-cards/{cardId}/damage`
-  - req: `{ "representativeCode", "damage" }`
+- `POST /api/events/{eventId}/inter-pod-cards/{cardId}/progress`
+  - req: `{ "amount" }` (reduce `metricCurrent`; a 0 marca `DERROTADA`)
 - `PATCH /api/events/{eventId}/inter-pod-cards/{cardId}/status`
-  - req: `{ "representativeCode"?, "status": "OCULTA"|"REVELADA"|"DERROTADA" }`
+  - req: `{ "status": "OCULTA"|"REVELADA"|"DERROTADA" }`
 - `DELETE /api/events/{eventId}/inter-pod-cards/{cardId}`
 - `GET /api/events/{eventId}/inter-pod-cards?podId=<optional>`
 - `GET /api/events/{eventId}/inter-pod-cards/{cardId}/image`
+- Respuesta de instancia: `{ "metricMax", "metricCurrent", "cardCategory", ... }` (`cardCategory` define si la métrica es HP o amenaza).
+- Catálogo (`/api/inter-pod-card-definitions`, multipart create/update): `defaultMetricMax`, `ruleType`, `cardCategory`.
 
 ### Log
 - `GET /api/events/{eventId}/logs`

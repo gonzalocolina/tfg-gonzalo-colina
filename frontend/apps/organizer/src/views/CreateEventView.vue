@@ -6,7 +6,7 @@ import { createEvent } from '@/api/events'
 import { getVillains } from '@/api/villains'
 import { getInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 import { useNotificationsStore } from '@/stores/notifications'
-import { formatCardCategory, formatCatalogItemType } from '@/utils/displayLabels'
+import { formatCardCategory, formatCatalogItemType, formatInterPodMetricSummary } from '@/utils/displayLabels'
 
 const router = useRouter()
 const notif = useNotificationsStore()
@@ -48,10 +48,7 @@ function prettyCardName(name) {
 }
 
 function definitionMetricText(definition) {
-  if (definition.cardCategory === 'ESBIRRO') {
-    return `HP base ${definition.defaultHpMax}/mesa`
-  }
-  return `Amenaza base ${definition.defaultThreatMax}/mesa`
+  return formatInterPodMetricSummary(definition)
 }
 
 function toggleInterPodCardDefinition(definitionId) {
@@ -176,7 +173,7 @@ onMounted(async () => {
         <div class="form-group">
           <p style="margin: 0 0 8px; font-weight: 500">Cartas inter-nodo para este evento</p>
           <small class="text-muted" style="display: block; margin-bottom: 8px">
-            El valor real de cada carta se calcula como base × nº de mesas del nodo donde aparezca.
+            El valor en partida depende del cálculo configurado en cada carta (por mesa o fijo).
           </small>
           <div v-if="loadingInterPodCardDefinitions" class="text-muted">Cargando cartas inter-nodo…</div>
           <div v-else-if="!interPodCardDefinitions.length" class="text-muted">

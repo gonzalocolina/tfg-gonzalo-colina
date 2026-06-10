@@ -2,7 +2,6 @@ package com.tfg.gonzalo.backend.controller;
 
 import com.tfg.gonzalo.backend.dto.auth.OrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.AuthTokenResponse;
-import com.tfg.gonzalo.backend.dto.auth.CoOrganizerLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.GroupLoginByCodeRequest;
 import com.tfg.gonzalo.backend.dto.auth.GroupLoginRequest;
 import com.tfg.gonzalo.backend.dto.auth.RegisterRequest;
@@ -39,11 +38,6 @@ public class AuthController {
     @PostMapping("/group/login")
     public AuthTokenResponse loginGroup(@Valid @RequestBody GroupLoginRequest request) {
         return authService.loginGroup(request);
-    }
-
-    @PostMapping("/co-organizer/login")
-    public AuthTokenResponse loginCoOrganizer(@Valid @RequestBody CoOrganizerLoginRequest request) {
-        return authService.loginCoOrganizer(request);
     }
 
     @PostMapping("/group/login-by-code")

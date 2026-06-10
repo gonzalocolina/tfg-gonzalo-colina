@@ -10,7 +10,6 @@ const resultLabel = computed(() => {
     PLAYERS_VICTORY: '¡Victoria de los jugadores!',
     THREAT_DEFEAT: 'Derrota - Amenaza máxima alcanzada',
     TIMEOUT_DEFEAT: 'Derrota - Tiempo agotado',
-    CANCELLED: 'Evento cancelado',
   }
   return map[props.summary.result] || props.summary.result
 })
@@ -18,9 +17,8 @@ const resultLabel = computed(() => {
 const causeLabel = computed(() => {
   const map = {
     VILLAIN_HP_ZERO: 'HP del villano llegó a 0',
-    THREAT_REACHED_TARGET: 'La amenaza alcanzó el objetivo',
+    THREAT_TARGET_REACHED: 'La amenaza alcanzó el objetivo',
     TIMER_EXPIRED: 'El temporizador llegó a 0',
-    CANCELLED_BY_ORGANIZER: 'Cancelado por el organizador',
   }
   return map[props.summary.cause] || props.summary.cause
 })

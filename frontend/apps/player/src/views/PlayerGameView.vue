@@ -38,7 +38,7 @@ const { getProtectedImageUrl, syncImageUrls } = useProtectedImageUrls('auth-play
 
 const isFinished = computed(() => gs.eventStatus === 'FINISHED')
 const isInProgress = computed(() => gs.eventStatus === 'IN_PROGRESS')
-const isWaiting = computed(() => ['DRAFT', 'READY'].includes(gs.eventStatus))
+const isWaiting = computed(() => gs.eventStatus === 'DRAFT')
 const isPaused = computed(() => gs.timerStatus === 'PAUSED')
 const isTimerPendingStart = computed(() => isInProgress.value && gs.timerStatus === 'READY')
 
@@ -206,9 +206,7 @@ function prettyCardName(name) {
 function resolveInterPodCardStatus(card) {
   if (!card) return '-'
 
-  const currentValue = card?.cardCategory === 'ESBIRRO'
-    ? Number(card.hpCurrent)
-    : Number(card.threatCurrent)
+  const currentValue = Number(card.metricCurrent)
   if (Number.isFinite(currentValue) && currentValue <= 0) {
     return 'DERROTADA'
   }
@@ -230,19 +228,14 @@ function isMinionCard(card) {
 
 function cardMetricText(card) {
   if (!card) return '-'
-  return isMinionCard(card)
-    ? `HP ${card.hpCurrent}/${card.hpMax}`
-    : `Amenaza ${card.threatCurrent}/${card.threatMax}`
+  const label = isMinionCard(card) ? 'HP' : 'Amenaza'
+  return `${label} ${card.metricCurrent}/${card.metricMax}`
 }
 
 function cardProgressPercent(card) {
   if (!card) return 0
-  if (isMinionCard(card)) {
-    const max = Number(card.hpMax)
-    return max > 0 ? Math.max(0, Math.min(100, Math.round((Number(card.hpCurrent) / max) * 100))) : 0
-  }
-  const max = Number(card.threatMax)
-  return max > 0 ? Math.max(0, Math.min(100, Math.round((Number(card.threatCurrent) / max) * 100))) : 0
+  const max = Number(card.metricMax)
+  return max > 0 ? Math.max(0, Math.min(100, Math.round((Number(card.metricCurrent) / max) * 100))) : 0
 }
 
 function cardProgressColor(card) {

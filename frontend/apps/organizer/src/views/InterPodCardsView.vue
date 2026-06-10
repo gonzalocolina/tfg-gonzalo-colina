@@ -15,9 +15,12 @@ import { useProtectedImageUrls } from '@/composables/useProtectedImageUrls'
 import {
   eventStatusBadgeClass,
   formatCardCategory,
-  formatCardStatus,
   formatCatalogItemType,
   formatEventStatus,
+  formatInterPodMetricSummary,
+  formatInterPodRuleType,
+  formatInterPodRuleTypeForDefinition,
+  interPodMetricValueLabel,
 } from '@/utils/displayLabels'
 
 const route = useRoute()
@@ -51,14 +54,13 @@ const editingId = ref(null)
 const selectedDefinitionIds = ref([])
 
 const CATEGORY_OPTIONS = ['PLAN', 'ESBIRRO']
-const STATUS_OPTIONS = ['OCULTA', 'REVELADA', 'DERROTADA']
+const VALUE_RULE_OPTIONS = ['MULTIPLIER', 'FIXED_VALUE']
 
 const createForm = ref({
   name: '',
   cardCategory: 'ESBIRRO',
-  defaultHpMax: 8,
-  defaultThreatMax: 8,
-  defaultStatus: 'REVELADA',
+  defaultMetricMax: 8,
+  ruleType: 'MULTIPLIER',
   imageUrl: '',
 })
 const createImage = ref(null)
@@ -66,9 +68,8 @@ const createImage = ref(null)
 const editForm = ref({
   name: '',
   cardCategory: 'ESBIRRO',
-  defaultHpMax: 8,
-  defaultThreatMax: 8,
-  defaultStatus: 'REVELADA',
+  defaultMetricMax: 8,
+  ruleType: 'MULTIPLIER',
   imageUrl: '',
 })
 const editImage = ref(null)
@@ -249,9 +250,8 @@ function resetCreateForm() {
   createForm.value = {
     name: '',
     cardCategory: 'ESBIRRO',
-    defaultHpMax: 8,
-    defaultThreatMax: 8,
-    defaultStatus: 'REVELADA',
+    defaultMetricMax: 8,
+    ruleType: 'MULTIPLIER',
     imageUrl: '',
   }
   createImage.value = null
@@ -270,13 +270,11 @@ function isMinionCategory(category) {
 }
 
 function definitionMetricLabel(definition) {
-  return isMinionCategory(definition.cardCategory) ? 'HP base' : 'Amenaza base'
+  return interPodMetricValueLabel(definition.cardCategory, definition.ruleType)
 }
 
 function definitionMetricValue(definition) {
-  return isMinionCategory(definition.cardCategory)
-    ? definition.defaultHpMax
-    : definition.defaultThreatMax
+  return definition.defaultMetricMax
 }
 
 function toggleEventDefinition(definitionId) {
@@ -293,9 +291,8 @@ function startEdit(definition) {
   editForm.value = {
     name: definition.name,
     cardCategory: definition.cardCategory,
-    defaultHpMax: definition.defaultHpMax,
-    defaultThreatMax: definition.defaultThreatMax,
-    defaultStatus: definition.defaultStatus,
+    defaultMetricMax: definition.defaultMetricMax,
+    ruleType: definition.ruleType || 'MULTIPLIER',
     imageUrl: isExternalImageUrl(definition.imageUrl) ? definition.imageUrl : '',
   }
   setEditImage(null)
@@ -436,7 +433,8 @@ onUnmounted(() => {
             Esta selección es específica del evento y no modifica el catálogo global.
           </p>
           <p class="text-muted" style="font-size: 0.85rem; margin-top: 6px">
-            El valor real de cada carta será su valor base multiplicado por el número de mesas del nodo donde aparezca.
+            Los esbirros escalan su HP y los planes su amenaza según el cálculo de cada carta
+            (por mesa × nº de mesas del nodo, o valor fijo).
           </p>
         </div>
         <span v-if="event?.status" class="badge" :class="eventStatusBadgeClass(event.status)">
@@ -526,7 +524,8 @@ onUnmounted(() => {
         Las cartas que crees aquí se añaden a tu catálogo personal. Después podrás marcarlas arriba para este evento.
       </p>
       <p class="text-muted" style="margin-bottom: 12px; font-size: 0.85rem">
-        El valor real de cada instancia se calcula como valor base × nº de mesas del nodo.
+        Los esbirros usan HP; los planes secundarios, amenaza. El modo de cálculo aplica solo a la métrica
+        de la categoría elegida: por mesa se multiplica por el nº de mesas del nodo; valor fijo no escala.
       </p>
       <form @submit.prevent="handleCreate">
         <div class="form-group">
@@ -550,35 +549,32 @@ onUnmounted(() => {
             </select>
           </div>
           <div class="form-group">
-            <label :for="isMinionCategory(createForm.cardCategory) ? 'new-card-hp' : 'new-card-threat'">
-              {{ isMinionCategory(createForm.cardCategory) ? 'HP base por mesa' : 'Amenaza base por mesa' }}
+            <label for="new-card-rule">
+              {{ isMinionCategory(createForm.cardCategory) ? 'Cálculo del HP' : 'Cálculo de la amenaza' }}
             </label>
-            <input
-              v-if="isMinionCategory(createForm.cardCategory)"
-              id="new-card-hp"
-              v-model.number="createForm.defaultHpMax"
+            <select
+              id="new-card-rule"
+              v-model="createForm.ruleType"
               class="form-control"
-              type="number"
-              min="1"
               required
-            />
-            <input
-              v-else
-              id="new-card-threat"
-              v-model.number="createForm.defaultThreatMax"
-              class="form-control"
-              type="number"
-              min="1"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="new-card-status">Estado por defecto</label>
-            <select id="new-card-status" v-model="createForm.defaultStatus" class="form-control">
-              <option v-for="status in STATUS_OPTIONS" :key="status" :value="status">
-                {{ formatCardStatus(status) }}
+            >
+              <option v-for="ruleType in VALUE_RULE_OPTIONS" :key="ruleType" :value="ruleType">
+                {{ formatInterPodRuleType(ruleType, createForm.cardCategory) }}
               </option>
             </select>
+          </div>
+          <div class="form-group">
+            <label for="new-card-metric">
+              {{ interPodMetricValueLabel(createForm.cardCategory, createForm.ruleType) }}
+            </label>
+            <input
+              id="new-card-metric"
+              v-model.number="createForm.defaultMetricMax"
+              class="form-control"
+              type="number"
+              min="1"
+              required
+            />
           </div>
         </div>
 
@@ -632,8 +628,8 @@ onUnmounted(() => {
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Categoría</th>
-              <th>Valor base / mesa</th>
-              <th>Estado por defecto</th>
+              <th>Valor</th>
+              <th>Cálculo</th>
               <th>Imagen</th>
               <th>Propietario</th>
               <th>Acciones</th>
@@ -655,28 +651,22 @@ onUnmounted(() => {
                 </td>
                 <td>
                   <input
-                    v-if="isMinionCategory(editForm.cardCategory)"
-                    v-model.number="editForm.defaultHpMax"
+                    v-model.number="editForm.defaultMetricMax"
                     class="form-control"
                     style="width: 110px"
                     type="number"
                     min="1"
                     required
                   />
-                  <input
-                    v-else
-                    v-model.number="editForm.defaultThreatMax"
-                    class="form-control"
-                    style="width: 130px"
-                    type="number"
-                    min="1"
-                    required
-                  />
                 </td>
                 <td>
-                  <select v-model="editForm.defaultStatus" class="form-control" style="width: 130px">
-                    <option v-for="status in STATUS_OPTIONS" :key="status" :value="status">
-                      {{ formatCardStatus(status) }}
+                  <select
+                    v-model="editForm.ruleType"
+                    class="form-control"
+                    style="width: 180px"
+                  >
+                    <option v-for="ruleType in VALUE_RULE_OPTIONS" :key="ruleType" :value="ruleType">
+                      {{ formatInterPodRuleType(ruleType, editForm.cardCategory) }}
                     </option>
                   </select>
                 </td>
@@ -736,8 +726,8 @@ onUnmounted(() => {
                   </span>
                 </td>
                 <td>{{ formatCardCategory(definition.cardCategory) }}</td>
-                <td>{{ definitionMetricLabel(definition) }} {{ definitionMetricValue(definition) }}/mesa</td>
-                <td>{{ formatCardStatus(definition.defaultStatus) }}</td>
+                <td>{{ formatInterPodMetricSummary(definition) }}</td>
+                <td>{{ formatInterPodRuleTypeForDefinition(definition) }}</td>
                 <td>
                   <button
                     v-if="getProtectedImageUrl(definition.id)"

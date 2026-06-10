@@ -8,15 +8,10 @@ public class CodeGeneratorService {
 
     private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int EVENT_CODE_LENGTH = 8;
-    private static final int GROUP_CODE_LENGTH = 6;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public String generateEventCode() {
         return generateCode(EVENT_CODE_LENGTH);
-    }
-
-    public String generateGroupCode() {
-        return generateCode(GROUP_CODE_LENGTH);
     }
 
     private String generateCode(int length) {

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record GroupLoginRequest(
         @NotNull Long eventId,
-        @NotBlank @Size(max = 16) String code
+        @NotBlank @Size(max = 40) String identifier,
+        Boolean asObserver
 ) {
 }

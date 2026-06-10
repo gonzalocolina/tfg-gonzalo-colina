@@ -1,6 +1,5 @@
 package com.tfg.gonzalo.backend.controller;
 
-import com.tfg.gonzalo.backend.dto.event.AssignCoOrganizerRequest;
 import com.tfg.gonzalo.backend.dto.event.CoOrganizerResponse;
 import com.tfg.gonzalo.backend.dto.event.CoOrganizerInvitationResponse;
 import com.tfg.gonzalo.backend.dto.event.InviteCoOrganizerRequest;
@@ -29,13 +28,6 @@ public class EventRoleController {
                                CoOrganizerInvitationService coOrganizerInvitationService) {
         this.eventRoleService = eventRoleService;
         this.coOrganizerInvitationService = coOrganizerInvitationService;
-    }
-
-    @PostMapping("/co-organizers")
-    @ResponseStatus(HttpStatus.CREATED)
-    public CoOrganizerResponse assignCoOrganizer(@PathVariable Long eventId,
-                                                 @Valid @RequestBody AssignCoOrganizerRequest request) {
-        return eventRoleService.assignCoOrganizer(eventId, request);
     }
 
     @GetMapping("/co-organizers")

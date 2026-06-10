@@ -261,7 +261,6 @@ class CoOrganizerInvitationIntegrationTest {
                         .content("""
                                 {
                                   "name": "%s",
-                                  "configuredPlayerCount": 4,
                                   "timeLimitMinutes": 180
                                 }
                                 """.formatted(eventName)))

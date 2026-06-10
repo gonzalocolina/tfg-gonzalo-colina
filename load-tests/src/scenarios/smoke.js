@@ -15,6 +15,7 @@ export const smokeScenario = {
         config,
         metrics,
         eventId: environment.event.id,
+        eventCode: environment.event.eventCode,
         groups: environment.groups,
       })
       cleanupClients.push(...clients)

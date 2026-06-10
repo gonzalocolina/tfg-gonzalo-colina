@@ -4,8 +4,6 @@ public record GroupResponse(
         Long id,
         Long podId,
         String identifier,
-        Integer playerCount,
-        String representativeCode,
-        String observerCode
+        Integer playerCount
 ) {
 }

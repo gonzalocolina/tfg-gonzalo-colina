@@ -21,14 +21,6 @@ public interface EventGroupRepository extends JpaRepository<EventGroup, Long> {
 
     Optional<EventGroup> findByEventIdAndIdentifierIgnoreCase(Long eventId, String identifier);
 
-    Optional<EventGroup> findByEventIdAndRepresentativeCode(Long eventId, String representativeCode);
-
-    Optional<EventGroup> findByEventIdAndObserverCode(Long eventId, String observerCode);
-
-    Optional<EventGroup> findByRepresentativeCode(String representativeCode);
-
-    Optional<EventGroup> findByObserverCode(String observerCode);
-
     boolean existsByEventIdAndIdentifierIgnoreCase(Long eventId, String identifier);
 
     long countByEventId(Long eventId);

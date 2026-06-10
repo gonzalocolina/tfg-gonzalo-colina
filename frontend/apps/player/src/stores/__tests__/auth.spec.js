@@ -28,7 +28,7 @@ describe('auth store', () => {
         eventId: 1,
         groupId: 2,
         groupLabel: 'Mesa A',
-        code: 'REP001',
+        code: 'EVT001',
       }),
     )
     setActivePinia(createPinia())
@@ -36,7 +36,7 @@ describe('auth store', () => {
     expect(auth.isAuthenticated).toBe(true)
     expect(auth.isRepresentative).toBe(true)
     expect(auth.accessToken).toBe('tok123')
-    expect(auth.code).toBe('REP001')
+    expect(auth.code).toBe('EVT001')
   })
 
   it('logout clears state and storage', () => {

@@ -16,7 +16,6 @@ vi.mock('@/api/interPodCardDefinitions', () => ({
 }))
 vi.mock('@/api/auth', () => ({
   organizerLogin: vi.fn(),
-  coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
 
@@ -60,9 +59,8 @@ describe('CreateEventView', () => {
           id: 10,
           name: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
-          defaultHpMax: 10,
-          defaultThreatMax: 0,
-          defaultStatus: 'REVELADA',
+          defaultMetricMax: 10,
+          ruleType: 'MULTIPLIER',
         },
       ],
     })

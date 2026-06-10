@@ -58,7 +58,6 @@ async function handleSubmit() {
   try {
     const action = isRemoving.value ? removeThreat : reportThreat
     const { data } = await action(auth.eventId, {
-      representativeCode: auth.code,
       threat: amount.value,
     })
     gs.applySnapshot(data.snapshot)

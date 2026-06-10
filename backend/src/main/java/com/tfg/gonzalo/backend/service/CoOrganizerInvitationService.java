@@ -11,7 +11,6 @@ import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerInvitationStatus;
 import com.tfg.gonzalo.backend.model.enums.CoOrganizerResponsibility;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
-import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
@@ -226,12 +225,6 @@ public class CoOrganizerInvitationService {
     }
 
     private void validateInvitee(Event event, AppUser inviter, AppUser invitee) {
-        if (!invitee.isEnabled()) {
-            throw new BusinessRuleException("La cuenta invitada no está habilitada.");
-        }
-        if (invitee.getRole() != GlobalRole.ORGANIZER) {
-            throw new BusinessRuleException("Solo se puede invitar a cuentas registradas del panel de organizeristración.");
-        }
         if (invitee.getId().equals(event.getOrganizer().getId())) {
             throw new BusinessRuleException("El organizador principal ya pertenece al evento y no necesita invitación.");
         }

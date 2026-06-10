@@ -7,20 +7,17 @@ import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
 
 const {
   createInterPodCard,
-  reportInterPodCardDamage,
-  reportInterPodCardThreat,
+  reportInterPodCardProgress,
   getEventInterPodCardDefinitions,
 } = vi.hoisted(() => ({
   createInterPodCard: vi.fn(),
-  reportInterPodCardDamage: vi.fn(),
-  reportInterPodCardThreat: vi.fn(),
+  reportInterPodCardProgress: vi.fn(),
   getEventInterPodCardDefinitions: vi.fn(),
 }))
 
 vi.mock('@/api/interPod', () => ({
   createInterPodCard,
-  reportInterPodCardDamage,
-  reportInterPodCardThreat,
+  reportInterPodCardProgress,
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
@@ -34,10 +31,8 @@ function buildCard(overrides = {}) {
     interPodCardDefinitionId: 10,
     cardName: 'THE_MANGOG',
     cardCategory: 'ESBIRRO',
-    hpCurrent: 7,
-    hpMax: 8,
-    threatCurrent: 0,
-    threatMax: 0,
+    metricCurrent: 7,
+    metricMax: 8,
     status: 'REVELADA',
     sourceGroupIdentifier: 'Mesa Beta',
     createdAt: '2026-03-31T12:00:00Z',
@@ -90,15 +85,13 @@ describe('InterPodAlertDialog', () => {
     vi.useFakeTimers()
     seedAuthSession()
     createInterPodCard.mockReset()
-    reportInterPodCardDamage.mockReset()
-    reportInterPodCardThreat.mockReset()
+    reportInterPodCardProgress.mockReset()
     getEventInterPodCardDefinitions.mockReset()
 
     createInterPodCard.mockResolvedValue({ data: { id: 99 } })
-    reportInterPodCardDamage.mockResolvedValue({ data: {} })
-    reportInterPodCardThreat.mockResolvedValue({ data: {} })
+    reportInterPodCardProgress.mockResolvedValue({ data: {} })
     getEventInterPodCardDefinitions.mockResolvedValue({
-      data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultThreatMax: 0, defaultStatus: 'REVELADA' }],
+      data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultMetricMax: 8, ruleType: 'MULTIPLIER' }],
     })
   })
 
@@ -184,10 +177,8 @@ describe('InterPodAlertDialog', () => {
           id: 43,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          hpCurrent: 0,
-          hpMax: 0,
-          threatCurrent: 0,
-          threatMax: 8,
+          metricCurrent: 0,
+          metricMax: 8,
           status: 'DERROTADA',
           sourceGroupIdentifier: 'Mesa Alfa',
         }),
@@ -221,7 +212,6 @@ describe('InterPodAlertDialog', () => {
     await wrapper.get('.btn.btn-primary').trigger('click')
 
     expect(createInterPodCard).toHaveBeenCalledWith(1, {
-      representativeCode: 'REP001',
       interPodCardDefinitionId: 10,
     })
     expect(wrapper.emitted('refresh-requested')).toBeUndefined()
@@ -232,8 +222,8 @@ describe('InterPodAlertDialog', () => {
   it('only offers inter-pod definitions not already reported by the current table', async () => {
     getEventInterPodCardDefinitions.mockResolvedValue({
       data: [
-        { id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultHpMax: 8, defaultThreatMax: 0, defaultStatus: 'REVELADA' },
-        { id: 11, name: 'DOOR_BETWEEN_WORLDS', cardCategory: 'PLAN', defaultHpMax: 0, defaultThreatMax: 7, defaultStatus: 'REVELADA' },
+        { id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultMetricMax: 8, ruleType: 'MULTIPLIER' },
+        { id: 11, name: 'DOOR_BETWEEN_WORLDS', cardCategory: 'PLAN', defaultMetricMax: 7, ruleType: 'MULTIPLIER' },
       ],
     })
     const wrapper = mountDialog({
@@ -248,10 +238,8 @@ describe('InterPodAlertDialog', () => {
           interPodCardDefinitionId: 11,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          hpCurrent: 0,
-          hpMax: 0,
-          threatCurrent: 7,
-          threatMax: 7,
+          metricCurrent: 7,
+          metricMax: 7,
           sourceGroupIdentifier: 'Mesa Alfa',
         }),
       ],
@@ -266,7 +254,6 @@ describe('InterPodAlertDialog', () => {
     await wrapper.get('.btn.btn-primary').trigger('click')
 
     expect(createInterPodCard).toHaveBeenCalledWith(1, {
-      representativeCode: 'REP001',
       interPodCardDefinitionId: 11,
     })
 
@@ -336,10 +323,8 @@ describe('InterPodAlertDialog', () => {
           id: 41,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          hpCurrent: 0,
-          hpMax: 0,
-          threatCurrent: 8,
-          threatMax: 8,
+          metricCurrent: 8,
+          metricMax: 8,
           sourceGroupIdentifier: 'Mesa Alfa',
         }),
         buildCard(),
@@ -367,17 +352,15 @@ describe('InterPodAlertDialog', () => {
     wrapper.unmount()
   })
 
-  it('uses the threat endpoint for plan cards', async () => {
+  it('reports progress for plan cards through the unified endpoint', async () => {
     const wrapper = mountDialog({
       cards: [
         buildCard({
           id: 52,
           cardName: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          hpCurrent: 0,
-          hpMax: 0,
-          threatCurrent: 5,
-          threatMax: 8,
+          metricCurrent: 5,
+          metricMax: 8,
         }),
       ],
     })
@@ -389,11 +372,9 @@ describe('InterPodAlertDialog', () => {
     expect(threatButton).toBeDefined()
     await threatButton.trigger('click')
 
-    expect(reportInterPodCardThreat).toHaveBeenCalledWith(1, 52, {
-      representativeCode: 'REP001',
-      threat: 2,
+    expect(reportInterPodCardProgress).toHaveBeenCalledWith(1, 52, {
+      amount: 2,
     })
-    expect(reportInterPodCardDamage).not.toHaveBeenCalled()
     expect(wrapper.emitted('refresh-requested')).toBeUndefined()
 
     wrapper.unmount()
@@ -412,9 +393,8 @@ describe('InterPodAlertDialog', () => {
     expect(damageButton).toBeDefined()
     await damageButton.trigger('click')
 
-    expect(reportInterPodCardDamage).toHaveBeenCalledWith(1, 42, {
-      representativeCode: 'REP001',
-      damage: 2,
+    expect(reportInterPodCardProgress).toHaveBeenCalledWith(1, 42, {
+      amount: 2,
     })
     expect(wrapper.emitted('refresh-requested')).toHaveLength(1)
 

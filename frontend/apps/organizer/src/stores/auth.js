@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { organizerLogin, coOrganizerLogin, register } from '@/api/auth'
+import { organizerLogin, register } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const saved = sessionStorage.getItem('auth')
@@ -14,7 +14,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!accessToken.value)
   const isOrganizer = computed(() => role.value === 'ORGANIZER')
-  const isCoOrganizer = computed(() => role.value === 'CO_ORGANIZER')
 
   function persist() {
     sessionStorage.setItem(
@@ -50,12 +49,6 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function loginCoOrg(evtId, user, pass) {
-    const { data } = await coOrganizerLogin(evtId, user, pass)
-    setSession(data)
-    return data
-  }
-
   function logout() {
     accessToken.value = ''
     role.value = ''
@@ -73,9 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
     username,
     isAuthenticated,
     isOrganizer,
-    isCoOrganizer,
     loginOrganizer,
-    loginCoOrg,
     registerAndLogin,
     logout,
     setSession,

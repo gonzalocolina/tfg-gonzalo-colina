@@ -31,7 +31,6 @@ class GameStateControllerIntegrationTest {
 
     private static final Pattern ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
         private static final Pattern EVENT_CODE_PATTERN = Pattern.compile("\"eventCode\"\\s*:\\s*\"([^\"]+)\"");
-    private static final Pattern REPRESENTATIVE_CODE_PATTERN = Pattern.compile("\"representativeCode\"\\s*:\\s*\"([^\"]+)\"");
         private static final Pattern TOKEN_PATTERN = Pattern.compile("\"accessToken\"\\s*:\\s*\"([^\"]+)\"");
         private static final Pattern VILLAIN_HP_PATTERN = Pattern.compile("\"villainHpCurrent\"\\s*:\\s*(\\d+)");
         private static final Pattern THREAT_PATTERN = Pattern.compile("\"schemeThreatCurrent\"\\s*:\\s*(\\d+)");
@@ -44,8 +43,8 @@ class GameStateControllerIntegrationTest {
         long eventId = createEvent("evento-daño", 4);
         String organizerToken = loginOrganizer("evento-daño", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
-        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, representativeCode);
+        createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, "A1");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -57,10 +56,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 40
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(40))
                 .andExpect(jsonPath("$.notifications[0]").value("VILLAIN_HP_50_PERCENT"));
@@ -70,10 +68,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 20
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(20))
                 .andExpect(jsonPath("$.notifications[0]").value("VILLAIN_HP_25_PERCENT"));
@@ -83,10 +80,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 20
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.villainHpCurrent").value(0))
                 .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
@@ -99,8 +95,8 @@ class GameStateControllerIntegrationTest {
         long eventId = createEvent("evento-amenaza", 3);
         String organizerToken = loginOrganizer("evento-amenaza", "Password123");
         long podId = createPod(eventId, "Pod B", organizerToken);
-        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "B1", 3, organizerToken);
-        String representativeToken = loginGroup(eventId, representativeCode);
+        createGroup(eventId, podId, "B1", 3, organizerToken);
+        String representativeToken = loginGroup(eventId, "B1");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -112,10 +108,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "threat": 2
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(2))
                 .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
@@ -129,7 +124,7 @@ class GameStateControllerIntegrationTest {
         String organizerToken = loginOrganizer("evento-amenaza-remove", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, group.representativeCode());
+        String representativeToken = loginGroup(eventId, group.identifier());
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -141,10 +136,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "threat": 1
                                 }
-                                """.formatted(group.representativeCode())))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(1));
 
@@ -153,10 +147,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "threat": 1
                                 }
-                                """.formatted(group.representativeCode())))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.schemeThreatCurrent").value(0));
 
@@ -204,7 +197,6 @@ class GameStateControllerIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento Join Threat",
-                                  "configuredPlayerCount": 8,
                                   "timeLimitMinutes": 180
                                 }
                                 """))
@@ -309,7 +301,6 @@ class GameStateControllerIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento Pendiente",
-                                  "configuredPlayerCount": 2,
                                   "timeLimitMinutes": 180
                                 }
                                 """))
@@ -366,8 +357,8 @@ class GameStateControllerIntegrationTest {
         long eventId = createEvent("evento-pause-lock", 4);
         String organizerToken = loginOrganizer("evento-pause-lock", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
-        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, representativeCode);
+        createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, "A1");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -383,10 +374,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 5
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("está pausada")));
 
@@ -395,10 +385,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "threat": 2
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("está pausada")));
     }
@@ -481,8 +470,8 @@ class GameStateControllerIntegrationTest {
         long eventId = createEvent("evento-ready-lock", 4);
         String organizerToken = loginOrganizer("evento-ready-lock", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
-        String representativeCode = createGroupAndGetRepresentativeCode(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, representativeCode);
+        createGroup(eventId, podId, "A1", 4, organizerToken);
+        String representativeToken = loginGroup(eventId, "A1");
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -494,10 +483,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 5
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
 
@@ -506,10 +494,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "threat": 2
                                 }
-                                """.formatted(representativeCode)))
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
     }
@@ -518,8 +505,6 @@ class GameStateControllerIntegrationTest {
     void organizerCannotUseNormalTableReportEndpoint() throws Exception {
         long eventId = createEvent("evento-normal-bloqueado", 4);
         String organizerToken = loginOrganizer("evento-normal-bloqueado", "Password123");
-        long podId = createPod(eventId, "Pod A", organizerToken);
-        GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -530,10 +515,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 5
                                 }
-                                """.formatted(group.representativeCode())))
+                                """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(containsString("representante")));
     }
@@ -544,7 +528,7 @@ class GameStateControllerIntegrationTest {
         String organizerToken = loginOrganizer("evento-log-mesa", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, group.representativeCode());
+        String representativeToken = loginGroup(eventId, group.identifier());
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -555,10 +539,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": 5
                                 }
-                                """.formatted(group.representativeCode())))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.totalReportedVillainDamage").value(5));
 
@@ -755,7 +738,7 @@ class GameStateControllerIntegrationTest {
         String organizerToken = loginOrganizer("evento-revert-log", "Password123");
         long podId = createPod(eventId, "Pod A", organizerToken);
         GroupCreationResult group = createGroup(eventId, podId, "A1", 4, organizerToken);
-        String representativeToken = loginGroup(eventId, group.representativeCode());
+        String representativeToken = loginGroup(eventId, group.identifier());
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -770,10 +753,9 @@ class GameStateControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "representativeCode": "%s",
                                   "damage": %d
                                 }
-                                """.formatted(group.representativeCode(), initialVillainHp)))
+                                """.formatted(initialVillainHp)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.eventStatus").value("FINISHED"))
                 .andExpect(jsonPath("$.snapshot.eventResult").value("PLAYERS_VICTORY"));
@@ -822,7 +804,7 @@ class GameStateControllerIntegrationTest {
                 for (int i = 1; i <= 10; i++) {
                         GroupCreationResult group = createGroup(eventId, podId, "C" + i, 4, organizerToken);
                         groups.add(group);
-                        representativeTokens.add(loginGroup(eventId, group.representativeCode()));
+                        representativeTokens.add(loginGroup(eventId, group.identifier()));
                 }
 
                 mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
@@ -842,7 +824,6 @@ class GameStateControllerIntegrationTest {
                         List<Future<Void>> futures = new ArrayList<>();
 
                         for (int i = 0; i < damageWriters; i++) {
-                                GroupCreationResult group = groups.get(i);
                                 String representativeToken = representativeTokens.get(i);
                                 futures.add(executor.submit(() -> {
                                         barrier.await(10, TimeUnit.SECONDS);
@@ -851,17 +832,15 @@ class GameStateControllerIntegrationTest {
                                                                         .contentType(MediaType.APPLICATION_JSON)
                                                                         .content("""
                                                                                         {
-                                                                                          "representativeCode": "%s",
                                                                                           "damage": 1
                                                                                         }
-                                                                                        """.formatted(group.representativeCode())))
+                                                                                        """))
                                                         .andExpect(status().isOk());
                                         return null;
                                 }));
                         }
 
                         for (int i = damageWriters; i < totalRequests; i++) {
-                                GroupCreationResult group = groups.get(i);
                                 String representativeToken = representativeTokens.get(i);
                                 futures.add(executor.submit(() -> {
                                         barrier.await(10, TimeUnit.SECONDS);
@@ -870,10 +849,9 @@ class GameStateControllerIntegrationTest {
                                                                         .contentType(MediaType.APPLICATION_JSON)
                                                                         .content("""
                                                                                         {
-                                                                                          "representativeCode": "%s",
                                                                                           "threat": 1
                                                                                         }
-                                                                                        """.formatted(group.representativeCode())))
+                                                                                        """))
                                                         .andExpect(status().isOk());
                                         return null;
                                 }));
@@ -904,10 +882,9 @@ class GameStateControllerIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento %s",
-                                  "configuredPlayerCount": %d,
                                   "timeLimitMinutes": 180
                                 }
-                                """.formatted(username, players)))
+                                """.formatted(username)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -950,14 +927,6 @@ class GameStateControllerIntegrationTest {
         return extractId(result.getResponse().getContentAsString());
     }
 
-        private String createGroupAndGetRepresentativeCode(long eventId,
-                                                                                                           long podId,
-                                                                                                           String identifier,
-                                                                                                           int playerCount,
-                                                                                                           String organizerToken) throws Exception {
-                return createGroup(eventId, podId, identifier, playerCount, organizerToken).representativeCode();
-        }
-
         private GroupCreationResult createGroup(long eventId,
                                                                                         long podId,
                                                                                         String identifier,
@@ -976,11 +945,7 @@ class GameStateControllerIntegrationTest {
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
-                Matcher codeMatcher = REPRESENTATIVE_CODE_PATTERN.matcher(body);
-                if (!codeMatcher.find()) {
-            throw new IllegalStateException("No se ha encontrado representativeCode en la respuesta.");
-        }
-                return new GroupCreationResult(extractId(body), codeMatcher.group(1));
+                return new GroupCreationResult(extractId(body), identifier);
     }
 
         private String loginOrganizer(String username, String password) throws Exception {
@@ -1002,15 +967,15 @@ class GameStateControllerIntegrationTest {
                 return matcher.group(1);
         }
 
-        private String loginGroup(long eventId, String code) throws Exception {
+        private String loginGroup(long eventId, String identifier) throws Exception {
                 MvcResult result = mockMvc.perform(post("/api/auth/group/login")
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content("""
                                                                 {
                                                                   "eventId": %d,
-                                                                  "code": "%s"
+                                                                  "identifier": "%s"
                                                                 }
-                                                                """.formatted(eventId, code)))
+                                                                """.formatted(eventId, identifier)))
                                 .andExpect(status().isOk())
                                 .andReturn();
 
@@ -1066,6 +1031,6 @@ class GameStateControllerIntegrationTest {
                 return extractId(responseBody);
         }
 
-    private record GroupCreationResult(long id, String representativeCode) {
+    private record GroupCreationResult(long id, String identifier) {
     }
 }

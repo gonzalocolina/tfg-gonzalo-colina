@@ -65,9 +65,8 @@ function buildDefinition(overrides = {}) {
     name: 'THE_MANGOG',
     type: 'CUSTOM',
     cardCategory: 'ESBIRRO',
-    defaultHpMax: 8,
-    defaultThreatMax: 0,
-    defaultStatus: 'REVELADA',
+    defaultMetricMax: 8,
+    ruleType: 'MULTIPLIER',
     imageUrl: '/api/inter-pod-card-definitions/10/image',
     ownerUsername: 'organizer',
     ...overrides,
@@ -192,8 +191,8 @@ describe('InterPodCardsView', () => {
       expect.objectContaining({
         name: 'THE_MANGOG',
         cardCategory: 'ESBIRRO',
-        defaultHpMax: 8,
-        defaultStatus: 'REVELADA',
+        defaultMetricMax: 8,
+        ruleType: 'MULTIPLIER',
       }),
       replacementImage,
     )
@@ -253,8 +252,7 @@ describe('InterPodCardsView', () => {
           id: 12,
           name: 'DOOR_BETWEEN_WORLDS',
           cardCategory: 'PLAN',
-          defaultHpMax: 0,
-          defaultThreatMax: 7,
+          defaultMetricMax: 7,
         }),
       ],
     })

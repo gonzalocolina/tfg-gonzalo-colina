@@ -8,7 +8,6 @@ import java.util.List;
 
 public record CreateEventRequest(
         @NotBlank @Size(max = 120) String name,
-        Integer configuredPlayerCount,
         @Min(0) @Max(600) Integer timeLimitMinutes,
         Long villainDefinitionId,
         List<Long> interPodCardDefinitionIds

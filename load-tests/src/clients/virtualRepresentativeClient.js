@@ -5,10 +5,11 @@ import { SessionStorageShim } from '../runtime/sessionStorageShim.js'
 import { RealtimeWsClient } from '../runtime/wsClient.js'
 
 export class VirtualRepresentativeClient {
-  constructor({ clientId, baseUrl, eventId, group, metrics }) {
+  constructor({ clientId, baseUrl, eventId, eventCode, group, metrics }) {
     this.clientId = clientId
     this.baseUrl = baseUrl
     this.eventId = eventId
+    this.eventCode = eventCode
     this.group = group
     this.metrics = metrics
     this.sessionStorage = new SessionStorageShim()
@@ -50,18 +51,19 @@ export class VirtualRepresentativeClient {
     })
   }
 
-  async loginByRepresentativeCode() {
+  async loginByGroupIdentifier() {
     const startedAt = nowMs()
     this.metrics.upsertClientSession(this.clientId, {
       groupId: this.group.id,
       groupLabel: this.group.identifier,
-      representativeCode: this.group.representativeCode,
+      eventCode: this.eventCode,
       loginStart: new Date(startedAt).toISOString(),
       finalStatus: 'logging-in',
     })
 
     const response = await this.http.post('/auth/group/login-by-code', {
-      code: this.group.representativeCode,
+      code: this.eventCode,
+      groupLabel: this.group.identifier,
     })
 
     const finishedAt = nowMs()
@@ -159,7 +161,6 @@ export class VirtualRepresentativeClient {
       operationType: 'REPORT_VILLAIN_DAMAGE',
       endpoint: `/events/${this.eventId}/game-state/villain-damage`,
       payload: {
-        representativeCode: this.group.representativeCode,
         damage,
       },
     })
@@ -171,7 +172,6 @@ export class VirtualRepresentativeClient {
       operationType: 'REPORT_THREAT',
       endpoint: `/events/${this.eventId}/game-state/threat`,
       payload: {
-        representativeCode: this.group.representativeCode,
         threat,
       },
     })
@@ -183,7 +183,6 @@ export class VirtualRepresentativeClient {
       operationType: 'REMOVE_THREAT',
       endpoint: `/events/${this.eventId}/game-state/threat/remove`,
       payload: {
-        representativeCode: this.group.representativeCode,
         threat,
       },
     })

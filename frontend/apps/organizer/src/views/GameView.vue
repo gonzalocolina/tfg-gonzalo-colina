@@ -130,10 +130,6 @@ function findReportGroup(groupId) {
   return availableGroups.value.find((group) => String(group.id) === String(groupId)) || null
 }
 
-function resolveRepresentativeCode(groupId) {
-  return findReportGroup(groupId)?.representativeCode || ''
-}
-
 function formatReportGroupLabel(group) {
   return group.podName ? `${group.identifier} · ${group.podName}` : `${group.identifier} · Sin pod asignado`
 }
@@ -524,7 +520,6 @@ onUnmounted(() => {
           :class="{
             'badge-in-progress': isInProgress,
             'badge-finished': isFinished,
-            'badge-ready': gs.eventStatus === 'READY',
             'badge-draft': gs.eventStatus === 'DRAFT',
           }"
         >
@@ -542,14 +537,9 @@ onUnmounted(() => {
     </p>
 
     <!-- Start game button -->
-    <div v-if="gs.eventStatus === 'READY' || gs.eventStatus === 'DRAFT'" class="card text-center mt-2">
+    <div v-if="gs.eventStatus === 'DRAFT'" class="card text-center mt-2">
       <p class="text-muted mb-2">
-        <template v-if="gs.eventStatus === 'DRAFT'">
-          El evento está en configuración. Puedes iniciar la partida cuando todos estén preparados.
-        </template>
-        <template v-else>
-          El evento está listo. Inicia la partida cuando todos estén preparados.
-        </template>
+        El evento está en configuración. Puedes iniciar la partida cuando todos estén preparados.
       </p>
       <div v-if="eventStructure && !canStartGame" class="warn-box" style="text-align: left; margin-bottom: 12px">
         {{ startBlockedMessage }}

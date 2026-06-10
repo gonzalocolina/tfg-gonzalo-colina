@@ -9,7 +9,6 @@ import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@/api/auth', () => ({
   organizerLogin: vi.fn(),
-  coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
 
@@ -68,7 +67,7 @@ describe('Organizer basic flows', () => {
         {
           id: 8,
           name: 'Evento Principal',
-          status: 'READY',
+          status: 'DRAFT',
           configuredPlayerCount: 12,
           timeLimitMinutes: 180,
           eventCode: 'ABC123',
@@ -89,9 +88,8 @@ describe('Organizer basic flows', () => {
           id: 10,
           name: 'THE_MANGOG',
           cardCategory: 'ESBIRRO',
-          defaultHpMax: 8,
-          defaultThreatMax: 0,
-          defaultStatus: 'REVELADA',
+          defaultMetricMax: 8,
+          ruleType: 'MULTIPLIER',
         },
       ],
     })

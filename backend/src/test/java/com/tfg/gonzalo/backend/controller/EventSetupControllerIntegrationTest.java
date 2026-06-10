@@ -36,7 +36,6 @@ class EventSetupControllerIntegrationTest {
         String eventRequest = """
                 {
                   "name": "Evento Setup",
-                  "configuredPlayerCount": 6,
                   "timeLimitMinutes": 180
                 }
                 """;
@@ -103,7 +102,6 @@ class EventSetupControllerIntegrationTest {
         String eventRequest = """
                 {
                   "name": "Evento Join",
-                  "configuredPlayerCount": 4,
                   "timeLimitMinutes": 180
                 }
                 """;
@@ -194,7 +192,6 @@ class EventSetupControllerIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento Suggested",
-                                  "configuredPlayerCount": 4,
                                   "timeLimitMinutes": 180
                                 }
                                 """))
@@ -236,7 +233,6 @@ class EventSetupControllerIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento Rename",
-                                  "configuredPlayerCount": 4,
                                   "timeLimitMinutes": 180
                                 }
                                 """))

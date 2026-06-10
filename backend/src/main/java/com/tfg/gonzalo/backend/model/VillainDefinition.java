@@ -42,7 +42,7 @@ public class VillainDefinition extends BaseEntity {
     @Column(nullable = false)
     private Integer threatRuleValue;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "owner_id")
     private AppUser owner;
 }

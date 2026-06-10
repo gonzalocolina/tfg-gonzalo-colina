@@ -85,12 +85,13 @@ export async function prepareEnvironment({ config, metrics }) {
   }
 }
 
-export async function connectClientsInRamp({ config, metrics, eventId, groups }) {
+export async function connectClientsInRamp({ config, metrics, eventId, eventCode, groups }) {
   const selectedGroups = groups.slice(0, config.clients)
   const clients = selectedGroups.map((group, index) => new VirtualRepresentativeClient({
     clientId: `client-${String(index + 1).padStart(3, '0')}`,
     baseUrl: config.baseUrl,
     eventId,
+    eventCode,
     group,
     metrics,
   }))
@@ -100,7 +101,7 @@ export async function connectClientsInRamp({ config, metrics, eventId, groups })
   for (let index = 0; index < clients.length; index += batchSize) {
     const batch = clients.slice(index, index + batchSize)
     await Promise.all(batch.map(async (client) => {
-      await client.loginByRepresentativeCode()
+      await client.loginByGroupIdentifier()
       await client.connectRealtime()
     }))
 

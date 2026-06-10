@@ -1,17 +1,13 @@
 const EVENT_STATUS_LABELS = Object.freeze({
   DRAFT: 'Borrador',
-  READY: 'Listo',
   IN_PROGRESS: 'En curso',
   FINISHED: 'Finalizado',
-  CANCELLED: 'Cancelado',
 })
 
 const EVENT_STATUS_BADGE_CLASSES = Object.freeze({
   DRAFT: 'badge-draft',
-  READY: 'badge-ready',
   IN_PROGRESS: 'badge-in-progress',
   FINISHED: 'badge-finished',
-  CANCELLED: 'badge-cancelled',
 })
 
 const ROLE_LABELS = Object.freeze({
@@ -28,6 +24,16 @@ const RESPONSIBILITY_LABELS = Object.freeze({
 const RULE_TYPE_LABELS = Object.freeze({
   MULTIPLIER: 'Multiplicador',
   FIXED_VALUE: 'Valor fijo',
+})
+
+const INTER_POD_HP_RULE_LABELS = Object.freeze({
+  MULTIPLIER: 'Por mesa (× nº de mesas del nodo)',
+  FIXED_VALUE: 'HP fijo',
+})
+
+const INTER_POD_THREAT_RULE_LABELS = Object.freeze({
+  MULTIPLIER: 'Por mesa (× nº de mesas del nodo)',
+  FIXED_VALUE: 'Amenaza fija',
 })
 
 const CATALOG_TYPE_LABELS = Object.freeze({
@@ -158,6 +164,50 @@ export function formatResponsibilities(responsibilities = [], emptyLabel = '-') 
 
 export function formatRuleType(ruleType) {
   return formatFromMap(ruleType, RULE_TYPE_LABELS)
+}
+
+export function formatInterPodRuleType(ruleType, category = 'ESBIRRO') {
+  const labels = category === 'ESBIRRO' ? INTER_POD_HP_RULE_LABELS : INTER_POD_THREAT_RULE_LABELS
+  return formatFromMap(ruleType, labels)
+}
+
+export function formatInterPodHpRuleType(ruleType) {
+  return formatInterPodRuleType(ruleType, 'ESBIRRO')
+}
+
+export function formatInterPodThreatRuleType(ruleType) {
+  return formatInterPodRuleType(ruleType, 'PLAN')
+}
+
+export function formatInterPodRuleTypeForDefinition(definition) {
+  if (!definition) return '-'
+  return formatInterPodRuleType(definition.ruleType || 'MULTIPLIER', definition.cardCategory)
+}
+
+/** @deprecated use formatInterPodRuleType */
+export function formatInterPodValueRuleType(ruleType) {
+  return formatInterPodHpRuleType(ruleType)
+}
+
+export function formatInterPodMetricSummary(definition) {
+  if (!definition) return '-'
+  const isMinion = definition.cardCategory === 'ESBIRRO'
+  const value = definition.defaultMetricMax
+  const metric = isMinion ? 'HP' : 'Amenaza'
+  const ruleType = definition.ruleType
+  if (ruleType === 'FIXED_VALUE') {
+    return `${metric} fijo ${value}`
+  }
+  return `${metric} base ${value}/mesa`
+}
+
+export function interPodMetricValueLabel(category, ruleType) {
+  const isMinion = category === 'ESBIRRO'
+  const metric = isMinion ? 'HP' : 'Amenaza'
+  if (ruleType === 'FIXED_VALUE') {
+    return `${metric} total`
+  }
+  return `${metric} base por mesa`
 }
 
 export function formatCatalogItemType(type) {

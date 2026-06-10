@@ -35,7 +35,6 @@ class EventControllerIntegrationTest {
         String requestBody = """
                 {
                   "name": "Evento Prueba",
-                  "configuredPlayerCount": 8,
                   "timeLimitMinutes": 180
                 }
                 """;
@@ -48,10 +47,8 @@ class EventControllerIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Evento Prueba"))
           .andExpect(jsonPath("$.configuredPlayerCount").value(0))
                   .andExpect(jsonPath("$.villainName").isString())
-                  .andExpect(jsonPath("$.villainHpMax").isNumber())
-                  .andExpect(jsonPath("$.villainHpCurrent").isNumber())
-                .andExpect(jsonPath("$.schemeThreatTarget").value(0))
-                .andExpect(jsonPath("$.timerRemainingSeconds").value(10800))
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.timeLimitMinutes").value(180))
                 .andExpect(jsonPath("$.organizerUsername").value("organizer1"));
     }
 
@@ -70,8 +67,7 @@ class EventControllerIntegrationTest {
                         .file(image)
                         .param("name", "CUSTOM_IMAGE_TEST_CARD")
                         .param("cardCategory", "ESBIRRO")
-                        .param("defaultHpMax", "8")
-                        .param("defaultStatus", "REVELADA")
+                        .param("defaultMetricMax", "8")
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isCreated())
                 .andReturn();
@@ -81,7 +77,6 @@ class EventControllerIntegrationTest {
         String requestBody = """
                 {
                   "name": "Evento con carta inter-pod",
-                  "configuredPlayerCount": 8,
                   "timeLimitMinutes": 180,
                   "interPodCardDefinitionIds": [%d]
                 }
@@ -105,8 +100,7 @@ class EventControllerIntegrationTest {
               MvcResult createDefinitionResult = mockMvc.perform(multipart("/api/inter-pod-card-definitions")
                   .param("name", "CUSTOM_REMOTE_IMAGE_TEST_CARD")
                   .param("cardCategory", "ESBIRRO")
-                  .param("defaultHpMax", "8")
-                  .param("defaultStatus", "REVELADA")
+                  .param("defaultMetricMax", "8")
                   .param("imageUrl", externalImageUrl)
                   .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isCreated())
@@ -118,7 +112,6 @@ class EventControllerIntegrationTest {
               String requestBody = """
                 {
                   "name": "Evento con carta inter-pod remota",
-                  "configuredPlayerCount": 8,
                   "timeLimitMinutes": 180,
                   "interPodCardDefinitionIds": [%d]
                 }
@@ -135,7 +128,7 @@ class EventControllerIntegrationTest {
                 }
 
                 @Test
-                void updateEventKeepsOrganizerVisibleInterPodCatalog() throws Exception {
+                void updateEventPersistsSelectedInterPodDefinitions() throws Exception {
               String organizerToken = registerOrganizer("organizer3", "orga3@example.com", "Password123");
 
               long firstDefinitionId = createInterPodCardDefinition(organizerToken, "FIRST_CUSTOM_CARD");
@@ -164,8 +157,10 @@ class EventControllerIntegrationTest {
                       """.formatted(secondDefinitionId)
                   ))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + firstDefinitionId)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + secondDefinitionId)));
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions.length()").value(1))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + secondDefinitionId)))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"id\":" + firstDefinitionId))));
 
               mockMvc.perform(put("/api/events/{eventId}", eventId)
                   .header("Authorization", "Bearer " + organizerToken)
@@ -181,8 +176,7 @@ class EventControllerIntegrationTest {
                   ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.selectedInterPodCardDefinitions").isArray())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + firstDefinitionId)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":" + secondDefinitionId)));
+                .andExpect(jsonPath("$.selectedInterPodCardDefinitions.length()").value(0));
                 }
 
     private String registerOrganizer(String username, String email, String password) throws Exception {
@@ -209,8 +203,7 @@ class EventControllerIntegrationTest {
         MvcResult createDefinitionResult = mockMvc.perform(multipart("/api/inter-pod-card-definitions")
                 .param("name", name)
                 .param("cardCategory", "ESBIRRO")
-                .param("defaultHpMax", "8")
-                .param("defaultStatus", "REVELADA")
+                .param("defaultMetricMax", "8")
                 .header("Authorization", "Bearer " + organizerToken))
             .andExpect(status().isCreated())
             .andReturn();

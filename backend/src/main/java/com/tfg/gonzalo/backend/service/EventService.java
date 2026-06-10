@@ -19,7 +19,6 @@ import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.model.enums.TimerStatus;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
 import com.tfg.gonzalo.backend.repository.CoOrganizerInvitationRepository;
-import com.tfg.gonzalo.backend.repository.EventGroupRepository;
 import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
@@ -39,44 +38,38 @@ public class EventService {
     private final AppUserRepository appUserRepository;
     private final CoOrganizerInvitationRepository coOrganizerInvitationRepository;
     private final EventRepository eventRepository;
-    private final EventGroupRepository eventGroupRepository;
     private final EventLogRepository eventLogRepository;
     private final EventLogService eventLogService;
     private final CodeGeneratorService codeGeneratorService;
     private final VillainService villainService;
     private final InterPodCardDefinitionService interPodCardDefinitionService;
-    private final VillainFormulaService villainFormulaService;
+    private final EventStateCalculator eventStateCalculator;
     private final InterPodCardService interPodCardService;
-    private final EventPlayerMetricsService eventPlayerMetricsService;
     private final AccessControlService accessControlService;
     private final InterPodCardImageStorageService interPodCardImageStorageService;
 
     public EventService(AppUserRepository appUserRepository,
                         CoOrganizerInvitationRepository coOrganizerInvitationRepository,
                         EventRepository eventRepository,
-                        EventGroupRepository eventGroupRepository,
                         EventLogRepository eventLogRepository,
                         EventLogService eventLogService,
                         CodeGeneratorService codeGeneratorService,
                         VillainService villainService,
                         InterPodCardDefinitionService interPodCardDefinitionService,
-                        VillainFormulaService villainFormulaService,
+                        EventStateCalculator eventStateCalculator,
                         InterPodCardService interPodCardService,
-                        EventPlayerMetricsService eventPlayerMetricsService,
                         AccessControlService accessControlService,
                         InterPodCardImageStorageService interPodCardImageStorageService) {
         this.appUserRepository = appUserRepository;
-                this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
+        this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
         this.eventRepository = eventRepository;
-        this.eventGroupRepository = eventGroupRepository;
         this.eventLogRepository = eventLogRepository;
         this.eventLogService = eventLogService;
         this.codeGeneratorService = codeGeneratorService;
         this.villainService = villainService;
         this.interPodCardDefinitionService = interPodCardDefinitionService;
-        this.villainFormulaService = villainFormulaService;
+        this.eventStateCalculator = eventStateCalculator;
         this.interPodCardService = interPodCardService;
-        this.eventPlayerMetricsService = eventPlayerMetricsService;
         this.accessControlService = accessControlService;
         this.interPodCardImageStorageService = interPodCardImageStorageService;
     }
@@ -91,13 +84,12 @@ public class EventService {
 
         Event event = new Event();
         event.setName(request.name().trim());
-        event.setConfiguredPlayerCount(0);
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
-        event.setStatus(EventStatus.DRAFT);
         event.setEventCode(generateUniqueEventCode());
         event.setOrganizer(organizer);
         event.setVillain(buildEventVillain(selectedVillain));
         initializeRuntimeState(event);
+        synchronizeSelectedInterPodCardDefinitions(event, request.interPodCardDefinitionIds(), true);
         event = eventRepository.save(event);
 
         eventLogService.appendLog(event, organizer, null, EventActionType.EVENT_CREATED,
@@ -127,10 +119,7 @@ public class EventService {
                 .sorted(Comparator.comparing(Event::getCreatedAt).reversed())
                 .toList();
 
-        return events.stream().map(event -> {
-            eventPlayerMetricsService.synchronizePlayerMetrics(event);
-            return toResponse(event, principal);
-        }).toList();
+        return events.stream().map(event -> toResponse(event, principal)).toList();
     }
 
     @Transactional
@@ -151,11 +140,11 @@ public class EventService {
         event.setName(request.name().trim());
         event.setTimeLimitMinutes(resolveTimeLimit(request.timeLimitMinutes()));
         synchronizeEventVillain(event, selectedVillain);
-        recalculateThreatTarget(event);
-        reconcileTimerConfiguration(event);
+        if (request.interPodCardDefinitionIds() != null) {
+            synchronizeSelectedInterPodCardDefinitions(event, request.interPodCardDefinitionIds(), false);
+        }
+        resetTimer(event);
         event = eventRepository.save(event);
-        eventPlayerMetricsService.synchronizePlayerMetrics(event);
-        event = findEvent(eventId);
 
         eventLogService.appendOrganizerLog(event, EventActionType.EVENT_UPDATED,
             null, event.getName(), "Evento actualizado antes del inicio.");
@@ -178,7 +167,6 @@ public class EventService {
     public EventResponse getEvent(Long eventId) {
         Event event = findEvent(eventId);
         accessControlService.requireReadAccessToEvent(event);
-        eventPlayerMetricsService.synchronizePlayerMetrics(event);
         return toResponse(event, accessControlService.requireAuthenticatedPrincipal());
     }
 
@@ -222,53 +210,33 @@ public class EventService {
         eventVillain.setThreatRuleValue(villainDefinition.getThreatRuleValue());
     }
 
-    private void initializeRuntimeState(Event event) {
-        int villainHpMax = villainFormulaService.computeVillainHp(
-                event.getVillain().getHpRuleType(),
-                event.getVillain().getHpRuleValue(),
-                event.getConfiguredPlayerCount()
+    private void synchronizeSelectedInterPodCardDefinitions(Event event,
+                                                            List<Long> requestedDefinitionIds,
+                                                            boolean useDefaultWhenEmpty) {
+        List<InterPodCardDefinition> selected = interPodCardDefinitionService.resolveSelectedDefinitionsForOrganizer(
+                event.getOrganizer().getId(),
+                requestedDefinitionIds,
+                useDefaultWhenEmpty
         );
-        event.setVillainHpMax(villainHpMax);
-        event.setVillainHpCurrent(villainHpMax);
-        recalculateThreatTarget(event);
+        event.getSelectedInterPodCardDefinitions().clear();
+        event.getSelectedInterPodCardDefinitions().addAll(selected);
+    }
+
+    private void initializeRuntimeState(Event event) {
+        event.setVillainDamageTaken(0);
         event.setSchemeThreatCurrent(0);
-        event.setTimerTotalSeconds(event.getTimeLimitMinutes() * 60);
-        event.setTimerRemainingSeconds(event.getTimerTotalSeconds());
-        event.setTimerStatus(event.getTimerTotalSeconds() > 0 ? TimerStatus.READY : TimerStatus.NOT_CONFIGURED);
-        event.setFinishCause(null);
         event.setTotalReportedVillainDamage(0);
-        event.setVillainHalfHpNotified(false);
-        event.setVillainQuarterHpNotified(false);
-        event.setThreatHalfNotified(false);
-        event.setThreatThreeQuarterNotified(false);
-        event.setTimerThirtyMinutesNotified(false);
-        event.setTimerFifteenMinutesNotified(false);
-        event.setTimerFiveMinutesNotified(false);
+        event.setFinishCause(null);
+        event.setStartedAt(null);
+        event.setFinishedAt(null);
+        resetTimer(event);
+    }
+
+    private void resetTimer(Event event) {
+        int totalSeconds = event.getTimerTotalSeconds();
+        event.setTimerRemainingSeconds(totalSeconds);
+        event.setTimerStatus(totalSeconds > 0 ? TimerStatus.READY : TimerStatus.NOT_CONFIGURED);
         event.setTimerStartedAt(null);
-        event.setTimerPausedAt(null);
-    }
-
-    private void recalculateThreatTarget(Event event) {
-        int currentGroupCount = eventGroupRepository.findByEventId(event.getId() == null ? -1L : event.getId()).size();
-        event.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
-                event.getVillain().getThreatRuleType(),
-                event.getVillain().getThreatRuleValue(),
-                currentGroupCount
-        ));
-    }
-
-    private void reconcileTimerConfiguration(Event event) {
-        event.setTimerTotalSeconds(event.getTimeLimitMinutes() * 60);
-        event.setTimerRemainingSeconds(Math.min(event.getTimerRemainingSeconds(), event.getTimerTotalSeconds()));
-        if (event.getTimerTotalSeconds() <= 0) {
-            event.setTimerStatus(TimerStatus.NOT_CONFIGURED);
-            event.setTimerStartedAt(null);
-            event.setTimerPausedAt(null);
-            event.setTimerRemainingSeconds(0);
-        } else if (event.getTimerStatus() == TimerStatus.NOT_CONFIGURED) {
-            event.setTimerStatus(TimerStatus.READY);
-            event.setTimerRemainingSeconds(event.getTimerTotalSeconds());
-        }
     }
 
     private String generateUniqueEventCode() {
@@ -284,10 +252,11 @@ public class EventService {
                 ? event.getVillain().getVillainDefinition().getId()
                 : null;
         List<InterPodCardDefinitionResponse> selectedInterPodCardDefinitions = interPodCardDefinitionService
-            .listDefinitionsVisibleToOrganizer(event.getOrganizer().getId()).stream()
-            .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
-            .map(this::toInterPodCardDefinitionResponse)
-            .toList();
+                .listSelectedDefinitionsForEventEntity(event)
+                .stream()
+                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(this::toInterPodCardDefinitionResponse)
+                .toList();
 
         boolean currentUserIsOwner = principal != null
             && principal.userId() != null
@@ -297,10 +266,9 @@ public class EventService {
         return new EventResponse(
                 event.getId(),
                 event.getName(),
-                event.getConfiguredPlayerCount(),
+                eventStateCalculator.playerCount(event),
                 event.getTimeLimitMinutes(),
                 event.getStatus(),
-                event.getResult(),
                 event.getEventCode(),
                 event.getOrganizer().getUsername(),
                 villainDefinitionId,
@@ -311,16 +279,8 @@ public class EventService {
                 event.getVillain().getHpRuleValue(),
                 event.getVillain().getThreatRuleType(),
                 event.getVillain().getThreatRuleValue(),
-                event.getVillainHpCurrent(),
-                event.getVillainHpMax(),
-                event.getSchemeThreatCurrent(),
-                event.getSchemeThreatTarget(),
-                event.getTimerRemainingSeconds(),
-                event.getTimerStatus(),
                 currentUserIsOwner,
                 currentUserResponsibilities,
-                event.getStartedAt(),
-                event.getFinishedAt(),
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
@@ -344,9 +304,8 @@ public class EventService {
                 definition.getName(),
                 definition.getType(),
                 definition.getCardCategory(),
-                definition.getDefaultHpMax(),
-            definition.getDefaultThreatMax(),
-                definition.getDefaultStatus(),
+                definition.getDefaultMetricMax(),
+                definition.getRuleType(),
                 interPodCardImageStorageService.resolveDefinitionImageUrl(definition.getId(), definition.getImagePath()),
                 definition.getOwner() == null ? null : definition.getOwner().getId(),
                 definition.getOwner() == null ? null : definition.getOwner().getUsername(),

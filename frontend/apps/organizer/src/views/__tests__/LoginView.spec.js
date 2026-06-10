@@ -8,7 +8,6 @@ import { useAuthStore } from '@/stores/auth'
 // Mock the API
 vi.mock('@/api/auth', () => ({
   organizerLogin: vi.fn(),
-  coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
 

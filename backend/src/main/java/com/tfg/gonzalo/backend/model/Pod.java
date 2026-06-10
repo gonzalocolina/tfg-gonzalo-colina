@@ -17,7 +17,7 @@ import lombok.Setter;
 @Table(name = "pods")
 public class Pod extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 

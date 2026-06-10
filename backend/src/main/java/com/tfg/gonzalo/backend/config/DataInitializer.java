@@ -3,10 +3,8 @@ package com.tfg.gonzalo.backend.config;
 import com.tfg.gonzalo.backend.model.AppUser;
 import com.tfg.gonzalo.backend.model.InterPodCardDefinition;
 import com.tfg.gonzalo.backend.model.VillainDefinition;
-import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardDefinitionType;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
 import com.tfg.gonzalo.backend.model.enums.VillainDefinitionType;
 import com.tfg.gonzalo.backend.model.enums.VillainRuleType;
 import com.tfg.gonzalo.backend.repository.AppUserRepository;
@@ -30,7 +28,6 @@ public class DataInitializer implements ApplicationRunner {
     private static final String DEFAULT_ORGANIZER_USERNAME = "organizer";
     private static final int MANGOG_BASE_HP_PER_TABLE = 10;
     private static final int DOOR_BETWEEN_WORLDS_BASE_THREAT_PER_TABLE = 7;
-    private static final InterPodCardStatus DEFAULT_PREDEFINED_CARD_STATUS = InterPodCardStatus.REVELADA;
     private static final String DEFAULT_PREDEFINED_CARD_IMAGE_CONTENT_TYPE = "image/jpeg";
     private static final String MANGOG_IMAGE_URL = "https://marvelcdb.com/bundles/cards/55041.jpg";
     private static final String DOOR_BETWEEN_WORLDS_IMAGE_URL = "https://marvelcdb.com/bundles/cards/55046.jpg";
@@ -67,8 +64,6 @@ public class DataInitializer implements ApplicationRunner {
                 AppUser organizer = new AppUser();
                 organizer.setUsername(DEFAULT_ORGANIZER_USERNAME);
                 organizer.setPasswordHash(passwordEncoder.encode(resolvedOrganizerPassword));
-                organizer.setRole(GlobalRole.ORGANIZER);
-                organizer.setEnabled(true);
                 appUserRepository.save(organizer);
             }
 
@@ -104,30 +99,26 @@ public class DataInitializer implements ApplicationRunner {
                 "THE_MANGOG",
                 InterPodCardCategory.ESBIRRO,
                 MANGOG_IMAGE_URL,
-                MANGOG_BASE_HP_PER_TABLE,
-                0);
+                MANGOG_BASE_HP_PER_TABLE);
         upsertPredefinedInterPodCard(
                 "DOOR_BETWEEN_WORLDS",
                 InterPodCardCategory.PLAN,
                 DOOR_BETWEEN_WORLDS_IMAGE_URL,
-                0,
                 DOOR_BETWEEN_WORLDS_BASE_THREAT_PER_TABLE);
     }
 
     private void upsertPredefinedInterPodCard(String name,
                                               InterPodCardCategory category,
                                               String imageUrl,
-                                              int defaultHpMax,
-                                              int defaultThreatMax) {
+                                              int defaultMetricMax) {
         InterPodCardDefinition definition = interPodCardDefinitionRepository
                 .findByTypeAndNameIgnoreCase(InterPodCardDefinitionType.PREDEFINED, name)
                 .orElseGet(InterPodCardDefinition::new);
         definition.setName(name);
         definition.setType(InterPodCardDefinitionType.PREDEFINED);
         definition.setCardCategory(category);
-        definition.setDefaultHpMax(defaultHpMax);
-        definition.setDefaultThreatMax(defaultThreatMax);
-        definition.setDefaultStatus(DEFAULT_PREDEFINED_CARD_STATUS);
+        definition.setDefaultMetricMax(defaultMetricMax);
+        definition.setRuleType(VillainRuleType.MULTIPLIER);
         definition.setImagePath(imageUrl);
         definition.setImageContentType(DEFAULT_PREDEFINED_CARD_IMAGE_CONTENT_TYPE);
         definition.setOwner(null);

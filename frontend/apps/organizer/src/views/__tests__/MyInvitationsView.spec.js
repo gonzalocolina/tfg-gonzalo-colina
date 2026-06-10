@@ -65,7 +65,7 @@ describe('MyInvitationsView', () => {
           eventId: 17,
           eventName: 'Evento Compartido',
           organizerUsername: 'owner-user',
-          eventStatus: 'READY',
+          eventStatus: 'DRAFT',
           timeLimitMinutes: 180,
           responsibilities: ['THREAT', 'TIMER'],
         },

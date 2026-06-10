@@ -4,7 +4,7 @@ import com.tfg.gonzalo.backend.dto.interpod.CreateInterPodCardDefinitionRequest;
 import com.tfg.gonzalo.backend.dto.interpod.InterPodCardDefinitionResponse;
 import com.tfg.gonzalo.backend.dto.interpod.UpdateInterPodCardDefinitionRequest;
 import com.tfg.gonzalo.backend.model.enums.InterPodCardCategory;
-import com.tfg.gonzalo.backend.model.enums.InterPodCardStatus;
+import com.tfg.gonzalo.backend.model.enums.VillainRuleType;
 import com.tfg.gonzalo.backend.service.InterPodCardDefinitionService;
 import java.util.List;
 import org.springframework.core.io.Resource;
@@ -48,17 +48,15 @@ public class InterPodCardDefinitionController {
     public InterPodCardDefinitionResponse createDefinition(
             @RequestParam("name") String name,
             @RequestParam("cardCategory") InterPodCardCategory cardCategory,
-            @RequestParam(value = "defaultHpMax", required = false) Integer defaultHpMax,
-            @RequestParam(value = "defaultThreatMax", required = false) Integer defaultThreatMax,
-            @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestParam(value = "defaultMetricMax", required = false) Integer defaultMetricMax,
+            @RequestParam(value = "ruleType", required = false) VillainRuleType ruleType,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestPart(value = "image", required = false) MultipartFile image) {
         var request = new CreateInterPodCardDefinitionRequest(
                 name,
                 cardCategory,
-                defaultHpMax,
-                defaultThreatMax,
-                defaultStatus,
+                defaultMetricMax,
+                ruleType,
                 imageUrl
         );
         return interPodCardDefinitionService.createDefinition(request, image);
@@ -69,17 +67,15 @@ public class InterPodCardDefinitionController {
             @PathVariable Long definitionId,
             @RequestParam("name") String name,
             @RequestParam("cardCategory") InterPodCardCategory cardCategory,
-            @RequestParam(value = "defaultHpMax", required = false) Integer defaultHpMax,
-            @RequestParam(value = "defaultThreatMax", required = false) Integer defaultThreatMax,
-            @RequestParam(value = "defaultStatus", required = false) InterPodCardStatus defaultStatus,
+            @RequestParam(value = "defaultMetricMax", required = false) Integer defaultMetricMax,
+            @RequestParam(value = "ruleType", required = false) VillainRuleType ruleType,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestPart(value = "image", required = false) MultipartFile image) {
         var request = new UpdateInterPodCardDefinitionRequest(
                 name,
                 cardCategory,
-                defaultHpMax,
-                defaultThreatMax,
-                defaultStatus,
+                defaultMetricMax,
+                ruleType,
                 imageUrl
         );
         return interPodCardDefinitionService.updateDefinition(definitionId, request, image);

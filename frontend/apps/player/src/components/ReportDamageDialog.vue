@@ -43,7 +43,6 @@ async function handleSubmit() {
   loading.value = true
   try {
     const { data } = await reportVillainDamage(auth.eventId, {
-      representativeCode: auth.code,
       damage: amount.value,
     })
     gs.applySnapshot(data.snapshot)

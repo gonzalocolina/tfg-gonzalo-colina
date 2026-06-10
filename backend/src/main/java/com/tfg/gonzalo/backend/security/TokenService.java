@@ -51,20 +51,6 @@ public class TokenService {
         return createGroupToken(group, "GROUP_OBSERVER", "OBSERVER");
     }
 
-    public String createCoOrganizerToken(AppUser user, Long eventId) {
-        Instant now = Instant.now();
-        Instant exp = now.plusSeconds(expirationMinutes * 60L);
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sub", user.getUsername());
-        payload.put("uid", user.getId());
-        payload.put("role", "CO_ORGANIZER");
-        payload.put(EVENT_ID_CLAIM, eventId);
-        payload.put("iat", now.getEpochSecond());
-        payload.put("exp", exp.getEpochSecond());
-        return createToken(payload);
-    }
-
     public AuthPrincipal parseAndValidate(String token) {
         try {
             String[] parts = token.split("\\.");

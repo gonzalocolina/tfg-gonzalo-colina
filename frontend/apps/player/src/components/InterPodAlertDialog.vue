@@ -5,8 +5,7 @@ import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
   createInterPodCard,
-  reportInterPodCardDamage,
-  reportInterPodCardThreat,
+  reportInterPodCardProgress,
 } from '@/api/interPod'
 import { getEventInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 
@@ -117,9 +116,7 @@ function prettyCardName(name) {
 function resolveInterPodCardStatus(card) {
   if (!card) return '-'
 
-  const currentValue = card.cardCategory === 'ESBIRRO'
-    ? Number(card.hpCurrent)
-    : Number(card.threatCurrent)
+  const currentValue = Number(card.metricCurrent)
   if (Number.isFinite(currentValue) && currentValue <= 0) {
     return 'DERROTADA'
   }
@@ -144,11 +141,11 @@ function cardMetricLabel(card) {
 }
 
 function cardCurrentValue(card) {
-  return isMinionCard(card) ? card.hpCurrent : card.threatCurrent
+  return card.metricCurrent
 }
 
 function cardMaxValue(card) {
-  return isMinionCard(card) ? card.hpMax : card.threatMax
+  return card.metricMax
 }
 
 function cardActionPlaceholder(card) {
@@ -196,7 +193,6 @@ async function handleCreate() {
     await createInterPodCard(
       auth.eventId,
       {
-        representativeCode: auth.code,
         interPodCardDefinitionId: interPodCardDefinitionId.value,
       },
     )
@@ -236,17 +232,9 @@ async function handleCardProgress(card) {
 
   mutatingCardId.value = card.id
   try {
-    if (isMinionCard(card)) {
-      await reportInterPodCardDamage(auth.eventId, card.id, {
-        representativeCode: auth.code,
-        damage: amount,
-      })
-    } else {
-      await reportInterPodCardThreat(auth.eventId, card.id, {
-        representativeCode: auth.code,
-        threat: amount,
-      })
-    }
+    await reportInterPodCardProgress(auth.eventId, card.id, {
+      amount,
+    })
     suppressOwnRealtimeNotification(
       isMinionCard(card) ? 'INTER_POD_CARD_DAMAGED' : 'INTER_POD_CARD_THREAT_UPDATED',
       card.podId ?? props.podId,

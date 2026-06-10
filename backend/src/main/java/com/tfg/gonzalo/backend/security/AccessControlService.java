@@ -112,7 +112,7 @@ public class AccessControlService {
                 && invitation.getResponsibilities().contains(responsibility));
     }
 
-    public void requireRepresentativeOrOrganizerForGroup(Event event, EventGroup group, String representativeCode) {
+    public void requireRepresentativeOrOrganizerForGroup(Event event, EventGroup group) {
         AuthPrincipal principal = requireAuthenticatedPrincipal();
         if (principal.isOrganizer()) {
             if (principal.userId() != null && principal.userId().equals(event.getOrganizer().getId())) {
@@ -121,10 +121,10 @@ public class AccessControlService {
             throw new ForbiddenOperationException("No eres el organizador propietario de este evento.");
         }
 
-        requireRepresentativeForGroup(event, group, representativeCode);
+        requireRepresentativeForGroup(event, group);
     }
 
-    public void requireRepresentativeForGroup(Event event, EventGroup group, String representativeCode) {
+    public void requireRepresentativeForGroup(Event event, EventGroup group) {
         AuthPrincipal principal = requireAuthenticatedPrincipal();
         if (!principal.isRepresentative()) {
             throw new ForbiddenOperationException("Solo el representante de la mesa puede reportar esta acción.");
@@ -134,9 +134,6 @@ public class AccessControlService {
         }
         if (principal.groupId() == null || !principal.groupId().equals(group.getId())) {
             throw new ForbiddenOperationException("El token no pertenece a la mesa indicado.");
-        }
-        if (!group.getRepresentativeCode().equals(representativeCode)) {
-            throw new ForbiddenOperationException("El código enviado no coincide con el representante autenticado.");
         }
     }
 }

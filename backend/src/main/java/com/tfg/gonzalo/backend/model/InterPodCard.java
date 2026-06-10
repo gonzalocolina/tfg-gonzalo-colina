@@ -18,22 +18,22 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "event_inter_pod_card")
+@Table(name = "inter_pod_card_instances")
 public class InterPodCard extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "pod_id", nullable = false)
     private Pod pod;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "source_group_id", nullable = false)
     private EventGroup sourceGroup;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "inter_pod_card_definition_id")
     private InterPodCardDefinition interPodCardDefinition;
 
@@ -44,17 +44,11 @@ public class InterPodCard extends BaseEntity {
     @Column(nullable = false, length = 20)
     private InterPodCardCategory cardCategory;
 
-    @Column(nullable = false)
-    private Integer hpMax = 0;
+    @Column(name = "metric_max", nullable = false)
+    private Integer metricMax = 0;
 
-    @Column(nullable = false)
-    private Integer hpCurrent = 0;
-
-    @Column(nullable = false)
-    private Integer threatMax = 0;
-
-    @Column(nullable = false)
-    private Integer threatCurrent = 0;
+    @Column(name = "metric_current", nullable = false)
+    private Integer metricCurrent = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

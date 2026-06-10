@@ -28,7 +28,6 @@ class EventRolesAndAlertsIntegrationTest {
 
     private static final Pattern ID_PATTERN = Pattern.compile("\\\"id\\\"\\s*:\\s*(\\d+)");
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\\\"accessToken\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-    private static final Pattern REPRESENTATIVE_CODE_PATTERN = Pattern.compile("\\\"representativeCode\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -36,27 +35,17 @@ class EventRolesAndAlertsIntegrationTest {
     @Autowired
     private InterPodCardDefinitionRepository interPodCardDefinitionRepository;
 
-    private record GroupCreationResult(Long groupId, String representativeCode) {
+    private record GroupCreationResult(Long groupId, String identifier) {
     }
 
     @Test
     void organizerCanListAssignedCoOrganizers() throws Exception {
         long eventId = createEvent("evento-lista-coorg", 4, 180);
         String organizerToken = loginOrganizer("evento-lista-coorg", "Password123");
+        String coOrganizerToken = registerOrganizer("coorg-lista");
 
-        mockMvc.perform(post("/api/events/{eventId}/roles/co-organizers", eventId)
-                        .header("Authorization", "Bearer " + organizerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "coorg-lista",
-                                  "email": "coorg-lista@example.com",
-                                  "password": "Password123",
-                                  "responsibilities": ["VILLAIN_HP", "TIMER"]
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("coorg-lista"));
+        long invitationId = inviteCoOrganizer(eventId, organizerToken, "coorg-lista", "VILLAIN_HP", "TIMER");
+        acceptCoOrganizerInvitation(invitationId, coOrganizerToken);
 
         mockMvc.perform(get("/api/events/{eventId}/roles/co-organizers", eventId)
                         .header("Authorization", "Bearer " + organizerToken))
@@ -64,7 +53,8 @@ class EventRolesAndAlertsIntegrationTest {
                 .andExpect(jsonPath("$[0].username").value("coorg-lista"))
                 .andExpect(jsonPath("$[0].email").value("coorg-lista@example.com"))
                 .andExpect(jsonPath("$[0].responsibilities[0]").value("VILLAIN_HP"))
-                .andExpect(jsonPath("$[0].responsibilities[1]").value("TIMER"));
+                .andExpect(jsonPath("$[0].responsibilities[1]").value("TIMER"))
+                .andExpect(jsonPath("$[0].invitationId").value((int) invitationId));
     }
 
     @Test
@@ -75,21 +65,9 @@ class EventRolesAndAlertsIntegrationTest {
       long podId = createPod(eventId, organizerToken, "Pod A");
       createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
 
-        mockMvc.perform(post("/api/events/{eventId}/roles/co-organizers", eventId)
-                        .header("Authorization", "Bearer " + organizerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "coorg1",
-                                  "email": "coorg1@example.com",
-                                  "password": "Password123",
-                                  "responsibilities": ["VILLAIN_HP", "THREAT"]
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("coorg1"));
-
-        String coOrganizerToken = loginCoOrganizer(eventId, "coorg1", "Password123");
+        String coOrganizerToken = registerOrganizer("coorg1");
+        long invitationId = inviteCoOrganizer(eventId, organizerToken, "coorg1", "VILLAIN_HP", "THREAT");
+        acceptCoOrganizerInvitation(invitationId, coOrganizerToken);
 
         mockMvc.perform(patch("/api/events/{eventId}/game-state/villain-hp", eventId)
                         .header("Authorization", "Bearer " + coOrganizerToken)
@@ -118,8 +96,8 @@ class EventRolesAndAlertsIntegrationTest {
       long podBId = createPod(eventId, organizerToken, "Pod B");
       GroupCreationResult groupB = createGroupAndGetResult(eventId, podBId, organizerToken, "B1", 4);
 
-      String representativeAToken = loginGroup(eventId, groupA.representativeCode());
-      String representativeBToken = loginGroup(eventId, groupB.representativeCode());
+      String representativeAToken = loginGroup(eventId, groupA.identifier());
+      String representativeBToken = loginGroup(eventId, groupB.identifier());
       long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
@@ -133,10 +111,9 @@ class EventRolesAndAlertsIntegrationTest {
         MediaType.APPLICATION_JSON_VALUE,
         """
           {
-            "representativeCode": "%s",
             "interPodCardDefinitionId": %d
           }
-          """.formatted(groupA.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
+          """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       MvcResult cardResult = mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -145,34 +122,31 @@ class EventRolesAndAlertsIntegrationTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.cardName").value("THE_MANGOG"))
         .andExpect(jsonPath("$.cardCategory").value("ESBIRRO"))
-        .andExpect(jsonPath("$.hpCurrent").value(10))
-        .andExpect(jsonPath("$.threatCurrent").value(0))
+        .andExpect(jsonPath("$.metricCurrent").value(10))
         .andReturn();
 
       long cardId = extractId(cardResult.getResponse().getContentAsString());
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
           .header("Authorization", "Bearer " + representativeBToken)
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "damage": 2
+              "amount": 2
             }
-            """.formatted(groupB.representativeCode())))
+            """))
         .andExpect(status().isForbidden());
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
           .header("Authorization", "Bearer " + representativeAToken)
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "damage": 3
+              "amount": 3
             }
-            """.formatted(groupA.representativeCode())))
+            """))
         .andExpect(status().isOk())
-          .andExpect(jsonPath("$.hpCurrent").value(7));
+          .andExpect(jsonPath("$.metricCurrent").value(7));
 
       mockMvc.perform(patch("/api/events/{eventId}/inter-pod-cards/{cardId}/status", eventId, cardId)
           .header("Authorization", "Bearer " + organizerToken)
@@ -184,17 +158,16 @@ class EventRolesAndAlertsIntegrationTest {
             """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("DERROTADA"))
-        .andExpect(jsonPath("$.hpCurrent").value(0));
+        .andExpect(jsonPath("$.metricCurrent").value(0));
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
           .header("Authorization", "Bearer " + representativeAToken)
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "damage": 1
+              "amount": 1
             }
-            """.formatted(groupA.representativeCode())))
+            """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("ya está derrotada")));
 
@@ -212,13 +185,13 @@ class EventRolesAndAlertsIntegrationTest {
     }
 
     @Test
-    void interPodPlansTrackThreatAndRejectDamage() throws Exception {
+    void interPodPlansTrackThreatProgress() throws Exception {
       long eventId = createEvent("evento-plan-threat", 4, 180);
       String organizerToken = loginOrganizer("evento-plan-threat", "Password123");
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
-      String representativeToken = loginGroup(eventId, group.representativeCode());
+      String representativeToken = loginGroup(eventId, group.identifier());
       long doorDefinitionId = predefinedInterPodCardDefinitionId("DOOR_BETWEEN_WORLDS");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
@@ -232,10 +205,9 @@ class EventRolesAndAlertsIntegrationTest {
               MediaType.APPLICATION_JSON_VALUE,
               """
                 {
-                  "representativeCode": "%s",
                   "interPodCardDefinitionId": %d
                 }
-                """.formatted(group.representativeCode(), doorDefinitionId).getBytes(StandardCharsets.UTF_8)
+                """.formatted(doorDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -243,59 +215,43 @@ class EventRolesAndAlertsIntegrationTest {
                       .header("Authorization", "Bearer " + representativeToken))
               .andExpect(status().isCreated())
               .andExpect(jsonPath("$.cardCategory").value("PLAN"))
-              .andExpect(jsonPath("$.hpCurrent").value(0))
-                          .andExpect(jsonPath("$.threatCurrent").value(7))
+              .andExpect(jsonPath("$.metricCurrent").value(7))
               .andReturn()
               .getResponse()
               .getContentAsString());
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
                       .header("Authorization", "Bearer " + representativeToken)
                       .contentType(MediaType.APPLICATION_JSON)
                       .content("""
                         {
-                          "representativeCode": "%s",
-                          "damage": 2
+                          "amount": 3
                         }
-                        """.formatted(group.representativeCode())))
-              .andExpect(status().isBadRequest())
-              .andExpect(jsonPath("$.message").value(containsString("retirarles amenaza")));
-
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
-                      .header("Authorization", "Bearer " + representativeToken)
-                      .contentType(MediaType.APPLICATION_JSON)
-                      .content("""
-                        {
-                          "representativeCode": "%s",
-                          "threat": 3
-                        }
-                        """.formatted(group.representativeCode())))
+                        """))
               .andExpect(status().isOk())
-              .andExpect(jsonPath("$.threatCurrent").value(4))
+              .andExpect(jsonPath("$.metricCurrent").value(4))
               .andExpect(jsonPath("$.status").value("REVELADA"));
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
                       .header("Authorization", "Bearer " + representativeToken)
                       .contentType(MediaType.APPLICATION_JSON)
                       .content("""
                         {
-                          "representativeCode": "%s",
-                          "threat": 5
+                          "amount": 5
                         }
-                        """.formatted(group.representativeCode())))
+                        """))
               .andExpect(status().isOk())
-              .andExpect(jsonPath("$.threatCurrent").value(0))
+              .andExpect(jsonPath("$.metricCurrent").value(0))
               .andExpect(jsonPath("$.status").value("DERROTADA"));
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/threat", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
                       .header("Authorization", "Bearer " + representativeToken)
                       .contentType(MediaType.APPLICATION_JSON)
                       .content("""
                         {
-                          "representativeCode": "%s",
-                          "threat": 1
+                          "amount": 1
                         }
-                        """.formatted(group.representativeCode())))
+                        """))
               .andExpect(status().isBadRequest())
               .andExpect(jsonPath("$.message").value(containsString("ya está derrotada")));
     }
@@ -313,9 +269,9 @@ class EventRolesAndAlertsIntegrationTest {
       long podBId = createPod(eventId, organizerToken, "Pod B");
       GroupCreationResult groupB1 = createGroupAndGetResult(eventId, podBId, organizerToken, "B1", 4);
 
-      String representativeAToken = loginGroup(eventId, groupA1.representativeCode());
-      String representativeA2Token = loginGroup(eventId, groupA2.representativeCode());
-      String representativeBToken = loginGroup(eventId, groupB1.representativeCode());
+      String representativeAToken = loginGroup(eventId, groupA1.identifier());
+      String representativeA2Token = loginGroup(eventId, groupA2.identifier());
+      String representativeBToken = loginGroup(eventId, groupB1.identifier());
       long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
       long doorDefinitionId = predefinedInterPodCardDefinitionId("DOOR_BETWEEN_WORLDS");
 
@@ -331,14 +287,13 @@ class EventRolesAndAlertsIntegrationTest {
                               MediaType.APPLICATION_JSON_VALUE,
                               """
                                 {
-                                  "representativeCode": "%s",
                                   "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.hpMax").value(30))
-              .andExpect(jsonPath("$.hpCurrent").value(30));
+              .andExpect(jsonPath("$.metricMax").value(30))
+              .andExpect(jsonPath("$.metricCurrent").value(30));
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
                       .file(new MockMultipartFile(
@@ -347,10 +302,9 @@ class EventRolesAndAlertsIntegrationTest {
                               MediaType.APPLICATION_JSON_VALUE,
                               """
                                 {
-                                  "representativeCode": "%s",
                                   "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isBadRequest())
               .andExpect(jsonPath("$.message").value(containsString("ya ha indicado")));
@@ -362,14 +316,13 @@ class EventRolesAndAlertsIntegrationTest {
                               MediaType.APPLICATION_JSON_VALUE,
                               """
                                 {
-                                  "representativeCode": "%s",
                                   "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA2.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeA2Token))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.hpMax").value(30))
-              .andExpect(jsonPath("$.hpCurrent").value(30));
+              .andExpect(jsonPath("$.metricMax").value(30))
+              .andExpect(jsonPath("$.metricCurrent").value(30));
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
                       .file(new MockMultipartFile(
@@ -378,14 +331,13 @@ class EventRolesAndAlertsIntegrationTest {
                               MediaType.APPLICATION_JSON_VALUE,
                               """
                                 {
-                                  "representativeCode": "%s",
                                   "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupB1.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeBToken))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.hpMax").value(10))
-              .andExpect(jsonPath("$.hpCurrent").value(10));
+              .andExpect(jsonPath("$.metricMax").value(10))
+              .andExpect(jsonPath("$.metricCurrent").value(10));
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
                       .file(new MockMultipartFile(
@@ -394,14 +346,13 @@ class EventRolesAndAlertsIntegrationTest {
                               MediaType.APPLICATION_JSON_VALUE,
                               """
                                 {
-                                  "representativeCode": "%s",
                                   "interPodCardDefinitionId": %d
                                 }
-                                """.formatted(groupA1.representativeCode(), doorDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                                """.formatted(doorDefinitionId).getBytes(StandardCharsets.UTF_8)))
                       .header("Authorization", "Bearer " + representativeAToken))
               .andExpect(status().isCreated())
-              .andExpect(jsonPath("$.threatMax").value(21))
-              .andExpect(jsonPath("$.threatCurrent").value(21));
+              .andExpect(jsonPath("$.metricMax").value(21))
+              .andExpect(jsonPath("$.metricCurrent").value(21));
     }
 
     @Test
@@ -411,7 +362,7 @@ class EventRolesAndAlertsIntegrationTest {
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
-      String representativeToken = loginGroup(eventId, group.representativeCode());
+      String representativeToken = loginGroup(eventId, group.identifier());
       long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
@@ -425,10 +376,9 @@ class EventRolesAndAlertsIntegrationTest {
         MediaType.APPLICATION_JSON_VALUE,
         """
           {
-            "representativeCode": "%s",
             "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
+          """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -443,15 +393,14 @@ class EventRolesAndAlertsIntegrationTest {
                         .header("Authorization", "Bearer " + organizerToken))
                 .andExpect(status().isOk());
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
           .header("Authorization", "Bearer " + representativeToken)
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "damage": 2
+              "amount": 2
             }
-            """.formatted(group.representativeCode())))
+            """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("está pausada")));
 
@@ -460,10 +409,9 @@ class EventRolesAndAlertsIntegrationTest {
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "status": "DERROTADA"
+                          "status": "DERROTADA"
             }
-            """.formatted(group.representativeCode())))
+            """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("está pausada")));
 
@@ -473,10 +421,9 @@ class EventRolesAndAlertsIntegrationTest {
         MediaType.APPLICATION_JSON_VALUE,
         """
           {
-            "representativeCode": "%s",
             "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
+          """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -493,7 +440,7 @@ class EventRolesAndAlertsIntegrationTest {
 
       long podId = createPod(eventId, organizerToken, "Pod A");
       GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
-      String representativeToken = loginGroup(eventId, group.representativeCode());
+      String representativeToken = loginGroup(eventId, group.identifier());
       long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
 
       MockMultipartFile organizerCreatePayload = new MockMultipartFile(
@@ -502,10 +449,10 @@ class EventRolesAndAlertsIntegrationTest {
         MediaType.APPLICATION_JSON_VALUE,
         """
           {
-            "representativeCode": "%s",
+            "sourceGroupId": %d,
             "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
+          """.formatted(group.groupId(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       long cardId = extractId(mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -521,15 +468,14 @@ class EventRolesAndAlertsIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.timerStatus").value("READY"));
 
-      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/damage", eventId, cardId)
+      mockMvc.perform(post("/api/events/{eventId}/inter-pod-cards/{cardId}/progress", eventId, cardId)
           .header("Authorization", "Bearer " + representativeToken)
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "damage": 2
+              "amount": 2
             }
-            """.formatted(group.representativeCode())))
+            """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
 
@@ -538,10 +484,9 @@ class EventRolesAndAlertsIntegrationTest {
           .contentType(MediaType.APPLICATION_JSON)
           .content("""
             {
-              "representativeCode": "%s",
-              "status": "DERROTADA"
+                          "status": "DERROTADA"
             }
-            """.formatted(group.representativeCode())))
+            """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("inicie el contador")));
 
@@ -551,10 +496,9 @@ class EventRolesAndAlertsIntegrationTest {
         MediaType.APPLICATION_JSON_VALUE,
         """
           {
-            "representativeCode": "%s",
             "interPodCardDefinitionId": %d
           }
-          """.formatted(group.representativeCode(), mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
+          """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)
       );
 
       mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
@@ -591,10 +535,9 @@ class EventRolesAndAlertsIntegrationTest {
                         .content("""
                                 {
                                   "name": "Evento %s",
-                                  "configuredPlayerCount": %d,
                                   "timeLimitMinutes": %d
                                 }
-                                """.formatted(username, players, timeLimitMinutes)))
+                                """.formatted(username, timeLimitMinutes)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -651,11 +594,7 @@ class EventRolesAndAlertsIntegrationTest {
                 .andReturn();
 
             String body = result.getResponse().getContentAsString();
-            Matcher matcher = REPRESENTATIVE_CODE_PATTERN.matcher(body);
-        if (!matcher.find()) {
-            throw new IllegalStateException("No se ha encontrado representativeCode en la respuesta JSON.");
-        }
-            return new GroupCreationResult(extractId(body), matcher.group(1));
+            return new GroupCreationResult(extractId(body), identifier);
     }
 
     private String loginOrganizer(String username, String password) throws Exception {
@@ -673,31 +612,45 @@ class EventRolesAndAlertsIntegrationTest {
         return extractToken(result.getResponse().getContentAsString());
     }
 
-    private String loginCoOrganizer(long eventId, String username, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/co-organizer/login")
+    private long inviteCoOrganizer(long eventId,
+                                   String organizerToken,
+                                   String username,
+                                   String... responsibilities) throws Exception {
+        String responsibilitiesJson = java.util.Arrays.stream(responsibilities)
+                .map(value -> "\"" + value + "\"")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        MvcResult result = mockMvc.perform(post("/api/events/{eventId}/roles/co-organizer-invitations", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "eventId": %d,
                                   "username": "%s",
-                                  "password": "%s"
+                                  "responsibilities": [%s]
                                 }
-                                """.formatted(eventId, username, password)))
-                .andExpect(status().isOk())
+                                """.formatted(username, responsibilitiesJson)))
+                .andExpect(status().isCreated())
                 .andReturn();
 
-        return extractToken(result.getResponse().getContentAsString());
+        return extractId(result.getResponse().getContentAsString());
     }
 
-    private String loginGroup(long eventId, String representativeCode) throws Exception {
+    private void acceptCoOrganizerInvitation(long invitationId, String inviteeToken) throws Exception {
+        mockMvc.perform(post("/api/co-organizer-invitations/{invitationId}/accept", invitationId)
+                        .header("Authorization", "Bearer " + inviteeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"));
+    }
+
+    private String loginGroup(long eventId, String identifier) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/group/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "eventId": %d,
-                                  "code": "%s"
+                                  "identifier": "%s"
                                 }
-                                """.formatted(eventId, representativeCode)))
+                                """.formatted(eventId, identifier)))
                 .andExpect(status().isOk())
                 .andReturn();
 

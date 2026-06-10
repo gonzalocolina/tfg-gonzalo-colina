@@ -102,9 +102,9 @@ const navItems = computed(() => {
     )
   }
 
-  // Only show game panel if event is draft, ready, in progress, or finished
+  // Only show game panel if event is draft, in progress, or finished
   const status = gs.eventStatus
-  if (status === 'DRAFT' || status === 'READY' || status === 'IN_PROGRESS' || status === 'FINISHED') {
+  if (status === 'DRAFT' || status === 'IN_PROGRESS' || status === 'FINISHED') {
     items.push({
       label: 'Partida',
       icon: 'sword',

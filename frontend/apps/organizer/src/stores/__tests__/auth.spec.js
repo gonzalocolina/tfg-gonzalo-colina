@@ -5,11 +5,10 @@ import { useAuthStore } from '@/stores/auth'
 // Mock the auth API module
 vi.mock('@/api/auth', () => ({
   organizerLogin: vi.fn(),
-  coOrganizerLogin: vi.fn(),
   register: vi.fn(),
 }))
 
-import { organizerLogin, coOrganizerLogin, register } from '@/api/auth'
+import { organizerLogin, register } from '@/api/auth'
 
 describe('Auth Store', () => {
   beforeEach(() => {
@@ -68,7 +67,6 @@ describe('Auth Store', () => {
     expect(auth.eventId).toBe(10)
     expect(auth.isAuthenticated).toBe(true)
     expect(auth.isOrganizer).toBe(true)
-    expect(auth.isCoOrganizer).toBe(false)
     expect(result).toEqual(mockResponse.data)
 
     // Check persistence
@@ -85,26 +83,6 @@ describe('Auth Store', () => {
     const auth = useAuthStore()
     await expect(auth.loginOrganizer('bad', 'wrong')).rejects.toThrow('Network error')
     expect(auth.isAuthenticated).toBe(false)
-  })
-
-  it('loginCoOrg calls the co-organizer API', async () => {
-    const mockResponse = {
-      data: {
-        accessToken: 'co-org-token',
-        role: 'CO_ORGANIZER',
-        eventId: 7,
-        groupId: null,
-        username: 'coorg1',
-      },
-    }
-    coOrganizerLogin.mockResolvedValue(mockResponse)
-
-    const auth = useAuthStore()
-    await auth.loginCoOrg(7, 'coorg1', 'pass1234')
-
-    expect(coOrganizerLogin).toHaveBeenCalledWith(7, 'coorg1', 'pass1234')
-    expect(auth.role).toBe('CO_ORGANIZER')
-    expect(auth.isCoOrganizer).toBe(true)
   })
 
   it('logout clears session state and sessionStorage', async () => {

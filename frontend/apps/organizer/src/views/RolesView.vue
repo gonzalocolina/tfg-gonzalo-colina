@@ -32,7 +32,7 @@ const form = ref({
 })
 
 const RESPONSIBILITIES = ['VILLAIN_HP', 'THREAT', 'TIMER']
-const REVOCABLE_EVENT_STATUSES = new Set(['DRAFT', 'READY'])
+const REVOCABLE_EVENT_STATUSES = new Set(['DRAFT'])
 
 const availableSlots = computed(() => Math.max(0, 3 - coOrganizers.value.length - pendingInvitations.value.length))
 const canRevokeAcceptedCoOrganizers = computed(() =>

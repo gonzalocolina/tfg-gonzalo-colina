@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getEvent, updateEvent, deleteEvent } from '@/api/events'
+import { getGameState } from '@/api/gameState'
 import { getVillains } from '@/api/villains'
 import { useDialogs } from '@/composables/useDialogs'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -20,6 +21,7 @@ const notif = useNotificationsStore()
 
 const eventId = computed(() => route.params.eventId)
 const event = ref(null)
+const snapshot = ref(null)
 const loading = ref(true)
 const editing = ref(false)
 const editForm = ref({
@@ -42,6 +44,16 @@ async function load() {
     notif.error('Error al cargar el evento')
   } finally {
     loading.value = false
+  }
+  loadSnapshot()
+}
+
+async function loadSnapshot() {
+  try {
+    const { data } = await getGameState(eventId.value)
+    snapshot.value = data
+  } catch {
+    /* el dashboard puede renderizarse sin estado de partida */
   }
 }
 
@@ -157,7 +169,9 @@ onMounted(loadVillains)
           </div>
           <div class="summary-item">
             <div class="label">HP Villano</div>
-            <div class="value">{{ event.villainHpCurrent }} / {{ event.villainHpMax }}</div>
+            <div class="value">
+              {{ snapshot ? `${snapshot.villainHpCurrent} / ${snapshot.villainHpMax}` : '—' }}
+            </div>
           </div>
           <div class="summary-item">
             <div class="label">Villano</div>
@@ -165,7 +179,9 @@ onMounted(loadVillains)
           </div>
           <div class="summary-item">
             <div class="label">Amenaza</div>
-            <div class="value">{{ event.schemeThreatCurrent }} / {{ event.schemeThreatTarget }}</div>
+            <div class="value">
+              {{ snapshot ? `${snapshot.schemeThreatCurrent} / ${snapshot.schemeThreatTarget}` : '—' }}
+            </div>
           </div>
           <div class="summary-item">
             <div class="label">Fórmula HP</div>
@@ -266,27 +282,6 @@ onMounted(loadVillains)
           class="btn btn-primary"
         >
           Ir a la partida
-        </router-link>
-      </div>
-
-      <div v-if="isOwner && event.status === 'READY'" class="flex gap-1 mt-2">
-        <router-link
-          :to="{ name: 'game', params: { eventId } }"
-          class="btn btn-primary"
-        >
-          Ir a la partida
-        </router-link>
-        <router-link
-          :to="{ name: 'setup', params: { eventId } }"
-          class="btn btn-secondary"
-        >
-          Ver estructura
-        </router-link>
-        <router-link
-          :to="{ name: 'logs', params: { eventId } }"
-          class="btn btn-secondary"
-        >
-          Ver registro de eventos
         </router-link>
       </div>
 

@@ -1,10 +1,7 @@
 package com.tfg.gonzalo.backend.model;
 
-import com.tfg.gonzalo.backend.model.enums.GlobalRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,7 +11,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "event_organizers")
+@Table(name = "users")
 public class AppUser extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 60)
@@ -25,11 +22,4 @@ public class AppUser extends BaseEntity {
 
     @Column(length = 120)
     private String passwordHash;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
-    private GlobalRole role;
-
-    @Column(nullable = false)
-    private boolean enabled = true;
 }

@@ -1,8 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import {
-  reportInterPodCardDamage,
-  reportInterPodCardThreat,
+  reportInterPodCardProgress,
   updateInterPodCardStatus,
   deleteInterPodCard,
   getInterPodCards,
@@ -87,11 +86,11 @@ function cardMetricLabel(card) {
 }
 
 function cardCurrentValue(card) {
-  return isMinionCard(card) ? card.hpCurrent : card.threatCurrent
+  return card.metricCurrent
 }
 
 function cardMaxValue(card) {
-  return isMinionCard(card) ? card.hpMax : card.threatMax
+  return card.metricMax
 }
 
 function actionPlaceholder(card) {
@@ -121,19 +120,11 @@ async function handleApplyProgress(card) {
 
   mutatingCardId.value = card.id
   try {
-    if (isMinionCard(card)) {
-      await reportInterPodCardDamage(
-        props.eventId,
-        card.id,
-        { damage: amount },
-      )
-    } else {
-      await reportInterPodCardThreat(
-        props.eventId,
-        card.id,
-        { threat: amount },
-      )
-    }
+    await reportInterPodCardProgress(
+      props.eventId,
+      card.id,
+      { amount },
+    )
     suppressOwnRealtimeNotification(
       isMinionCard(card) ? 'INTER_POD_CARD_DAMAGED' : 'INTER_POD_CARD_THREAT_UPDATED',
       card.podId,

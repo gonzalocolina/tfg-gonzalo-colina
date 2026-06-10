@@ -11,7 +11,6 @@ import com.tfg.gonzalo.backend.dto.setup.UpdatePodRequest;
 import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
-import com.tfg.gonzalo.backend.model.EventVillain;
 import com.tfg.gonzalo.backend.model.EventGroup;
 import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
@@ -40,9 +39,7 @@ public class EventSetupService {
     private final PodRepository podRepository;
     private final EventGroupRepository eventGroupRepository;
     private final EventLogService eventLogService;
-    private final CodeGeneratorService codeGeneratorService;
-    private final VillainFormulaService villainFormulaService;
-    private final EventPlayerMetricsService eventPlayerMetricsService;
+    private final EventStateCalculator eventStateCalculator;
     private final AccessControlService accessControlService;
     private final RealtimeEventPublisher realtimeEventPublisher;
 
@@ -50,18 +47,14 @@ public class EventSetupService {
                              PodRepository podRepository,
                              EventGroupRepository eventGroupRepository,
                              EventLogService eventLogService,
-                             CodeGeneratorService codeGeneratorService,
-                             VillainFormulaService villainFormulaService,
-                             EventPlayerMetricsService eventPlayerMetricsService,
+                             EventStateCalculator eventStateCalculator,
                              AccessControlService accessControlService,
                              RealtimeEventPublisher realtimeEventPublisher) {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
         this.eventGroupRepository = eventGroupRepository;
         this.eventLogService = eventLogService;
-        this.codeGeneratorService = codeGeneratorService;
-        this.villainFormulaService = villainFormulaService;
-        this.eventPlayerMetricsService = eventPlayerMetricsService;
+        this.eventStateCalculator = eventStateCalculator;
         this.accessControlService = accessControlService;
         this.realtimeEventPublisher = realtimeEventPublisher;
     }
@@ -97,22 +90,10 @@ public class EventSetupService {
         group.setPod(pod);
         group.setIdentifier(request.identifier().trim());
         group.setPlayerCount(request.playerCount());
-        group.setRepresentativeCode(generateUniqueGroupCode(true));
-        group.setObserverCode(generateUniqueGroupCode(false));
         group = eventGroupRepository.save(group);
 
-        EventVillain villain = requireVillain(event);
-        int currentGroupCount = eventGroupRepository.findByEventId(eventId).size();
-        event.setSchemeThreatTarget(villainFormulaService.computeThreatTarget(
-            villain.getThreatRuleType(),
-            villain.getThreatRuleValue(),
-                currentGroupCount
-        ));
-        eventRepository.save(event);
-        eventPlayerMetricsService.synchronizePlayerMetrics(event);
-
         eventLogService.appendOrganizerLog(event, EventActionType.GROUP_CREATED,
-                null, group.getIdentifier(), "Mesa creada y amenaza objetivo recalculada.");
+                null, group.getIdentifier(), "Mesa creada.");
         publishStructureRealtime(eventId);
         return mapGroupResponse(group);
     }
@@ -205,7 +186,6 @@ public class EventSetupService {
         group.setIdentifier(nextIdentifier);
         group.setPlayerCount(nextPlayerCount);
         group = eventGroupRepository.save(group);
-        eventPlayerMetricsService.synchronizePlayerMetrics(event);
         String nextSummary = group.getIdentifier() + " (" + group.getPlayerCount() + " jugadores)";
 
         eventLogService.appendOrganizerLog(event, group, EventActionType.GROUP_UPDATED,
@@ -219,7 +199,6 @@ public class EventSetupService {
         Event event = eventRepository.findById(eventId)
             .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
         accessControlService.requireReadAccessToEvent(event);
-        eventPlayerMetricsService.synchronizePlayerMetrics(event);
         List<Pod> pods = listRealPods(eventId);
         List<EventGroup> groups = eventGroupRepository.findByEventId(eventId);
         List<EventGroup> assignedGroups = groups.stream()
@@ -243,12 +222,12 @@ public class EventSetupService {
         return new EventStructureResponse(
                 event.getId(),
                 event.getName(),
-                event.getConfiguredPlayerCount(),
+                assignedPlayerCount + unassignedPlayerCount,
                 groups.size(),
                 assignedPlayerCount,
                 unassignedGroups.size(),
                 unassignedPlayerCount,
-                event.getSchemeThreatTarget(),
+                eventStateCalculator.threatTarget(event),
                 resolveSuggestedPodName(pods),
                 podResponses,
                 unassignedGroups.stream().map(this::mapGroupResponse).toList()
@@ -282,13 +261,6 @@ public class EventSetupService {
             throw new BusinessRuleException("El pod no pertenece al evento indicado.");
         }
         return pod;
-    }
-
-    private EventVillain requireVillain(Event event) {
-        if (event.getVillain() == null) {
-            throw new ResourceNotFoundException("No existe configuración de villano para el evento solicitado.");
-        }
-        return event.getVillain();
     }
 
     private List<Pod> listRealPods(Long eventId) {
@@ -338,16 +310,6 @@ public class EventSetupService {
                 .anyMatch(value -> value == ordinal);
     }
 
-    private String generateUniqueGroupCode(boolean representative) {
-        String code = codeGeneratorService.generateGroupCode();
-        while (representative
-                ? eventGroupRepository.findByRepresentativeCode(code).isPresent()
-                : eventGroupRepository.findByObserverCode(code).isPresent()) {
-            code = codeGeneratorService.generateGroupCode();
-        }
-        return code;
-    }
-
     private void publishStructureRealtime(Long eventId) {
         realtimeEventPublisher.publishEventOperation(eventId, STRUCTURE_UPDATED_OPERATION);
     }
@@ -381,9 +343,7 @@ public class EventSetupService {
                 group.getId(),
                 hasAssignedPod(group) ? group.getPod().getId() : null,
                 group.getIdentifier(),
-                group.getPlayerCount(),
-                group.getRepresentativeCode(),
-                group.getObserverCode()
+                group.getPlayerCount()
         );
     }
 
