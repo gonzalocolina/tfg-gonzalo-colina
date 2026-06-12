@@ -54,6 +54,10 @@ import org.springframework.core.io.Resource;
 
 import org.springframework.stereotype.Service;
 
+import org.springframework.transaction.support.TransactionSynchronization;
+
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import org.springframework.web.multipart.MultipartFile;
 
 
@@ -202,11 +206,13 @@ public class InterPodCardService {
 
 
 
-        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_CREATED");
+        InterPodCardResponse response = toResponse(card);
+
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_CREATED", response, null);
 
 
 
-        return toResponse(card);
+        return response;
 
     }
 
@@ -264,7 +270,7 @@ public class InterPodCardService {
 
                 "Daño aplicado sobre carta inter-pod.");
 
-            publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_DAMAGED");
+            publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_DAMAGED", toResponse(card), null);
 
         } else {
 
@@ -280,7 +286,7 @@ public class InterPodCardService {
 
                 "Amenaza retirada de plan inter-pod.");
 
-            publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_THREAT_UPDATED");
+            publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_THREAT_UPDATED", toResponse(card), null);
 
         }
 
@@ -340,11 +346,13 @@ public class InterPodCardService {
 
 
 
-        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_STATUS_UPDATED");
+        InterPodCardResponse response = toResponse(card);
+
+        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_STATUS_UPDATED", response, null);
 
 
 
-        return toResponse(card);
+        return response;
 
     }
 
@@ -362,6 +370,10 @@ public class InterPodCardService {
 
         InterPodCard card = findCard(eventId, cardId);
 
+        Long targetPodId = card.getPod().getId();
+
+        Long deletedCardId = card.getId();
+
         imageStorageService.delete(card.getImagePath());
 
         interPodCardRepository.delete(card);
@@ -374,7 +386,7 @@ public class InterPodCardService {
 
 
 
-        publishCardRealtime(eventId, card.getPod().getId(), "INTER_POD_CARD_DELETED");
+        publishCardRealtime(eventId, targetPodId, "INTER_POD_CARD_DELETED", null, deletedCardId);
 
     }
 
@@ -650,9 +662,55 @@ public class InterPodCardService {
 
 
 
-    private void publishCardRealtime(Long eventId, Long targetPodId, String operation) {
+    private void publishCardRealtime(Long eventId,
 
-        realtimeEventPublisher.publishGameStateUpdate(eventId, operation, null, List.of(operation), targetPodId);
+                                       Long targetPodId,
+
+                                       String operation,
+
+                                       InterPodCardResponse interPodCard,
+
+                                       Long interPodCardId) {
+
+        Runnable publish = () -> realtimeEventPublisher.publishGameStateUpdate(
+
+                eventId,
+
+                operation,
+
+                null,
+
+                List.of(operation),
+
+                targetPodId,
+
+                interPodCard,
+
+                interPodCardId);
+
+
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                @Override
+
+                public void afterCommit() {
+
+                    publish.run();
+
+                }
+
+            });
+
+            return;
+
+        }
+
+
+
+        publish.run();
 
     }
 

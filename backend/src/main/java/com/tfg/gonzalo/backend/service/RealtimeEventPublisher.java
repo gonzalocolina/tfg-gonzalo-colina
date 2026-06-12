@@ -1,5 +1,6 @@
 package com.tfg.gonzalo.backend.service;
 
+import com.tfg.gonzalo.backend.dto.event.InterPodCardResponse;
 import com.tfg.gonzalo.backend.dto.gamestate.GameStateSnapshotResponse;
 import com.tfg.gonzalo.backend.dto.realtime.GameStateRealtimeMessage;
 import java.time.Instant;
@@ -33,6 +34,16 @@ public class RealtimeEventPublisher {
                                        GameStateSnapshotResponse snapshot,
                                        List<String> notifications,
                                        Long targetPodId) {
+        publishGameStateUpdate(eventId, operation, snapshot, notifications, targetPodId, null, null);
+    }
+
+    public void publishGameStateUpdate(Long eventId,
+                                       String operation,
+                                       GameStateSnapshotResponse snapshot,
+                                       List<String> notifications,
+                                       Long targetPodId,
+                                       InterPodCardResponse interPodCard,
+                                       Long interPodCardId) {
         List<String> safeNotifications = notifications == null ? List.of() : List.copyOf(notifications);
         boolean eventFinished = snapshot != null && snapshot.finalSummary() != null;
         boolean shouldPublishGameFinished = safeNotifications.stream()
@@ -42,6 +53,8 @@ public class RealtimeEventPublisher {
         message.setSnapshot(snapshot);
         message.setNotifications(safeNotifications);
         message.setTargetPodId(targetPodId);
+        message.setInterPodCard(interPodCard);
+        message.setInterPodCardId(interPodCardId);
         message.setEventFinished(eventFinished);
         message.setEmittedAt(Instant.now());
 

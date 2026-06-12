@@ -200,6 +200,10 @@ fieldset.form-group {
   border-color: var(--c-primary);
 }
 
+textarea.form-control {
+  resize: vertical;
+}
+
 .password-control {
   position: relative;
 }

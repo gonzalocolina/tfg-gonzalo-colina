@@ -195,6 +195,35 @@ async function loadInterPodCards({ silent = false } = {}) {
   }
 }
 
+function upsertInterPodCard(card) {
+  if (!card?.id) {
+    return
+  }
+
+  const normalizedId = Number(card.id)
+  const nextCards = [...interPodCards.value]
+  const index = nextCards.findIndex((entry) => Number(entry.id) === normalizedId)
+
+  if (index >= 0) {
+    nextCards[index] = { ...nextCards[index], ...card }
+  } else {
+    nextCards.push(card)
+  }
+
+  interPodCards.value = nextCards
+  void syncImageUrls(buildInterPodImageEntries(interPodCards.value))
+}
+
+function removeInterPodCard(cardId) {
+  if (cardId == null) {
+    return
+  }
+
+  const normalizedId = Number(cardId)
+  interPodCards.value = interPodCards.value.filter((entry) => Number(entry.id) !== normalizedId)
+  void syncImageUrls(buildInterPodImageEntries(interPodCards.value))
+}
+
 function prettyCardName(name) {
   if (!name) return '-'
   return name
@@ -352,6 +381,15 @@ watch(
     }
 
     if (isRelevantInterPodRealtimeEvent(nextRealtimeEvent)) {
+      if (nextRealtimeEvent.interPodCard) {
+        upsertInterPodCard(nextRealtimeEvent.interPodCard)
+        return
+      }
+
+      if (operation === 'INTER_POD_CARD_DELETED' && nextRealtimeEvent.interPodCardId != null) {
+        removeInterPodCard(nextRealtimeEvent.interPodCardId)
+      }
+
       void loadInterPodCards({ silent: true })
     }
   },
@@ -611,6 +649,7 @@ onUnmounted(() => {
       :get-image-url="getProtectedImageUrl"
       :realtime-connected="socketConnected"
       @close="closeInterPodDialog"
+      @card-upserted="upsertInterPodCard"
       @refresh-requested="handleInterPodRefreshRequest"
     />
   </div>

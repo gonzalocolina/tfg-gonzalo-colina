@@ -345,6 +345,39 @@ describe('PlayerGameView', () => {
     wrapper.unmount()
   })
 
+  it('shows inter-pod metrics immediately when websocket includes the card payload', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+    getInterPodCards.mockResolvedValue({ data: [] })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    __websocketState.realtimeEvent.value = {
+      operation: 'INTER_POD_CARD_CREATED',
+      notifications: ['INTER_POD_CARD_CREATED'],
+      targetPodId: 7,
+      interPodCard: {
+        id: 77,
+        cardName: 'THE_MANGOG',
+        cardCategory: 'ESBIRRO',
+        status: 'REVELADA',
+        sourceGroupIdentifier: 'Mesa A1',
+        metricCurrent: 10,
+        metricMax: 10,
+        imageUrl: null,
+      },
+      emittedAt: Date.now(),
+    }
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('HP 10/10')
+    expect(getInterPodCards).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
   it('shows a pause warning and hides the action bar while the game is paused', async () => {
     seedAuthSession('GROUP_REPRESENTATIVE')
     getGameState.mockResolvedValue({

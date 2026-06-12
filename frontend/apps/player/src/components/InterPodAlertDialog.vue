@@ -19,7 +19,7 @@ const props = defineProps({
   realtimeConnected: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'refresh-requested'])
+const emit = defineEmits(['close', 'refresh-requested', 'card-upserted'])
 
 const auth = useAuthStore()
 const gs = useGameStateStore()
@@ -190,12 +190,15 @@ async function handleCreate() {
 
   creating.value = true
   try {
-    await createInterPodCard(
+    const { data } = await createInterPodCard(
       auth.eventId,
       {
         interPodCardDefinitionId: interPodCardDefinitionId.value,
       },
     )
+    if (data) {
+      emit('card-upserted', data)
+    }
     suppressOwnRealtimeNotification('INTER_POD_CARD_CREATED', props.podId)
     notif.success('Carta inter-nodo registrada')
     if (!props.realtimeConnected) {
@@ -232,9 +235,12 @@ async function handleCardProgress(card) {
 
   mutatingCardId.value = card.id
   try {
-    await reportInterPodCardProgress(auth.eventId, card.id, {
+    const { data } = await reportInterPodCardProgress(auth.eventId, card.id, {
       amount,
     })
+    if (data) {
+      emit('card-upserted', data)
+    }
     suppressOwnRealtimeNotification(
       isMinionCard(card) ? 'INTER_POD_CARD_DAMAGED' : 'INTER_POD_CARD_THREAT_UPDATED',
       card.podId ?? props.podId,

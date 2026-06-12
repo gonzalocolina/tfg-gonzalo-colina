@@ -112,6 +112,8 @@ export function useWebSocket(eventId, options = {}) {
       operation: payload?.operation || null,
       notifications: Array.isArray(payload?.notifications) ? [...payload.notifications] : [],
       targetPodId: payload?.targetPodId ?? null,
+      interPodCard: payload?.interPodCard ?? null,
+      interPodCardId: payload?.interPodCardId ?? null,
       emittedAt: payload?.emittedAt || Date.now(),
     }
   }

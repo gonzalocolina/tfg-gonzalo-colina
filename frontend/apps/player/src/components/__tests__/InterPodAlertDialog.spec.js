@@ -88,7 +88,16 @@ describe('InterPodAlertDialog', () => {
     reportInterPodCardProgress.mockReset()
     getEventInterPodCardDefinitions.mockReset()
 
-    createInterPodCard.mockResolvedValue({ data: { id: 99 } })
+    createInterPodCard.mockResolvedValue({
+      data: {
+        id: 99,
+        cardName: 'THE_MANGOG',
+        cardCategory: 'ESBIRRO',
+        metricCurrent: 10,
+        metricMax: 10,
+        status: 'REVELADA',
+      },
+    })
     reportInterPodCardProgress.mockResolvedValue({ data: {} })
     getEventInterPodCardDefinitions.mockResolvedValue({
       data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultMetricMax: 8, ruleType: 'MULTIPLIER' }],
@@ -214,6 +223,14 @@ describe('InterPodAlertDialog', () => {
     expect(createInterPodCard).toHaveBeenCalledWith(1, {
       interPodCardDefinitionId: 10,
     })
+    expect(wrapper.emitted('card-upserted')).toEqual([[{
+      id: 99,
+      cardName: 'THE_MANGOG',
+      cardCategory: 'ESBIRRO',
+      metricCurrent: 10,
+      metricMax: 10,
+      status: 'REVELADA',
+    }]])
     expect(wrapper.emitted('refresh-requested')).toBeUndefined()
 
     wrapper.unmount()
