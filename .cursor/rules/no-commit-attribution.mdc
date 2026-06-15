@@ -1,0 +1,16 @@
+---
+description: Never add AI attribution to git commits or pull requests
+alwaysApply: true
+---
+
+# Git attribution
+
+Never add any of the following to commits, commit messages, or pull requests:
+
+- `Co-authored-by: Cursor <cursoragent@cursor.com>`
+- `Co-authored-by: Copilot <copilot@github.com>`
+- `Made-with: Cursor`
+- `Made with Cursor`
+- Any other AI tool attribution trailer or footer
+
+When creating commits, use only the user's message. Do not append co-author lines or marketing trailers.

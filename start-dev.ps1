@@ -7,7 +7,48 @@
 # ============================================================
 
 $root = $PSScriptRoot
-$seedOrganizerPassword = "organizer"
+$envFile = Join-Path $root ".env"
+
+function Import-DotEnv {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        Write-Host "No se encontró '$Path'. Copia .env.example a .env antes de arrancar." -ForegroundColor Red
+        exit 1
+    }
+
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line.Length -eq 0 -or $line.StartsWith('#')) {
+            return
+        }
+
+        $separatorIndex = $line.IndexOf('=')
+        if ($separatorIndex -lt 1) {
+            return
+        }
+
+        $name = $line.Substring(0, $separatorIndex).Trim()
+        $value = $line.Substring($separatorIndex + 1).Trim()
+        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        Set-Item -Path "Env:$name" -Value $value
+    }
+}
+
+Import-DotEnv -Path $envFile
+
+$seedOrganizerPassword = $env:APP_SEED_ORGANIZER_PASSWORD
+if ([string]::IsNullOrWhiteSpace($seedOrganizerPassword)) {
+    Write-Host "APP_SEED_ORGANIZER_PASSWORD no está definido en .env." -ForegroundColor Red
+    exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($env:APP_JWT_SECRET)) {
+    Write-Host "APP_JWT_SECRET no está definido en .env." -ForegroundColor Red
+    exit 1
+}
 
 # Limpia compilados previos del backend
 $backendTarget = Join-Path $root "backend\target"
@@ -19,7 +60,7 @@ if (Test-Path $backendTarget) {
 # --- Backend ---
 Write-Host "Iniciando backend..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "Set-Location '$root\backend'; `$env:APP_SEED_ORGANIZER_PASSWORD='$seedOrganizerPassword'; .\mvnw.cmd clean spring-boot:run" `
+    "Set-Location '$root\backend'; `$env:APP_SEED_ORGANIZER_PASSWORD='$seedOrganizerPassword'; `$env:APP_JWT_SECRET='$($env:APP_JWT_SECRET)'; .\mvnw.cmd clean spring-boot:run" `
     -WindowStyle Normal
 
 # Espera a que el backend esté listo antes de lanzar el frontend

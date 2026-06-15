@@ -11,20 +11,28 @@
     <groupId>com.tfg.gonzalo</groupId>
     <artifactId>backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>backend</name>
-    <description>backend</description>
-    <url/>
+    <name>Marvel Champions TFG Backend</name>
+    <description>Backend for Marvel Champions multiplayer event management (TFG)</description>
+    <url>https://github.com/gonzalocolina/tfg-gonzalo-colina</url>
     <licenses>
-        <license/>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
     </licenses>
     <developers>
-        <developer/>
+        <developer>
+            <id>gonzalocolina</id>
+            <name>Gonzalo Colina</name>
+            <email>gonzalocolina05@gmail.com</email>
+        </developer>
     </developers>
     <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
+        <connection>scm:git:git://github.com/gonzalocolina/tfg-gonzalo-colina.git</connection>
+        <developerConnection>scm:git:ssh://github.com:gonzalocolina/tfg-gonzalo-colina.git</developerConnection>
+        <tag>HEAD</tag>
+        <url>https://github.com/gonzalocolina/tfg-gonzalo-colina</url>
     </scm>
     <properties>
         <java.version>17</java.version>

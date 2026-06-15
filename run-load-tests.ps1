@@ -19,7 +19,45 @@ $backendDir = Join-Path $root "backend"
 $resultsDir = Join-Path $loadTestsDir "results"
 $tmpDir = Join-Path $loadTestsDir "tmp"
 $backendStateFile = Join-Path $tmpDir "managed-backend.json"
-$seedOrganizerPassword = "organizer"
+$envFile = Join-Path $root ".env"
+
+function Import-DotEnv {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        throw "No se encontró '$Path'. Copia .env.example a .env antes de ejecutar las pruebas de carga."
+    }
+
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line.Length -eq 0 -or $line.StartsWith('#')) {
+            return
+        }
+
+        $separatorIndex = $line.IndexOf('=')
+        if ($separatorIndex -lt 1) {
+            return
+        }
+
+        $name = $line.Substring(0, $separatorIndex).Trim()
+        $value = $line.Substring($separatorIndex + 1).Trim()
+        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        Set-Item -Path "Env:$name" -Value $value
+    }
+}
+
+Import-DotEnv -Path $envFile
+
+$seedOrganizerPassword = $env:APP_SEED_ORGANIZER_PASSWORD
+if ([string]::IsNullOrWhiteSpace($seedOrganizerPassword)) {
+    throw "APP_SEED_ORGANIZER_PASSWORD no está definido en .env."
+}
+
+if ([string]::IsNullOrWhiteSpace($env:APP_JWT_SECRET)) {
+    throw "APP_JWT_SECRET no está definido en .env."
+}
 
 $script:CurrentStep = 0
 $script:TotalSteps = 0
@@ -490,6 +528,7 @@ function Start-BackendProcess {
     $backendCommand = @"
 Set-Location '$backendDir'
 `$env:APP_SEED_ORGANIZER_PASSWORD = '$seedOrganizerPassword'
+`$env:APP_JWT_SECRET = '$($env:APP_JWT_SECRET)'
 `$env:SPRING_DEVTOOLS_RESTART_ENABLED = 'false'
 .\mvnw.cmd spring-boot:run *> '$script:BackendLogFile'
 "@
