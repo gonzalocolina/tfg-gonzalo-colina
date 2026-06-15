@@ -7,7 +7,7 @@ import {
   createInterPodCard,
   reportInterPodCardProgress,
 } from '@/api/interPod'
-import { getEventInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
+import { getReportableInterPodCardDefinitions } from '@/api/interPodCardDefinitions'
 
 const props = defineProps({
   podId: { type: [Number, String], default: null },
@@ -66,15 +66,7 @@ const previewTransformStyle = computed(() => ({
 }))
 const activeCards = computed(() => props.cards.filter((card) => !isInterPodCardDefeated(card)))
 const defeatedCards = computed(() => props.cards.filter((card) => isInterPodCardDefeated(card)))
-const reportedDefinitionIdsByCurrentGroup = computed(() => new Set(
-  props.cards
-    .filter((card) => Number(card.sourceGroupId) === Number(auth.groupId))
-    .map((card) => Number(card.interPodCardDefinitionId))
-    .filter(Number.isFinite),
-))
-const availableDefinitions = computed(() => selectedDefinitions.value.filter(
-  (definition) => !reportedDefinitionIdsByCurrentGroup.value.has(Number(definition.id)),
-))
+const availableDefinitions = computed(() => selectedDefinitions.value)
 
 const actionsDisabledReason = computed(() => {
   if (!auth.isRepresentative) {
@@ -163,7 +155,7 @@ function suppressOwnRealtimeNotification(code, targetPodId) {
 async function loadSelectedDefinitions() {
   loadingDefinitions.value = true
   try {
-    const { data } = await getEventInterPodCardDefinitions(auth.eventId)
+    const { data } = await getReportableInterPodCardDefinitions(auth.eventId)
     selectedDefinitions.value = data || []
     syncSelectedDefinition()
   } catch {
@@ -199,6 +191,7 @@ async function handleCreate() {
     if (data) {
       emit('card-upserted', data)
     }
+    await loadSelectedDefinitions()
     suppressOwnRealtimeNotification('INTER_POD_CARD_CREATED', props.podId)
     notif.success('Carta inter-nodo registrada')
     if (!props.realtimeConnected) {

@@ -79,7 +79,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div style="margin: 32px 24px">
+  <div class="invitations-page">
     <OrganizerPageHeader>
         <div class="page-header-copy">
           <h1 class="page-title">Mis invitaciones</h1>
@@ -89,70 +89,73 @@ onMounted(load)
       <p class="text-muted">
             Revisa las invitaciones pendientes para incorporarte como co-organizador a otros eventos.
           </p>
-  </div>
 
-  <div class="invitations-page">
-    
-    <div v-if="loading" class="card text-muted">Cargando invitaciones…</div>
+    <div class="invitations-page">
+      
+      <div v-if="loading" class="card text-muted">Cargando invitaciones…</div>
 
-    <div v-else-if="!invitations.length" class="card empty-state">
-      <h3>No tienes invitaciones pendientes</h3>
-      <p class="text-muted">Cuando otro organizador te invite a colaborar, la verás aquí.</p>
-    </div>
+      <div v-else-if="!invitations.length" class="card empty-state">
+        <h3>No tienes invitaciones pendientes</h3>
+        <p class="text-muted">Cuando otro organizador te invite a colaborar, la verás aquí.</p>
+      </div>
 
-    <div v-else class="invitation-list">
-      <article v-for="invitation in invitations" :key="invitation.id" class="card invitation-card">
-        <div class="invitation-card__header">
-          <div>
-            <h3>{{ invitation.eventName }}</h3>
-            <p class="text-muted">
-              Organiza {{ invitation.organizerUsername }} ·
-              Estado actual: {{ formatEventStatus(invitation.eventStatus) }}
-            </p>
+      <div v-else class="invitation-list">
+        <article v-for="invitation in invitations" :key="invitation.id" class="card invitation-card">
+          <div class="invitation-card__header">
+            <div>
+              <h3>{{ invitation.eventName }}</h3>
+              <p class="text-muted">
+                Organiza {{ invitation.organizerUsername }} ·
+                Estado actual: {{ formatEventStatus(invitation.eventStatus) }}
+              </p>
+            </div>
+            <span class="badge badge-in-progress" style="height: 26px;">Pendiente</span>
           </div>
-          <span class="badge badge-in-progress" style="height: 26px;">Pendiente</span>
-        </div>
 
-        <div class="invitation-summary-grid">
-          <div>
-            <span class="summary-label">Tiempo límite</span>
-            <strong>{{ invitation.timeLimitMinutes }} min</strong>
+          <div class="invitation-summary-grid">
+            <div>
+              <span class="summary-label">Tiempo límite</span>
+              <strong>{{ invitation.timeLimitMinutes }} min</strong>
+            </div>
+            <div>
+              <span class="summary-label">Permisos delegados</span>
+              <strong>{{ formatResponsibilities(invitation.responsibilities, 'Sin responsabilidades delegadas') }}</strong>
+            </div>
           </div>
-          <div>
-            <span class="summary-label">Permisos delegados</span>
-            <strong>{{ formatResponsibilities(invitation.responsibilities, 'Sin responsabilidades delegadas') }}</strong>
-          </div>
-        </div>
 
-        <div class="invitation-card__actions">
-          <button
-            class="btn btn-primary"
-            :disabled="actionId === invitation.id"
-            @click="handleAccept(invitation)"
-          >
-            {{ actionId === invitation.id ? 'Procesando…' : 'Aceptar invitación' }}
-          </button>
-          <button
-            class="btn btn-secondary"
-            :disabled="actionId === invitation.id"
-            @click="handleReject(invitation)"
-          >
-            Rechazar
-          </button>
-        </div>
-      </article>
+          <div class="invitation-card__actions">
+            <button
+              class="btn btn-primary"
+              :disabled="actionId === invitation.id"
+              @click="handleAccept(invitation)"
+            >
+              {{ actionId === invitation.id ? 'Procesando…' : 'Aceptar invitación' }}
+            </button>
+            <button
+              class="btn btn-secondary"
+              :disabled="actionId === invitation.id"
+              @click="handleReject(invitation)"
+            >
+              Rechazar
+            </button>
+          </div>
+        </article>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .invitations-page {
-  margin: 32px 32px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px;
 }
 
 .page-header-copy .page-title {
   margin-bottom: 8px;
 }
+
 
 .invitation-list {
   display: grid;

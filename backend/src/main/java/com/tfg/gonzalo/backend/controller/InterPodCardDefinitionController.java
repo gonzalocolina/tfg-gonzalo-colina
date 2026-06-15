@@ -43,6 +43,11 @@ public class InterPodCardDefinitionController {
         return interPodCardDefinitionService.listSelectedDefinitionsForEvent(eventId);
     }
 
+    @GetMapping("/events/{eventId}/inter-pod-card-definitions/reportable")
+    public List<InterPodCardDefinitionResponse> listReportableEventDefinitions(@PathVariable Long eventId) {
+        return interPodCardDefinitionService.listReportableDefinitionsForAuthenticatedGroup(eventId);
+    }
+
     @PostMapping(value = "/inter-pod-card-definitions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public InterPodCardDefinitionResponse createDefinition(

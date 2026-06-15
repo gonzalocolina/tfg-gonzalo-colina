@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
+import { readFileSync, existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -211,6 +212,15 @@ function selectWsProxy(url = '') {
 }
 
 const server = createServer((req, res) => {
+  if (req.url === '/favicon.ico') {
+    const faviconPath = resolve(frontendRoot, 'apps', 'portal', 'public', 'favicon.svg')
+    if (existsSync(faviconPath)) {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml' })
+      res.end(readFileSync(faviconPath))
+      return
+    }
+  }
+
   const proxy = selectHttpProxy(req.url || '/')
   proxy.web(req, res)
 })

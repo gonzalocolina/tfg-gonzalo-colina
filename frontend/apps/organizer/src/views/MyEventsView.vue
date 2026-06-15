@@ -63,7 +63,7 @@ onMounted(load)
       >
         <div class="event-card-header">
           <div class="event-card-header__main">
-            <h3>{{ event.name }}</h3>
+            <h3 style="min-width: 150px;">{{ event.name }}</h3>
             <div class="event-card-badges">
               <span class="badge" :class="accessBadgeClass(event)">
                 {{ accessLabel(event) }}

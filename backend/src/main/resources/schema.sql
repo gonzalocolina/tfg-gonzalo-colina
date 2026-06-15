@@ -1,5 +1,5 @@
 -- Migración defensiva desde el esquema anterior a la reestructuración de events.
--- Con ddl-auto=create Hibernate recrea el esquema; este script cubre arranques con update
+-- Con ddl-auto=update Hibernate evoluciona el esquema; este script cubre bases H2 persistentes
 -- o bases H2 persistentes que aún no tengan las columnas nuevas.
 ALTER TABLE IF EXISTS inter_pod_cards RENAME TO inter_pod_card_instances;
 ALTER TABLE IF EXISTS event_villain RENAME TO villain_instances;

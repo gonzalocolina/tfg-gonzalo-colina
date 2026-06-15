@@ -172,9 +172,6 @@ onMounted(async () => {
 
         <div class="form-group">
           <p style="margin: 0 0 8px; font-weight: 500">Cartas inter-nodo para este evento</p>
-          <small class="text-muted" style="display: block; margin-bottom: 8px">
-            El valor en partida depende del cálculo configurado en cada carta (por mesa o fijo).
-          </small>
           <div v-if="loadingInterPodCardDefinitions" class="text-muted">Cargando cartas inter-nodo…</div>
           <div v-else-if="!interPodCardDefinitions.length" class="text-muted">
             No hay cartas inter-nodo disponibles. <router-link to="/inter-pod-cards">Créelas aquí</router-link>.
@@ -192,10 +189,10 @@ onMounted(async () => {
                 :disabled="loading"
                 @change="toggleInterPodCardDefinition(definition.id)"
               />
-              <span>
+              <span style="margin-left: 5px;">
                 <strong>{{ prettyCardName(definition.name) }}</strong>
                 <span class="text-muted" style="font-size: 0.85rem">
-                  · {{ formatCardCategory(definition.cardCategory) }} · {{ definitionMetricText(definition) }}
+                  · {{ formatCardCategory(definition.cardCategory) }}
                 </span>
               </span>
             </label>

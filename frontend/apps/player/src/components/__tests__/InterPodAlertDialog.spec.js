@@ -8,11 +8,11 @@ import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
 const {
   createInterPodCard,
   reportInterPodCardProgress,
-  getEventInterPodCardDefinitions,
+  getReportableInterPodCardDefinitions,
 } = vi.hoisted(() => ({
   createInterPodCard: vi.fn(),
   reportInterPodCardProgress: vi.fn(),
-  getEventInterPodCardDefinitions: vi.fn(),
+  getReportableInterPodCardDefinitions: vi.fn(),
 }))
 
 vi.mock('@/api/interPod', () => ({
@@ -21,7 +21,7 @@ vi.mock('@/api/interPod', () => ({
 }))
 
 vi.mock('@/api/interPodCardDefinitions', () => ({
-  getEventInterPodCardDefinitions,
+  getReportableInterPodCardDefinitions,
 }))
 
 function buildCard(overrides = {}) {
@@ -86,7 +86,7 @@ describe('InterPodAlertDialog', () => {
     seedAuthSession()
     createInterPodCard.mockReset()
     reportInterPodCardProgress.mockReset()
-    getEventInterPodCardDefinitions.mockReset()
+    getReportableInterPodCardDefinitions.mockReset()
 
     createInterPodCard.mockResolvedValue({
       data: {
@@ -99,7 +99,7 @@ describe('InterPodAlertDialog', () => {
       },
     })
     reportInterPodCardProgress.mockResolvedValue({ data: {} })
-    getEventInterPodCardDefinitions.mockResolvedValue({
+    getReportableInterPodCardDefinitions.mockResolvedValue({
       data: [{ id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultMetricMax: 8, ruleType: 'MULTIPLIER' }],
     })
   })
@@ -237,9 +237,8 @@ describe('InterPodAlertDialog', () => {
   })
 
   it('only offers inter-pod definitions not already reported by the current table', async () => {
-    getEventInterPodCardDefinitions.mockResolvedValue({
+    getReportableInterPodCardDefinitions.mockResolvedValue({
       data: [
-        { id: 10, name: 'THE_MANGOG', cardCategory: 'ESBIRRO', defaultMetricMax: 8, ruleType: 'MULTIPLIER' },
         { id: 11, name: 'DOOR_BETWEEN_WORLDS', cardCategory: 'PLAN', defaultMetricMax: 7, ruleType: 'MULTIPLIER' },
       ],
     })

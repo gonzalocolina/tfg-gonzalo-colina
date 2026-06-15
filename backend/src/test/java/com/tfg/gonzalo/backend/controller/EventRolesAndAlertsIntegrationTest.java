@@ -257,6 +257,44 @@ class EventRolesAndAlertsIntegrationTest {
     }
 
     @Test
+    void interPodCardsReportableDefinitionsExcludeAlreadyReportedByCurrentTable() throws Exception {
+      long eventId = createEvent("evento-cartas-reportables", 4, 180);
+      String organizerToken = loginOrganizer("evento-cartas-reportables", "Password123");
+
+      long podId = createPod(eventId, organizerToken, "Pod A");
+      GroupCreationResult group = createGroupAndGetResult(eventId, podId, organizerToken, "A1", 4);
+      String representativeToken = loginGroup(eventId, group.identifier());
+      long mangogDefinitionId = predefinedInterPodCardDefinitionId("THE_MANGOG");
+
+      mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
+                      .header("Authorization", "Bearer " + organizerToken))
+              .andExpect(status().isOk());
+
+      mockMvc.perform(get("/api/events/{eventId}/inter-pod-card-definitions/reportable", eventId)
+                      .header("Authorization", "Bearer " + representativeToken))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$[?(@.name == 'THE_MANGOG')]").exists());
+
+      mockMvc.perform(multipart("/api/events/{eventId}/inter-pod-cards", eventId)
+                      .file(new MockMultipartFile(
+                              "payload",
+                              "payload.json",
+                              MediaType.APPLICATION_JSON_VALUE,
+                              """
+                                {
+                                  "interPodCardDefinitionId": %d
+                                }
+                                """.formatted(mangogDefinitionId).getBytes(StandardCharsets.UTF_8)))
+                      .header("Authorization", "Bearer " + representativeToken))
+              .andExpect(status().isCreated());
+
+      mockMvc.perform(get("/api/events/{eventId}/inter-pod-card-definitions/reportable", eventId)
+                      .header("Authorization", "Bearer " + representativeToken))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$[?(@.name == 'THE_MANGOG')]").doesNotExist());
+    }
+
+    @Test
     void interPodCardsScaleStatsByNumberOfTablesInEachPod() throws Exception {
       long eventId = createEvent("evento-cartas-escaladas", 16, 180);
       String organizerToken = loginOrganizer("evento-cartas-escaladas", "Password123");

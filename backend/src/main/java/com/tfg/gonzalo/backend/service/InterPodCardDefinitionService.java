@@ -80,6 +80,28 @@ public class InterPodCardDefinitionService {
     }
 
     @Transactional(readOnly = true)
+    public List<InterPodCardDefinitionResponse> listReportableDefinitionsForAuthenticatedGroup(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe el evento solicitado."));
+        accessControlService.requireReadAccessToEvent(event);
+
+        AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
+        if (principal.groupId() == null) {
+            return listSelectedDefinitionsForEvent(eventId);
+        }
+
+        Long groupId = principal.groupId();
+        return listSelectedDefinitionsForEventEntity(event).stream()
+                .filter(definition -> !interPodCardRepository.existsByEventIdAndSourceGroupIdAndInterPodCardDefinitionId(
+                        eventId,
+                        groupId,
+                        definition.getId()))
+                .sorted(Comparator.comparing(InterPodCardDefinition::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<InterPodCardDefinition> listSelectedDefinitionsForEventEntity(Event event) {
         return event.getSelectedInterPodCardDefinitions();
     }

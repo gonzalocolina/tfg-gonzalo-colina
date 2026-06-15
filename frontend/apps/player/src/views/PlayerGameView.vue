@@ -285,6 +285,7 @@ function handleImageLoadError(event) {
 function openInterPodDialog(cardId = null) {
   selectedInterPodCardId.value = cardId == null ? null : Number(cardId)
   showInterPodDialog.value = true
+  void loadInterPodCards({ silent: true })
 }
 
 function closeInterPodDialog() {
