@@ -17,6 +17,7 @@ public class GameStateRealtimeMessage {
         private GameStateSnapshotResponse snapshot;
         private List<String> notifications;
         private Long targetPodId;
+        private Long targetGroupId;
         private InterPodCardResponse interPodCard;
         private Long interPodCardId;
         private boolean eventFinished;

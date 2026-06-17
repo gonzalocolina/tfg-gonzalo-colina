@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, unref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -21,10 +22,12 @@ import PodOverviewCard from '@/components/PodOverviewCard.vue'
 const auth = useAuthStore()
 const gs = useGameStateStore()
 const notif = useNotificationsStore()
+const router = useRouter()
 const eventId = auth.eventId
 
 const eventStructure = ref(null)
 const structureLoading = ref(false)
+let removalHandled = false
 
 const showDamageDialog = ref(false)
 const showThreatActionSheet = ref(false)
@@ -159,6 +162,9 @@ async function loadStructure({ silent = false } = {}) {
   try {
     const { data } = await getEventStructure(eventId)
     eventStructure.value = data
+    if (!isCurrentGroupPresent(data)) {
+      handleRemovedFromEvent()
+    }
   } catch {
     if (!silent) {
       notif.error('Error al cargar la estructura de nodos y mesas')
@@ -168,6 +174,27 @@ async function loadStructure({ silent = false } = {}) {
       structureLoading.value = false
     }
   }
+}
+
+function isCurrentGroupPresent(structure) {
+  if (!auth.groupId || !structure) {
+    return true
+  }
+
+  const assignedGroups = (structure.pods || []).flatMap((pod) => pod.groups || [])
+  const allGroups = [...assignedGroups, ...(structure.unassignedGroups || [])]
+  return allGroups.some((group) => group.id === auth.groupId)
+}
+
+function handleRemovedFromEvent(message = 'Tu mesa ha sido eliminada del evento.') {
+  if (removalHandled) {
+    return
+  }
+
+  removalHandled = true
+  auth.logout()
+  notif.error(message)
+  router.push({ name: 'join' })
 }
 
 async function loadInterPodCards({ silent = false } = {}) {
@@ -373,6 +400,13 @@ watch(
   (nextRealtimeEvent) => {
     const operation = nextRealtimeEvent?.operation
     if (!operation) {
+      return
+    }
+
+    if (operation === 'GROUP_REMOVED') {
+      if (String(nextRealtimeEvent?.targetGroupId) === String(auth.groupId)) {
+        handleRemovedFromEvent()
+      }
       return
     }
 

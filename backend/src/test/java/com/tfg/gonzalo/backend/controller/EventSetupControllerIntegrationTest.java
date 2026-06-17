@@ -321,6 +321,165 @@ class EventSetupControllerIntegrationTest {
                 .andExpect(jsonPath("$.unassignedGroups[0].playerCount").value(2));
     }
 
+    @Test
+    void deleteUnassignedGroupRemovesItFromStructure() throws Exception {
+        String organizerToken = registerOrganizer("setupdelete", "setupdelete@example.com", "Password123");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Delete Group",
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String createEventBody = createEventResult.getResponse().getContentAsString();
+        long eventId = extractId(createEventBody);
+        String eventCode = extractRequiredField(createEventBody, EVENT_CODE_PATTERN, "eventCode");
+
+        MvcResult joinResult = mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "groupLabel": "Mesa Extra"
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        long groupId = Long.parseLong(extractRequiredField(joinResult.getResponse().getContentAsString(), GROUP_ID_PATTERN, "groupId"));
+
+        mockMvc.perform(delete("/api/events/{eventId}/groups/{groupId}", eventId, groupId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/events/{eventId}/structure", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.currentGroupCount").value(0))
+                .andExpect(jsonPath("$.unassignedGroups").isEmpty());
+    }
+
+    @Test
+    void deleteAssignedGroupIsRejected() throws Exception {
+        String organizerToken = registerOrganizer("setupdeleteassigned", "setupdeleteassigned@example.com", "Password123");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Delete Assigned",
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long eventId = extractId(createEventResult.getResponse().getContentAsString());
+
+        MvcResult createPodResult = mockMvc.perform(post("/api/events/{eventId}/pods", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pod 1",
+                                  "sortOrder": 0
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long podId = extractId(createPodResult.getResponse().getContentAsString());
+
+        MvcResult createGroupResult = mockMvc.perform(post("/api/events/{eventId}/pods/{podId}/groups", eventId, podId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "Mesa Asignada",
+                                  "playerCount": 2
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long groupId = extractId(createGroupResult.getResponse().getContentAsString());
+
+        mockMvc.perform(delete("/api/events/{eventId}/groups/{groupId}", eventId, groupId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Solo se pueden eliminar mesas sin nodo asignado."));
+    }
+
+    @Test
+    void assignGroupToPodIsRejectedWhileGameIsInProgress() throws Exception {
+        String organizerToken = registerOrganizer("setupassignlock", "setupassignlock@example.com", "Password123");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Assign Lock",
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long eventId = extractId(createEventResult.getResponse().getContentAsString());
+
+        MvcResult createPodResult = mockMvc.perform(post("/api/events/{eventId}/pods", eventId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pod 1",
+                                  "sortOrder": 0
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long podId = extractId(createPodResult.getResponse().getContentAsString());
+
+        MvcResult createGroupResult = mockMvc.perform(post("/api/events/{eventId}/pods/{podId}/groups", eventId, podId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "Mesa Uno",
+                                  "playerCount": 2
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long groupId = extractId(createGroupResult.getResponse().getContentAsString());
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/events/{eventId}/groups/{groupId}/pod", eventId, groupId)
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "podId": null
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El evento ya no admite cambios de configuración."));
+    }
+
                                 private String registerOrganizer(String username, String email, String password) throws Exception {
                 MvcResult result = mockMvc.perform(post("/api/auth/register")
                                                 .contentType(MediaType.APPLICATION_JSON)

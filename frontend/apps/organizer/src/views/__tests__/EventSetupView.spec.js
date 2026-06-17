@@ -4,13 +4,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import EventSetupView from '@/views/EventSetupView.vue'
 import { __websocketState } from '@/composables/useWebSocket'
 
-const { getEventStructure, createPod, assignGroupToPod, updateGroup, updatePod, deletePod } = vi.hoisted(() => ({
+const { getEventStructure, createPod, assignGroupToPod, updateGroup, updatePod, deletePod, deleteGroup } = vi.hoisted(() => ({
   getEventStructure: vi.fn(),
   createPod: vi.fn(),
   assignGroupToPod: vi.fn(),
   updateGroup: vi.fn(),
   updatePod: vi.fn(),
   deletePod: vi.fn(),
+  deleteGroup: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -26,6 +27,7 @@ vi.mock('@/api/setup', () => ({
   updateGroup,
   updatePod,
   deletePod,
+  deleteGroup,
 }))
 
 vi.mock('@/composables/useWebSocket', async () => {
@@ -47,6 +49,7 @@ function buildStructure(overrides = {}) {
   return {
     eventId: 42,
     eventName: 'Evento Setup',
+    eventStatus: 'DRAFT',
     configuredPlayerCount: 8,
     currentGroupCount: 3,
     assignedPlayerCount: 5,
@@ -444,6 +447,35 @@ describe('EventSetupView', () => {
 
     expect(assignGroupToPod).toHaveBeenCalledWith(42, 20, 7)
     expect(deletePod).toHaveBeenCalledWith(42, 8)
+
+    wrapper.unmount()
+  })
+
+  it('shows a locked notice and disables auto-arrange when the game is in progress', async () => {
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({ eventStatus: 'IN_PROGRESS' }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="setup-locked-notice"]').text()).toContain('Estructura bloqueada')
+    expect(wrapper.find('[data-testid="create-pod-card"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="auto-rebalance-button"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="auto-assign-pending-button"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="group-item-20"]').attributes('draggable')).toBe('false')
+
+    wrapper.unmount()
+  })
+
+  it('shows delete button for unassigned groups while editing in draft setup', async () => {
+    getEventStructure.mockResolvedValue({ data: buildStructure() })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="group-edit-button-20"]').trigger('click')
+    expect(wrapper.find('[data-testid="group-delete-button-20"]').exists()).toBe(true)
 
     wrapper.unmount()
   })

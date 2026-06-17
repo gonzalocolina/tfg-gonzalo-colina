@@ -20,5 +20,7 @@ public interface EventLogRepository extends JpaRepository<EventLog, Long> {
 
     Optional<EventLog> findByIdAndEventId(Long id, Long eventId);
 
+    List<EventLog> findByGroupId(Long groupId);
+
     boolean existsByEventIdAndRevertedLogId(Long eventId, Long revertedLogId);
 }

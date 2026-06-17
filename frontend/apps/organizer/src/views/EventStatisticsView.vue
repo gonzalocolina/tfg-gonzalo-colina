@@ -10,7 +10,6 @@ import { useNotificationsStore } from '@/stores/notifications'
 import {
   eventStatusBadgeClass,
   formatEventStatus,
-  formatLogActionType,
 } from '@/utils/displayLabels'
 import { buildEventStatistics } from '@/utils/eventStatistics'
 
@@ -26,7 +25,6 @@ const structure = ref(null)
 const stats = ref(null)
 
 const eventName = computed(() => structure.value?.eventName || `Evento ${eventId.value}`)
-const visibleTimelineEntries = computed(() => stats.value?.timelineEntries.slice(-25) || [])
 const rankingRows = computed(() => stats.value?.groups || [])
 const highlights = computed(() => stats.value?.highlights || {})
 const totals = computed(() => stats.value?.totals || {})
@@ -69,25 +67,6 @@ function formatSignedSeconds(seconds) {
 
   const minutes = Math.round(seconds / 60)
   return `${minutes > 0 ? '+' : ''}${minutes} min`
-}
-
-function formatChange(entry) {
-  if (!entry) return '-'
-
-  if (entry.numericPreviousValue !== null && entry.numericNewValue !== null) {
-    return `${entry.previousValue} → ${entry.newValue}`
-  }
-
-  if (entry.previousValue && entry.newValue) {
-    return `${entry.previousValue} → ${entry.newValue}`
-  }
-
-  return entry.newValue || entry.previousValue || '-'
-}
-
-function formatGroupHighlight(group, metric) {
-  if (!group) return 'Sin datos todavía'
-  return `${group.identifier} · ${metric}`
 }
 
 async function load() {
@@ -382,31 +361,6 @@ onMounted(load)
           </table>
         </div>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Cronología relevante</h2>
-          <span class="text-muted">Últimas {{ visibleTimelineEntries.length }} entradas</span>
-        </div>
-
-        <div v-if="!visibleTimelineEntries.length" class="text-muted">
-          No hay hitos suficientes para reconstruir la partida.
-        </div>
-
-        <div v-else class="timeline-list">
-          <article v-for="entry in visibleTimelineEntries" :key="entry.id" class="timeline-entry">
-            <div class="timeline-entry__time">{{ formatDateTime(entry.timestamp) }}</div>
-            <div class="timeline-entry__content">
-              <div class="timeline-entry__title-row">
-                <span class="badge badge-in-progress">{{ formatLogActionType(entry.actionType) }}</span>
-                <span class="text-muted">{{ entry.groupIdentifier || entry.actor || 'Sistema' }}</span>
-              </div>
-              <div class="timeline-entry__value">{{ formatChange(entry) }}</div>
-              <div v-if="entry.notes" class="timeline-entry__notes text-muted">{{ entry.notes }}</div>
-            </div>
-          </article>
-        </div>
-      </div>
     </template>
   </div>
 </template>
@@ -596,58 +550,14 @@ onMounted(load)
   font-size: 0.78rem;
 }
 
-.timeline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.timeline-entry {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  background: var(--c-surface-alt);
-}
-
-.timeline-entry__time {
-  font-size: 0.82rem;
-  color: var(--c-text-muted);
-}
-
-.timeline-entry__title-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.timeline-entry__value {
-  margin-top: 6px;
-  font-weight: 600;
-}
-
-.timeline-entry__notes {
-  margin-top: 4px;
-  font-size: 0.84rem;
-}
-
 @media (max-width: 900px) {
-  .stats-page-header,
-  .timeline-entry {
-    grid-template-columns: 1fr;
-    display: grid;
+  .stats-page-header {
+    display: flex;
+    flex-direction: column;
   }
 
   .chart-card-header {
     gap: 10px;
-  }
-
-  .stats-page-header {
-    display: flex;
-    flex-direction: column;
   }
 
   .stats-page-header__actions {

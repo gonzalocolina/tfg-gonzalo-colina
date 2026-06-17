@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { updateGroup } from '@/api/setup'
+import { deleteGroup, updateGroup } from '@/api/setup'
+import { useDialogs } from '@/composables/useDialogs'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const props = defineProps({
@@ -8,15 +9,21 @@ const props = defineProps({
   eventId: { type: [Number, String], required: true },
   isDragging: { type: Boolean, default: false },
   moving: { type: Boolean, default: false },
+  setupLocked: { type: Boolean, default: false },
+  deletable: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['changed', 'drag-start', 'drag-end'])
 
+const dialogs = useDialogs()
 const notif = useNotificationsStore()
 const editing = ref(false)
 const saving = ref(false)
+const deleting = ref(false)
 const draftIdentifier = ref(props.group.identifier)
 const draftPlayerCount = ref(props.group.playerCount)
+
+const canDrag = computed(() => !editing.value && !saving.value && !props.moving && !props.setupLocked)
 
 const playerCountLabel = computed(() => {
   const count = props.group.playerCount ?? 0
@@ -34,7 +41,7 @@ watch(
 )
 
 function startEdit() {
-  if (props.moving) return
+  if (props.moving || props.setupLocked) return
   draftIdentifier.value = props.group.identifier
   draftPlayerCount.value = props.group.playerCount
   editing.value = true
@@ -81,8 +88,31 @@ async function submitUpdate() {
   }
 }
 
+async function handleDelete() {
+  const confirmed = await dialogs.confirm({
+    title: 'Eliminar mesa',
+    message: `¿Quieres eliminar ${props.group.identifier}? Los jugadores conectados con esta mesa serán expulsados del evento.`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+
+  if (!confirmed) return
+
+  deleting.value = true
+  try {
+    await deleteGroup(props.eventId, props.group.id)
+    notif.success('Mesa eliminada')
+    editing.value = false
+    emit('changed')
+  } catch (err) {
+    notif.error(err.response?.data?.message || 'Error al eliminar la mesa')
+  } finally {
+    deleting.value = false
+  }
+}
+
 function handleDragStart(event) {
-  if (editing.value || saving.value || props.moving) {
+  if (editing.value || saving.value || props.moving || props.setupLocked) {
     event.preventDefault()
     return
   }
@@ -111,7 +141,7 @@ function handleDragEnd() {
       'group-card--editing': editing,
     }"
     :data-testid="`group-item-${group.id}`"
-    :draggable="!editing && !saving && !moving"
+    :draggable="canDrag"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >
@@ -143,11 +173,21 @@ function handleDragEnd() {
         </div>
       </div>
       <div class="group-card__actions">
-        <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="submitUpdate">
+        <button type="button" class="btn btn-primary btn-sm" :disabled="saving || deleting" @click="submitUpdate">
           {{ saving ? 'Guardando…' : 'Guardar' }}
         </button>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="cancelEdit">
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving || deleting" @click="cancelEdit">
           Cancelar
+        </button>
+        <button
+          v-if="deletable"
+          type="button"
+          class="btn btn-danger btn-sm"
+          :data-testid="`group-delete-button-${group.id}`"
+          :disabled="saving || deleting"
+          @click="handleDelete"
+        >
+          {{ deleting ? 'Eliminando…' : 'Eliminar mesa' }}
         </button>
       </div>
     </template>
@@ -159,9 +199,9 @@ function handleDragEnd() {
           type="button"
           class="group-card__edit-button"
           :data-testid="`group-edit-button-${group.id}`"
-          :disabled="moving"
+          :disabled="moving || setupLocked"
           :aria-label="`Editar ${group.identifier}`"
-          :title="`Editar ${group.identifier}`"
+          :title="setupLocked ? 'La estructura está bloqueada durante la partida' : `Editar ${group.identifier}`"
           @click.stop="startEdit"
         >
           <svg viewBox="0 0 24 24" class="group-card__edit-icon" aria-hidden="true">
@@ -175,7 +215,13 @@ function handleDragEnd() {
 
       <div class="group-card__meta">
         <span class="group-card__players-pill">{{ playerCountLabel }}</span>
-        <span class="group-card__hint">Pulsa el lápiz para editar · arrastra para mover</span>
+        <span class="group-card__hint">
+          {{
+            setupLocked
+              ? 'Estructura bloqueada durante la partida'
+              : 'Pulsa el lápiz para editar · arrastra para mover'
+          }}
+        </span>
       </div>
     </template>
   </article>

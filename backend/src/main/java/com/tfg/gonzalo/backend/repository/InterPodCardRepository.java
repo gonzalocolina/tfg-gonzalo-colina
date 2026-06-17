@@ -20,4 +20,6 @@ public interface InterPodCardRepository extends JpaRepository<InterPodCard, Long
     boolean existsByEventIdAndSourceGroupIdAndInterPodCardDefinitionId(Long eventId,
                                                                        Long sourceGroupId,
                                                                        Long interPodCardDefinitionId);
+
+    boolean existsBySourceGroupId(Long sourceGroupId);
 }

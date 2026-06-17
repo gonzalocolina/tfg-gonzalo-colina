@@ -119,6 +119,18 @@ function prettyCardName(name) {
     .replaceAll(/(^|\s)\p{L}/gu, (letter) => letter.toUpperCase())
 }
 
+async function copyEventCode() {
+  const code = event.value?.eventCode
+  if (!code) return
+
+  try {
+    await navigator.clipboard.writeText(code)
+    notif.success('Código copiado al portapapeles')
+  } catch {
+    notif.error('No se pudo copiar el código')
+  }
+}
+
 onMounted(load)
 onMounted(loadVillains)
 </script>
@@ -165,7 +177,17 @@ onMounted(loadVillains)
           </div>
           <div class="summary-item">
             <div class="label">Código evento</div>
-            <div class="value code-tag">{{ event.eventCode }}</div>
+            <div
+              class="value code-tag"
+              role="button"
+              tabindex="0"
+              title="Clic para copiar"
+              @click="copyEventCode"
+              @keydown.enter.prevent="copyEventCode"
+              @keydown.space.prevent="copyEventCode"
+            >
+              {{ event.eventCode }}
+            </div>
           </div>
           <div class="summary-item">
             <div class="label">HP Villano</div>

@@ -30,8 +30,6 @@ const pods = computed(() => structure.value?.pods || [])
 const pendingGroups = computed(() => structure.value?.unassignedGroups || [])
 const hasPendingGroups = computed(() => pendingGroups.value.length > 0)
 const isAutoArranging = computed(() => autoArrangeMode.value !== null)
-const canRebalanceAll = computed(() => !loading.value && !isAutoArranging.value && (structure.value?.currentGroupCount ?? 0) > 0)
-const canAutoAssignPending = computed(() => !loading.value && !isAutoArranging.value && pendingGroups.value.length > 0)
 
 const assignedGroupCount = computed(() => {
   const total = structure.value?.currentGroupCount ?? 0
@@ -49,6 +47,15 @@ const playerAssignedPercent = computed(() => {
 })
 const groupsReady = computed(() => (structure.value?.unassignedGroupCount ?? 1) === 0)
 const playersReady = computed(() => (structure.value?.unassignedPlayerCount ?? 1) === 0)
+const eventStatus = computed(() => structure.value?.eventStatus || 'DRAFT')
+const setupLocked = computed(() => eventStatus.value === 'IN_PROGRESS' || eventStatus.value === 'FINISHED')
+const setupEditable = computed(() => eventStatus.value === 'DRAFT')
+const canRebalanceAll = computed(
+  () => setupEditable.value && !loading.value && !isAutoArranging.value && (structure.value?.currentGroupCount ?? 0) > 0,
+)
+const canAutoAssignPending = computed(
+  () => setupEditable.value && !loading.value && !isAutoArranging.value && pendingGroups.value.length > 0,
+)
 
 function normalizePodSortOrder(pod, fallbackIndex = -1) {
   const numericSortOrder = Number(pod?.sortOrder)
@@ -448,17 +455,17 @@ function setActiveDropColumn(targetPodId) {
 }
 
 function handleUnassignedDragOver() {
-  if (isAutoArranging.value) return
+  if (isAutoArranging.value || setupLocked.value) return
   setActiveDropColumn(null)
 }
 
 function handlePodDragOver(pod) {
-  if (isAutoArranging.value) return
+  if (isAutoArranging.value || setupLocked.value) return
   setActiveDropColumn(pod?.id ?? null)
 }
 
 async function moveActiveGroup(targetPodId, targetLabel) {
-  if (!activeDragGroup.value || isAutoArranging.value) return
+  if (!activeDragGroup.value || isAutoArranging.value || setupLocked.value) return
 
   const draggedGroup = activeDragGroup.value
   const currentPodId = draggedGroup.podId ?? null
@@ -487,12 +494,12 @@ async function moveActiveGroup(targetPodId, targetLabel) {
 }
 
 async function handleUnassignedDrop() {
-  if (isAutoArranging.value) return
+  if (isAutoArranging.value || setupLocked.value) return
   await moveActiveGroup(null, 'Sin asignar')
 }
 
 async function handlePodDrop(pod) {
-  if (isAutoArranging.value) return
+  if (isAutoArranging.value || setupLocked.value) return
   await moveActiveGroup(pod?.id ?? null, pod?.name || 'este nodo')
 }
 
@@ -593,7 +600,21 @@ onMounted(() => {
         </div>
       </div>
 
-      <section class="card create-pod-card" data-testid="create-pod-card">
+      <div
+        v-if="setupLocked"
+        class="card mb-2"
+        style="padding: 14px; border-left: 4px solid var(--c-warning)"
+        data-testid="setup-locked-notice"
+      >
+        <p style="margin: 0; font-weight: 600">
+          Estructura bloqueada
+        </p>
+        <p class="text-muted" style="margin-top: 6px; font-size: 0.9rem; margin-bottom: 0">
+          La partida ya está en curso o ha finalizado. No se pueden mover, crear ni eliminar nodos y mesas desde aquí.
+        </p>
+      </div>
+
+      <section v-if="setupEditable" class="card create-pod-card" data-testid="create-pod-card">
         <div class="card-header create-pod-card__header">
           <div>
             <h3>Nuevo nodo</h3>
@@ -694,6 +715,8 @@ onMounted(() => {
                 :event-id="eventId"
                 :is-dragging="activeDragGroup?.id === group.id"
                 :moving="movingGroupId === group.id"
+                :setup-locked="setupLocked"
+                :deletable="setupEditable"
                 @changed="load({ silent: true })"
                 @drag-start="handleGroupDragStart"
                 @drag-end="handleGroupDragEnd"
@@ -713,7 +736,9 @@ onMounted(() => {
             :key="pod.id"
             :pod="pod"
             :event-id="eventId"
-            :drop-active="activeDropColumn === String(pod.id)"
+            :setup-locked="setupLocked"
+            :setup-editable="setupEditable"
+            :drop-active="!setupLocked && activeDropColumn === String(pod.id)"
             :active-drag-group-id="activeDragGroup?.id ?? null"
             :moving-group-id="movingGroupId"
             @changed="load({ silent: true })"

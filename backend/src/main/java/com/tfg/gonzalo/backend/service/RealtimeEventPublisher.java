@@ -53,6 +53,7 @@ public class RealtimeEventPublisher {
         message.setSnapshot(snapshot);
         message.setNotifications(safeNotifications);
         message.setTargetPodId(targetPodId);
+        message.setTargetGroupId(null);
         message.setInterPodCard(interPodCard);
         message.setInterPodCardId(interPodCardId);
         message.setEventFinished(eventFinished);
@@ -73,5 +74,13 @@ public class RealtimeEventPublisher {
 
     public void publishEventOperation(Long eventId, String operation) {
         publishGameStateUpdate(eventId, operation, null, List.of());
+    }
+
+    public void publishGroupRemoved(Long eventId, Long groupId) {
+        GameStateRealtimeMessage message = new GameStateRealtimeMessage();
+        message.setOperation("GROUP_REMOVED");
+        message.setTargetGroupId(groupId);
+        message.setEmittedAt(Instant.now());
+        messagingTemplate.convertAndSend(GAME_STATE_TOPIC.formatted(eventId), message);
     }
 }

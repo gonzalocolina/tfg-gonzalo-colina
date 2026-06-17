@@ -74,6 +74,13 @@ public class EventSetupController {
         return eventSetupService.updateGroup(eventId, groupId, request);
     }
 
+    @DeleteMapping("/groups/{groupId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteGroup(@PathVariable Long eventId,
+                            @PathVariable Long groupId) {
+        eventSetupService.deleteGroup(eventId, groupId);
+    }
+
     @GetMapping("/structure")
     public EventStructureResponse getEventStructure(@PathVariable Long eventId) {
         return eventSetupService.getEventStructure(eventId);

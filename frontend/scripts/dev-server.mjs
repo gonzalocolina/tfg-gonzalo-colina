@@ -211,6 +211,14 @@ function selectWsProxy(url = '') {
   return null
 }
 
+function attachSocketErrorHandler(socket) {
+  socket.on('error', () => {
+    if (!socket.destroyed) {
+      socket.destroy()
+    }
+  })
+}
+
 const server = createServer((req, res) => {
   if (req.url === '/favicon.ico') {
     const faviconPath = resolve(frontendRoot, 'apps', 'portal', 'public', 'favicon.svg')
@@ -225,7 +233,14 @@ const server = createServer((req, res) => {
   proxy.web(req, res)
 })
 
+server.on('error', (error) => {
+  console.error(`Frontend proxy error: ${error.message}`)
+  shutdown(error.code === 'EADDRINUSE' ? 1 : 0)
+})
+
 server.on('upgrade', (req, socket, head) => {
+  attachSocketErrorHandler(socket)
+
   const proxy = selectWsProxy(req.url || '')
   if (!proxy) {
     socket.destroy()

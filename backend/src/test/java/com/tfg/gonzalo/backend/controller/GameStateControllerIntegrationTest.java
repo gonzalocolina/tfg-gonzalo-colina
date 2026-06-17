@@ -292,6 +292,84 @@ class GameStateControllerIntegrationTest {
     }
 
     @Test
+    void joinByCodeRejectsNewGroupDuringInProgress() throws Exception {
+        String organizerToken = registerOrganizer("evento-join-lock");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Join Lock",
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String eventBody = createEventResult.getResponse().getContentAsString();
+        long eventId = extractId(eventBody);
+        String eventCode = extractRequiredField(eventBody, EVENT_CODE_PATTERN, "eventCode");
+
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        createGroup(eventId, podId, "Mesa Uno", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "groupLabel": "Mesa Nueva"
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("La partida ya ha comenzado y no admite nuevas mesas."));
+    }
+
+    @Test
+    void joinByCodeAllowsExistingGroupDuringInProgress() throws Exception {
+        String organizerToken = registerOrganizer("evento-join-relogin");
+
+        MvcResult createEventResult = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + organizerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Evento Join Relogin",
+                                  "timeLimitMinutes": 180
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String eventBody = createEventResult.getResponse().getContentAsString();
+        long eventId = extractId(eventBody);
+        String eventCode = extractRequiredField(eventBody, EVENT_CODE_PATTERN, "eventCode");
+
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        createGroup(eventId, podId, "Mesa Uno", 4, organizerToken);
+
+        mockMvc.perform(post("/api/events/{eventId}/game-state/start", eventId)
+                        .header("Authorization", "Bearer " + organizerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/group/login-by-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "groupLabel": "Mesa Uno"
+                                }
+                                """.formatted(eventCode)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groupLabel").value("Mesa Uno"));
+    }
+
+    @Test
     void startGameRejectsPendingAssignments() throws Exception {
         String organizerToken = registerOrganizer("evento-pendiente");
 
@@ -505,6 +583,8 @@ class GameStateControllerIntegrationTest {
     void organizerCannotUseNormalTableReportEndpoint() throws Exception {
         long eventId = createEvent("evento-normal-bloqueado", 4);
         String organizerToken = loginOrganizer("evento-normal-bloqueado", "Password123");
+        long podId = createPod(eventId, "Pod A", organizerToken);
+        createGroup(eventId, podId, "A1", 4, organizerToken);
 
         mockMvc.perform(post("/api/events/{eventId}/game-state/timer/start", eventId)
                         .header("Authorization", "Bearer " + organizerToken))

@@ -11,6 +11,8 @@ const props = defineProps({
   dropActive: { type: Boolean, default: false },
   activeDragGroupId: { type: [Number, String, null], default: null },
   movingGroupId: { type: [Number, String, null], default: null },
+  setupLocked: { type: Boolean, default: false },
+  setupEditable: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['changed', 'group-drag-start', 'group-drag-end', 'drag-over-column', 'drop-group'])
@@ -32,6 +34,7 @@ watch(
 )
 
 function startEdit() {
+  if (props.setupLocked) return
   draftName.value = props.pod.name
   editingName.value = true
 }
@@ -92,10 +95,12 @@ async function handleDelete() {
 }
 
 function handleDragOver() {
+  if (props.setupLocked) return
   emit('drag-over-column', props.pod)
 }
 
 function handleDrop() {
+  if (props.setupLocked) return
   emit('drop-group', props.pod)
 }
 </script>
@@ -130,8 +135,9 @@ function handleDrop() {
         <button
           v-else
           type="button"
-          @click="startEdit"
           class="pod-column__name-button"
+          :disabled="setupLocked"
+          @click="startEdit"
         >
           <h3>{{ pod.name }}</h3>
         </button>
@@ -140,7 +146,13 @@ function handleDrop() {
         </span>
       </div>
 
-      <button type="button" class="btn btn-danger btn-sm" :disabled="deletingPod" @click="handleDelete">
+      <button
+        v-if="setupEditable"
+        type="button"
+        class="btn btn-danger btn-sm"
+        :disabled="deletingPod"
+        @click="handleDelete"
+      >
         {{ deletingPod ? 'Eliminando…' : 'Eliminar pod' }}
       </button>
     </div>
@@ -159,6 +171,8 @@ function handleDrop() {
         :event-id="eventId"
         :is-dragging="activeDragGroupId === g.id"
         :moving="movingGroupId === g.id"
+        :setup-locked="setupLocked"
+        :deletable="false"
         @changed="emit('changed')"
         @drag-start="emit('group-drag-start', $event)"
         @drag-end="emit('group-drag-end', $event)"

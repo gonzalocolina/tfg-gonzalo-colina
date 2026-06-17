@@ -24,6 +24,10 @@ export function updateGroup(eventId, groupId, data) {
   return http.patch(`/events/${eventId}/groups/${groupId}`, data)
 }
 
+export function deleteGroup(eventId, groupId) {
+  return http.delete(`/events/${eventId}/groups/${groupId}`)
+}
+
 export function getEventStructure(eventId) {
   return http.get(`/events/${eventId}/structure`)
 }

@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useGameStateStore } from '@/stores/gameState'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { getEventStructure, assignGroupToPod } from '@/api/setup'
+import { getEventStructure } from '@/api/setup'
 import {
   startGame,
   delegateVillainDamage,
@@ -123,8 +123,6 @@ const availableGroups = computed(() => {
     )
 })
 const hasAvailableGroups = computed(() => availableGroups.value.length > 0)
-const assignPodByGroup = ref({})
-const assigningGroupId = ref(null)
 
 function findReportGroup(groupId) {
   return availableGroups.value.find((group) => String(group.id) === String(groupId)) || null
@@ -212,24 +210,6 @@ async function handleStart() {
     await loadStructure({ silent: true })
   } catch (err) {
     notif.error(err.response?.data?.message || 'Error al iniciar')
-  }
-}
-
-async function handleAssignGroup(groupId) {
-  const podId = assignPodByGroup.value[groupId]
-  if (!podId) {
-    notif.error('Selecciona un pod antes de asignar.')
-    return
-  }
-  assigningGroupId.value = groupId
-  try {
-    await assignGroupToPod(eventId.value, groupId, podId)
-    notif.success('Mesa asignada al pod')
-    await loadStructure({ silent: true })
-  } catch (err) {
-    notif.error(err.response?.data?.message || 'Error al asignar mesa')
-  } finally {
-    assigningGroupId.value = null
   }
 }
 
@@ -590,35 +570,6 @@ onUnmounted(() => {
       />
 
       <template v-if="canManageDelegatedReports">
-        <!-- Pending group assignment (during IN_PROGRESS) -->
-        <div v-if="isInProgress && pendingGroups.length" class="card mt-2" style="border-left: 4px solid var(--c-warning)">
-          <h3 class="mb-1">⚠ Mesas pendientes de asignación</h3>
-          <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px">
-            Hay mesas que se han unido y necesitan ser asignadas a un pod para que la partida continúe.
-          </p>
-          <div v-for="group in pendingGroups" :key="group.id" class="flex gap-1 mb-1" style="align-items: center">
-            <strong style="min-width: 120px">{{ group.identifier }}</strong>
-            <span class="text-muted" style="font-size: 0.85rem; min-width: 80px">
-              {{ group.playerCount }} {{ group.playerCount === 1 ? 'jugador' : 'jugadores' }}
-            </span>
-            <select
-              v-model.number="assignPodByGroup[group.id]"
-              class="form-control"
-              style="width: 180px"
-            >
-              <option :value="undefined" disabled>Seleccionar pod</option>
-              <option v-for="pod in pods" :key="pod.id" :value="pod.id">{{ pod.name }}</option>
-            </select>
-            <button
-              class="btn btn-primary btn-sm"
-              :disabled="!assignPodByGroup[group.id] || assigningGroupId === group.id"
-              @click="handleAssignGroup(group.id)"
-            >
-              {{ assigningGroupId === group.id ? 'Asignando…' : 'Asignar' }}
-            </button>
-          </div>
-        </div>
-
         <div class="card mt-2">
           <h3 class="mb-1">Registro delegado en nombre de una mesa</h3>
           <p class="text-muted" style="font-size: 0.82rem; margin-bottom: 12px">

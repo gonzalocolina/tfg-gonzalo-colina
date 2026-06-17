@@ -202,6 +202,12 @@ public class AuthService {
 
                 .orElseThrow(() -> new BusinessRuleException("No existe la mesa indicada en el evento."));
 
+        if (group.getEvent().getStatus() == EventStatus.FINISHED) {
+
+            throw new BusinessRuleException("El evento ya ha finalizado y no admite nuevas incorporaciones.");
+
+        }
+
         return toGroupAuthResponse(group, Boolean.TRUE.equals(request.asObserver()));
 
     }
@@ -235,15 +241,23 @@ public class AuthService {
 
                     .map(group -> toGroupAuthResponse(group, Boolean.TRUE.equals(request.asObserver())))
 
-                    .orElseGet(() -> toGroupAuthResponse(
+                    .orElseGet(() -> {
 
-                            createGroupForJoiningPlayer(event, groupLabel, request.playerCount()),
+                        ensureNewGroupsAllowed(event);
 
-                            Boolean.TRUE.equals(request.asObserver())));
+                        return toGroupAuthResponse(
+
+                                createGroupForJoiningPlayer(event, groupLabel, request.playerCount()),
+
+                                Boolean.TRUE.equals(request.asObserver()));
+
+                    });
 
         }
 
 
+
+        ensureNewGroupsAllowed(event);
 
         EventGroup joinedGroup = createGroupForJoiningPlayer(event, null, request.playerCount());
 
@@ -310,6 +324,18 @@ public class AuthService {
                 group.getIdentifier()
 
         );
+
+    }
+
+
+
+    private void ensureNewGroupsAllowed(Event event) {
+
+        if (event.getStatus() == EventStatus.IN_PROGRESS) {
+
+            throw new BusinessRuleException("La partida ya ha comenzado y no admite nuevas mesas.");
+
+        }
 
     }
 

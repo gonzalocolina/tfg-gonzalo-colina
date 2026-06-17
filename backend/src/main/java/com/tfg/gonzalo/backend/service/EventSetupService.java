@@ -12,11 +12,14 @@ import com.tfg.gonzalo.backend.exception.BusinessRuleException;
 import com.tfg.gonzalo.backend.exception.ResourceNotFoundException;
 import com.tfg.gonzalo.backend.model.Event;
 import com.tfg.gonzalo.backend.model.EventGroup;
+import com.tfg.gonzalo.backend.model.EventLog;
 import com.tfg.gonzalo.backend.model.Pod;
 import com.tfg.gonzalo.backend.model.enums.EventActionType;
 import com.tfg.gonzalo.backend.model.enums.EventStatus;
 import com.tfg.gonzalo.backend.repository.EventGroupRepository;
+import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
+import com.tfg.gonzalo.backend.repository.InterPodCardRepository;
 import com.tfg.gonzalo.backend.repository.PodRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import jakarta.transaction.Transactional;
@@ -38,6 +41,8 @@ public class EventSetupService {
     private final EventRepository eventRepository;
     private final PodRepository podRepository;
     private final EventGroupRepository eventGroupRepository;
+    private final EventLogRepository eventLogRepository;
+    private final InterPodCardRepository interPodCardRepository;
     private final EventLogService eventLogService;
     private final EventStateCalculator eventStateCalculator;
     private final AccessControlService accessControlService;
@@ -46,6 +51,8 @@ public class EventSetupService {
     public EventSetupService(EventRepository eventRepository,
                              PodRepository podRepository,
                              EventGroupRepository eventGroupRepository,
+                             EventLogRepository eventLogRepository,
+                             InterPodCardRepository interPodCardRepository,
                              EventLogService eventLogService,
                              EventStateCalculator eventStateCalculator,
                              AccessControlService accessControlService,
@@ -53,6 +60,8 @@ public class EventSetupService {
         this.eventRepository = eventRepository;
         this.podRepository = podRepository;
         this.eventGroupRepository = eventGroupRepository;
+        this.eventLogRepository = eventLogRepository;
+        this.interPodCardRepository = interPodCardRepository;
         this.eventLogService = eventLogService;
         this.eventStateCalculator = eventStateCalculator;
         this.accessControlService = accessControlService;
@@ -100,7 +109,7 @@ public class EventSetupService {
 
     @Transactional
     public GroupResponse assignGroupToPod(Long eventId, Long groupId, AssignGroupPodRequest request) {
-        Event event = findAssignableEvent(eventId);
+        Event event = findEditableEvent(eventId);
         EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
         Pod targetPod = request.podId() == null ? null : findPod(request.podId(), eventId);
@@ -195,6 +204,37 @@ public class EventSetupService {
     }
 
     @Transactional
+    public void deleteGroup(Long eventId, Long groupId) {
+        Event event = findEditableEvent(eventId);
+        EventGroup group = eventGroupRepository.findByIdAndEventId(groupId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe la mesa/jugador solicitado para el evento."));
+
+        if (hasAssignedPod(group)) {
+            throw new BusinessRuleException("Solo se pueden eliminar mesas sin nodo asignado.");
+        }
+
+        if (interPodCardRepository.existsBySourceGroupId(groupId)) {
+            throw new BusinessRuleException("No se puede eliminar una mesa con cartas inter-nodo asociadas.");
+        }
+
+        String identifier = group.getIdentifier();
+        List<EventLog> relatedLogs = eventLogRepository.findByGroupId(groupId);
+        for (EventLog log : relatedLogs) {
+            log.setGroup(null);
+        }
+        if (!relatedLogs.isEmpty()) {
+            eventLogRepository.saveAll(relatedLogs);
+        }
+
+        eventGroupRepository.delete(group);
+
+        eventLogService.appendOrganizerLog(event, EventActionType.GROUP_DELETED,
+                identifier, null, "Mesa eliminada del evento.");
+        realtimeEventPublisher.publishGroupRemoved(eventId, groupId);
+        publishStructureRealtime(eventId);
+    }
+
+    @Transactional
     public EventStructureResponse getEventStructure(Long eventId) {
         Event event = eventRepository.findById(eventId)
             .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
@@ -222,6 +262,7 @@ public class EventSetupService {
         return new EventStructureResponse(
                 event.getId(),
                 event.getName(),
+                event.getStatus(),
                 assignedPlayerCount + unassignedPlayerCount,
                 groups.size(),
                 assignedPlayerCount,
@@ -240,16 +281,6 @@ public class EventSetupService {
         accessControlService.requireOrganizerForEvent(event);
         if (event.getStatus() == EventStatus.IN_PROGRESS || event.getStatus() == EventStatus.FINISHED) {
             throw new BusinessRuleException("El evento ya no admite cambios de configuración.");
-        }
-        return event;
-    }
-
-    private Event findAssignableEvent(Long eventId) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
-        accessControlService.requireOrganizerForEvent(event);
-        if (event.getStatus() == EventStatus.FINISHED) {
-            throw new BusinessRuleException("El evento ya ha finalizado y no admite cambios.");
         }
         return event;
     }

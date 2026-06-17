@@ -5,13 +5,14 @@ import { __websocketState } from '@/composables/useWebSocket'
 import { seedAuthSession } from '../../../tests/fixtures/authSession.js'
 import { createActivePinia } from '../../../tests/utils/createActivePinia.js'
 
-const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById } = vi.hoisted(() => ({
+const { getGameState, getEventStructure, getInterPodCards, connect, syncImageUrls, protectedImagesById, routerPush } = vi.hoisted(() => ({
   getGameState: vi.fn(),
   getEventStructure: vi.fn(),
   getInterPodCards: vi.fn(),
   connect: vi.fn(),
   syncImageUrls: vi.fn(),
   protectedImagesById: {},
+  routerPush: vi.fn(),
 }))
 
 vi.mock('@/api/gameState', () => ({
@@ -24,6 +25,12 @@ vi.mock('@/api/setup', () => ({
 
 vi.mock('@/api/interPod', () => ({
   getInterPodCards,
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: routerPush,
+  }),
 }))
 
 vi.mock('@/composables/useWebSocket', async () => {
@@ -469,6 +476,34 @@ describe('PlayerGameView', () => {
     expect(wrapper.text()).toContain('Tu mesa aún no está asignada a un pod')
     expect(wrapper.text()).toContain('Mesas pendientes de asignación')
     expect(wrapper.find('.action-bar').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('logs out and redirects when the current table is removed from the event', async () => {
+    seedAuthSession('GROUP_REPRESENTATIVE')
+    getGameState.mockResolvedValue({ data: buildSnapshot('IN_PROGRESS') })
+    getEventStructure.mockResolvedValue({
+      data: buildStructure({
+        pods: [
+          {
+            id: 7,
+            name: 'Pod 1',
+            totalGroups: 1,
+            totalPlayers: 2,
+            warnings: [],
+            groups: [{ id: 19, podId: 7, identifier: 'Mesa Alfa', playerCount: 2 }],
+          },
+        ],
+        unassignedGroups: [],
+      }),
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(routerPush).toHaveBeenCalledWith({ name: 'join' })
+    expect(sessionStorage.getItem('auth-player')).toBeNull()
 
     wrapper.unmount()
   })

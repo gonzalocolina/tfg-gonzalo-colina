@@ -80,8 +80,8 @@ async function handleJoin() {
       </form>
 
       <p class="text-muted mt-2 join-help">
-        Usa el código del evento para registrar una nueva mesa o el código de una mesa ya creada para entrar
-        directamente. Si accedes con código de evento, añade también el identificador compartido de tu mesa.
+        Usa el código del evento para registrar tu mesa antes de que empiece la partida. Si la partida ya ha comenzado,
+        solo podrás volver a entrar con el identificador de una mesa ya registrada.
       </p>
     </div>
   </div>

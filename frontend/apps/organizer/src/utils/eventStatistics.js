@@ -219,22 +219,6 @@ function maybeRegisterFirstContribution(group, timestamp) {
   group.firstContributionAt = timestamp
 }
 
-function buildTimelineEntry(log, previousValue, newValue, effectiveChange) {
-  return {
-    id: log.id,
-    timestamp: log.timestamp,
-    actor: log.actor,
-    groupIdentifier: log.groupIdentifier,
-    actionType: log.actionType,
-    previousValue: log.previousValue,
-    newValue: log.newValue,
-    notes: log.notes,
-    effectiveChange,
-    numericPreviousValue: previousValue,
-    numericNewValue: newValue,
-  }
-}
-
 function createOperationalSummary() {
   return {
     delegatedActions: 0,
@@ -616,11 +600,9 @@ function processLog(context, log) {
   updateProgression(context, log, previousValue, newValue)
 
   const handler = LOG_HANDLERS[log.actionType]
-  const effectiveChange = handler
-    ? handler(context, group, log, previousValue, newValue)
-    : 0
-
-  context.timelineEntries.push(buildTimelineEntry(log, previousValue, newValue, effectiveChange))
+  if (handler) {
+    handler(context, group, log, previousValue, newValue)
+  }
 }
 
 function buildRankings(groups) {
@@ -652,8 +634,6 @@ function buildResult(context, relevantLogs, structure, finalSummary) {
 
   return {
     groups,
-    relevantLogs,
-    timelineEntries: context.timelineEntries,
     rankings,
     highlights: {
       topDamageGroup: rankings.damage.find((group) => group.damageToVillain > 0) || null,
@@ -699,7 +679,6 @@ export function buildEventStatistics({
     operationalSummary: createOperationalSummary(),
     interPodSummary: createInterPodSummary(),
     progression: createProgressionSummary(gameState),
-    timelineEntries: [],
     firstContributionGroupIdentifier: null,
     finalBlowGroupIdentifier: null,
   }
