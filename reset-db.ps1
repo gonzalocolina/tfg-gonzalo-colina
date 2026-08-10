@@ -1,6 +1,6 @@
 # ============================================================
 # reset-db.ps1 - Borra la base de datos local de desarrollo
-#   - Elimina solo los ficheros H2 de backend/data
+#   - Elimina los ficheros H2 de APP_DATA_DIR (por defecto %LOCALAPPDATA%\mc-tfg)
 #   - Conserva otros recursos del directorio, como inter-pod-cards
 # ============================================================
 
@@ -11,7 +11,48 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
-$dbBasePath = Join-Path $root "backend\data\mc_database"
+
+function Import-DotEnv {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line.Length -eq 0 -or $line.StartsWith('#')) {
+            return
+        }
+
+        $separatorIndex = $line.IndexOf('=')
+        if ($separatorIndex -lt 1) {
+            return
+        }
+
+        $name = $line.Substring(0, $separatorIndex).Trim()
+        $value = $line.Substring($separatorIndex + 1).Trim()
+        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            Set-Item -Path "Env:$name" -Value $value
+        }
+    }
+}
+
+function Resolve-AppDataDir {
+    if (-not [string]::IsNullOrWhiteSpace($env:APP_DATA_DIR)) {
+        return $env:APP_DATA_DIR
+    }
+    return Join-Path $env:LOCALAPPDATA "mc-tfg"
+}
+
+$envFile = Join-Path $root ".env"
+Import-DotEnv -Path $envFile
+
+$appDataDir = Resolve-AppDataDir
+$dbBasePath = Join-Path $appDataDir "mc_database"
 $dbFiles = @(
     "$dbBasePath.mv.db",
     "$dbBasePath.trace.db",

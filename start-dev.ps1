@@ -50,6 +50,18 @@ if ([string]::IsNullOrWhiteSpace($env:APP_JWT_SECRET)) {
     exit 1
 }
 
+function Resolve-AppDataDir {
+    if (-not [string]::IsNullOrWhiteSpace($env:APP_DATA_DIR)) {
+        return $env:APP_DATA_DIR
+    }
+    return Join-Path $env:LOCALAPPDATA "mc-tfg"
+}
+
+$appDataDir = Resolve-AppDataDir
+New-Item -ItemType Directory -Force -Path $appDataDir | Out-Null
+$appDataDirForH2 = ($appDataDir -replace '\\', '/')
+$env:APP_DATA_DIR = $appDataDir
+
 # Limpia compilados previos del backend
 $backendTarget = Join-Path $root "backend\target"
 if (Test-Path $backendTarget) {
@@ -60,7 +72,7 @@ if (Test-Path $backendTarget) {
 # --- Backend ---
 Write-Host "Iniciando backend..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "Set-Location '$root\backend'; `$env:APP_SEED_ORGANIZER_PASSWORD='$seedOrganizerPassword'; `$env:APP_JWT_SECRET='$($env:APP_JWT_SECRET)'; .\mvnw.cmd clean spring-boot:run" `
+    "Set-Location '$root\backend'; `$env:APP_DATA_DIR='$appDataDirForH2'; `$env:APP_SEED_ORGANIZER_PASSWORD='$seedOrganizerPassword'; `$env:APP_JWT_SECRET='$($env:APP_JWT_SECRET)'; .\mvnw.cmd clean spring-boot:run" `
     -WindowStyle Normal
 
 # Espera a que el backend esté listo antes de lanzar el frontend
@@ -76,6 +88,12 @@ do {
 
 if ($up.status -eq "UP") {
     Write-Host "Backend listo." -ForegroundColor Green
+    try {
+        Invoke-RestMethod -Uri "http://localhost:8080/actuator/health" -TimeoutSec 10 | Out-Null
+        Write-Host "Base de datos inicializada (warmup OK)." -ForegroundColor Green
+    } catch {
+        Write-Host "Advertencia: el backend arrancó pero el warmup de BD no respondió." -ForegroundColor Yellow
+    }
 } else {
     Write-Host "El backend tardó más de ${maxWait}s. Lanzando el frontend de todas formas..." -ForegroundColor Yellow
 }
@@ -95,5 +113,8 @@ Write-Host "  Portal: http://localhost:5175" -ForegroundColor White
 Write-Host "  Organizer: http://localhost:5175/organizer/login" -ForegroundColor White
 Write-Host "  Player: http://localhost:5175/player/join" -ForegroundColor White
 Write-Host "  H2 console: http://localhost:8080/h2-console" -ForegroundColor White
+Write-Host "  Datos H2:  $appDataDir" -ForegroundColor White
 Write-Host "  Usuario:   organizer / organizer" -ForegroundColor White
+Write-Host "  Antes de demo: .\warmup-demo.ps1" -ForegroundColor White
+Write-Host "  No suspender el PC con el backend en marcha." -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Green

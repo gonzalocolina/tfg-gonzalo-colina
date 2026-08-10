@@ -23,12 +23,14 @@ import com.tfg.gonzalo.backend.repository.EventLogRepository;
 import com.tfg.gonzalo.backend.repository.EventRepository;
 import com.tfg.gonzalo.backend.security.AccessControlService;
 import com.tfg.gonzalo.backend.security.AuthPrincipal;
+import com.tfg.gonzalo.backend.support.DatabaseRetryExecutor;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -47,6 +49,8 @@ public class EventService {
     private final InterPodCardService interPodCardService;
     private final AccessControlService accessControlService;
     private final InterPodCardImageStorageService interPodCardImageStorageService;
+    private final DatabaseRetryExecutor databaseRetryExecutor;
+    private final TransactionTemplate transactionTemplate;
 
     public EventService(AppUserRepository appUserRepository,
                         CoOrganizerInvitationRepository coOrganizerInvitationRepository,
@@ -59,7 +63,9 @@ public class EventService {
                         EventStateCalculator eventStateCalculator,
                         InterPodCardService interPodCardService,
                         AccessControlService accessControlService,
-                        InterPodCardImageStorageService interPodCardImageStorageService) {
+                        InterPodCardImageStorageService interPodCardImageStorageService,
+                        DatabaseRetryExecutor databaseRetryExecutor,
+                        TransactionTemplate transactionTemplate) {
         this.appUserRepository = appUserRepository;
         this.coOrganizerInvitationRepository = coOrganizerInvitationRepository;
         this.eventRepository = eventRepository;
@@ -72,10 +78,16 @@ public class EventService {
         this.interPodCardService = interPodCardService;
         this.accessControlService = accessControlService;
         this.interPodCardImageStorageService = interPodCardImageStorageService;
+        this.databaseRetryExecutor = databaseRetryExecutor;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
     public EventResponse createEvent(CreateEventRequest request) {
+        return databaseRetryExecutor.execute(() ->
+                transactionTemplate.execute(status -> createEventWithinTransaction(request)));
+    }
+
+    private EventResponse createEventWithinTransaction(CreateEventRequest request) {
         AuthPrincipal principal = accessControlService.requireAuthenticatedPrincipal();
         AppUser organizer = appUserRepository.findById(principal.userId())
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontró el usuario autenticado."));
