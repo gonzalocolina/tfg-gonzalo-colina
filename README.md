@@ -1,113 +1,83 @@
 # Gestión de eventos multijugador de Marvel Champions
 
-Aplicación web para coordinar partidas presenciales del modo **Multijugador épico** de *Marvel Champions*. La plataforma centraliza el estado compartido del evento (vida del villano, amenaza, temporizador, mesas, nodos y cartas inter-nodo) y lo sincroniza en tiempo real entre el equipo organizador y los representantes de cada mesa.
+## Resumen del proyecto
+
+Esta aplicación web permite organizar partidas presenciales del modo **Multijugador épico** de *Marvel Champions*. El juego continúa desarrollándose de forma física en cada mesa, mientras la plataforma coordina los elementos compartidos del evento: la vida del villano, la amenaza del plan principal, el temporizador, la distribución de mesas en nodos y las cartas inter-nodo.
+
+El sistema conecta en tiempo real al equipo organizador con los representantes de las mesas. Los organizadores preparan y supervisan la partida desde una interfaz de escritorio, mientras los jugadores utilizan una interfaz móvil para consultar el estado global y comunicar el progreso de su mesa.
 
 El proyecto se ha desarrollado como Trabajo de Fin de Grado del Grado en Ingeniería Informática de la Universidad de Valladolid.
 
-- **Autor:** Gonzalo José Colina Báscones
-- **Tutor:** Mario Corrales Astorgano
-- **Licencia:** [MIT](LICENSE)
+## Manuales
 
+- [Manual de instalación y despliegue](docs/manual-instalacion.md)
+- [Manual de usuario](docs/manual-usuario.md)
 
+El manual de instalación explica los requisitos, la configuración y las distintas formas de ejecutar la aplicación. El manual de usuario describe el flujo completo de organizadores y jugadores.
 
-## Funcionalidades
+## Cómo funciona el proyecto
 
-La aplicación dispone de dos interfaces adaptadas a sus contextos de uso:
+### Organización de una partida
 
-- **Organizador:** creación y configuración de eventos, catálogo de villanos y cartas, distribución de mesas en nodos, delegación en coorganizadores y supervisión de la partida.
-- **Jugador:** acceso desde móvil mediante un código, consulta del estado global y registro de daño, amenaza y cartas inter-nodo.
+El organizador crea un evento, selecciona el villano y las cartas inter-nodo disponibles, y comparte un código de acceso con los jugadores. Los representantes utilizan ese código para registrar sus mesas. Antes de comenzar, el organizador distribuye las mesas entre los distintos nodos y puede delegar la supervisión de la vida del villano, la amenaza o el temporizador en otros usuarios.
 
-Además, conserva un registro auditable de las acciones de la partida, permite aplicar correcciones y genera estadísticas al finalizar el evento.
+Durante la partida, las mesas comunican el daño infligido, la amenaza generada y la aparición o resolución de cartas inter-nodo. Todos estos cambios actualizan un estado global compartido. El organizador puede seguir la evolución del evento, ajustar el temporizador y corregir acciones erróneas sin perder el historial.
 
-## Arquitectura
+Al finalizar la partida, la aplicación genera un resumen y estadísticas a partir del registro de acciones.
 
+### Interfaces de usuario
 
-| Componente    | Tecnología             | Responsabilidad                                              |
-| ------------- | ---------------------- | ------------------------------------------------------------ |
-| Backend       | Java 17 y Spring Boot  | API REST, autenticación JWT, WebSocket/SockJS y persistencia |
-| Frontend      | Vue 3 y Vite           | Portal, panel del organizador e interfaz móvil del jugador   |
-| Base de datos | H2 en fichero          | Persistencia local o en un volumen Docker                    |
-| Despliegue    | Docker Compose y Nginx | Construcción y publicación de la aplicación                  |
+El frontend está formado por tres aplicaciones Vue:
 
+- **Portal:** página de entrada desde la que se elige entre organizar una partida o unirse a ella.
+- **Organizador:** interfaz orientada a escritorio para configurar eventos, administrar catálogos, distribuir mesas, gestionar coorganizadores y supervisar la partida.
+- **Jugador:** interfaz adaptada a dispositivos móviles para unirse mediante un código, consultar el estado compartido y registrar las acciones de la mesa.
 
-El frontend de desarrollo unifica las tres aplicaciones en `http://localhost:5175` y redirige las peticiones de API y WebSocket al backend, disponible en `http://localhost:8080`.
+Las tres aplicaciones se publican bajo una misma dirección. Esta separación permite adaptar la navegación y los controles a las necesidades de cada perfil sin duplicar la lógica compartida.
 
-Los modelos de datos se pueden consultar en los diagramas de [dominio](docs/diagrama-modelo-dominio.puml) y [entidad-relación](docs/diagrama-entidad-relacion.puml).
+### Backend y comunicación
 
-## Inicio rápido
+El backend está desarrollado con Java 17 y Spring Boot. Expone una **API REST** para las operaciones de autenticación, configuración y gestión del estado, y utiliza **WebSockets** para enviar las actualizaciones de la partida en tiempo real.
 
+La API REST se utiliza para acciones como crear eventos, registrar mesas, configurar nodos o enviar daño y amenaza. Tras procesar un cambio, el backend publica el nuevo estado mediante WebSocket para que las interfaces conectadas se actualicen sin necesidad de recargar la página.
 
+La autenticación de organizadores, coorganizadores y mesas se basa en tokens JWT. Los datos se almacenan en una base H2 en fichero, tanto en desarrollo local como dentro de un volumen cuando se ejecuta con Docker.
 
-### Requisitos
+### Arquitectura
 
-- Java 17.
-- Node.js `^20.19.0` o `>=22.12.0`, con npm.
-- PowerShell.
+| Componente | Tecnología | Responsabilidad |
+| --- | --- | --- |
+| Backend | Java 17 y Spring Boot | API REST, autenticación, reglas de negocio y comunicación en tiempo real |
+| Frontend | Vue 3 y Vite | Portal, aplicación de organizador y aplicación móvil de jugador |
+| Tiempo real | WebSocket, STOMP y SockJS | Sincronización del estado entre organizadores y mesas |
+| Persistencia | H2 en fichero | Eventos, usuarios, configuración y registro de acciones |
+| Despliegue | Docker Compose y Nginx | Construcción, publicación y persistencia mediante volumen |
 
-El repositorio incluye Maven Wrapper, por lo que no es necesario instalar Maven.
-
-### Ejecución local
-
-Desde la raíz del repositorio:
-
-```powershell
-Copy-Item .env.example .env
-npm --prefix frontend install
-.\start-dev.ps1
-```
-
-Una vez iniciado el entorno:
-
-- Portal: [http://localhost:5175](http://localhost:5175)
-- Organizador: [http://localhost:5175/organizer/login](http://localhost:5175/organizer/login)
-- Jugador: [http://localhost:5175/player/join](http://localhost:5175/player/join)
-- Estado del backend: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
-
-Las credenciales iniciales definidas en `.env.example` son `organizer` / `organizer`. Los valores de ejemplo están pensados exclusivamente para desarrollo local.
-
-Para conocer el arranque manual, el despliegue con Docker, la persistencia y el resto de opciones, consulta el [manual de instalación](docs/manual-instalacion.md).
-
-## Pruebas
-
-Backend:
-
-```powershell
-Set-Location backend
-.\mvnw.cmd test
-```
-
-Frontend, desde la raíz:
-
-```powershell
-npm --prefix frontend install
-npm --prefix frontend test
-```
-
-El proyecto también incluye [escenarios de pruebas de carga](load-tests/README.md).
+En desarrollo, el frontend unificado se publica en `http://localhost:5175` y redirige las peticiones de API y WebSocket al backend, disponible en `http://localhost:8080`.
 
 ## Estructura del repositorio
 
 ```text
-backend/            API, seguridad, tiempo real y persistencia
+backend/            API REST, seguridad, reglas de negocio y WebSocket
 frontend/           Portal y aplicaciones de organizador y jugador
 docs/               Manuales y diagramas del sistema
-load-tests/         Pruebas de carga
+load-tests/         Escenarios y herramientas de pruebas de carga
 docker-compose.yml  Despliegue con contenedores
 start-dev.ps1       Arranque del entorno de desarrollo
 reset-db.ps1        Reinicio de la base de datos local
 ```
 
+## Documentación técnica
 
-
-## Documentación
-
-- [Manual de instalación y despliegue](docs/manual-instalacion.md)
-- [Manual de usuario](docs/manual-usuario.md)
 - [Pruebas de carga](load-tests/README.md)
 - [Diagrama del modelo de dominio](docs/diagrama-modelo-dominio.puml)
 - [Diagrama entidad-relación](docs/diagrama-entidad-relacion.puml)
 
+## Contexto académico
 
+- **Autor:** Gonzalo José Colina Báscones
+- **Tutor:** Mario Corrales Astorgano
+- **Licencia:** [MIT](LICENSE)
 
 ## Aviso
 
