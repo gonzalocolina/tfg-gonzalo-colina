@@ -1,0 +1,180 @@
+@startuml
+left to right direction
+hide circle
+hide methods
+skinparam shadowing true
+skinparam backgroundColor white
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 35
+skinparam defaultFontName Arial
+skinparam roundcorner 12
+skinparam classBackgroundColor #FFF8E7
+skinparam classBorderColor #5D5D5D
+skinparam ArrowColor black
+skinparam ArrowThickness 1
+skinparam classAttributeIconSize 0
+
+title Diagrama entidad-relación de la base de datos
+
+note as BaseEntityNote
+  **BaseEntity**
+  Todas las entidades persistidas heredan de BaseEntity
+  e incluyen: id [PK], created_at, updated_at
+end note
+
+entity users {
+  * id : BIGINT [PK]
+  --
+  username : VARCHAR [UK]
+  email : VARCHAR [UK, nullable]
+  password_hash : VARCHAR [nullable]
+}
+
+entity co_organizer_invitations {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK]
+  user_id : BIGINT [FK]
+  invited_by_user_id : BIGINT [FK, nullable]
+  status : ENUM
+  responsibilities : VARCHAR
+}
+
+entity events {
+  * id : BIGINT [PK]
+  --
+  name : VARCHAR
+  time_limit_minutes : INTEGER
+  event_code : VARCHAR [UK]
+  organizer_id : BIGINT [FK]
+  villain_damage_taken : INTEGER
+  scheme_threat_current : INTEGER
+  total_reported_villain_damage : INTEGER
+  timer_remaining_seconds : INTEGER
+  timer_status : ENUM
+  timer_started_at : TIMESTAMP WITH TIME ZONE [nullable]
+  finish_cause : ENUM [nullable]
+  started_at : TIMESTAMP WITH TIME ZONE [nullable]
+  finished_at : TIMESTAMP WITH TIME ZONE [nullable]
+}
+
+entity villain_instances {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK, UK]
+  villain_definition_id : BIGINT [FK, nullable]
+  name : VARCHAR
+  type : ENUM
+  hp_rule_type : ENUM
+  hp_rule_value : INTEGER
+  threat_rule_type : ENUM
+  threat_rule_value : INTEGER
+}
+
+entity pods {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK]
+  name : VARCHAR
+  sort_order : INTEGER
+}
+
+entity event_groups {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK]
+  pod_id : BIGINT [FK, nullable]
+  identifier : VARCHAR
+  player_count : INTEGER
+}
+
+entity inter_pod_card_instances {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK]
+  pod_id : BIGINT [FK]
+  source_group_id : BIGINT [FK]
+  inter_pod_card_definition_id : BIGINT [FK, nullable]
+  card_name : VARCHAR
+  card_category : ENUM
+  metric_max : INTEGER
+  metric_current : INTEGER
+  status : ENUM
+  image_path : VARCHAR [nullable]
+  image_content_type : VARCHAR [nullable]
+}
+
+entity event_logs {
+  * id : BIGINT [PK]
+  --
+  event_id : BIGINT [FK]
+  group_id : BIGINT [FK, nullable]
+  actor_id : BIGINT [FK, nullable]
+  reverted_log_id : BIGINT [FK, nullable]
+  action_type : VARCHAR
+  previous_value : VARCHAR [nullable]
+  new_value : VARCHAR [nullable]
+  notes : VARCHAR [nullable]
+}
+
+entity villain_definitions {
+  * id : BIGINT [PK]
+  --
+  name : VARCHAR
+  type : ENUM
+  hp_rule_type : ENUM
+  hp_rule_value : INTEGER
+  threat_rule_type : ENUM
+  threat_rule_value : INTEGER
+  owner_id : BIGINT [FK, nullable]
+}
+
+entity inter_pod_card_definitions {
+  * id : BIGINT [PK]
+  --
+  name : VARCHAR
+  type : ENUM
+  card_category : ENUM
+  default_metric_max : INTEGER
+  rule_type : ENUM
+  image_path : VARCHAR [nullable]
+  image_content_type : VARCHAR [nullable]
+  owner_id : BIGINT [FK, nullable]
+}
+
+entity selected_inter_pod_card_definitions {
+  * event_id : BIGINT [PK, FK]
+  * inter_pod_card_definition_id : BIGINT [PK, FK]
+}
+
+users ||--o{ events : organizer_id
+
+events ||--o| villain_instances : event_id
+villain_definitions |o--o{ villain_instances : villain_definition_id
+
+events ||--o{ pods : event_id
+events ||--o{ event_groups : event_id
+pods |o--o{ event_groups : pod_id
+
+events ||--o{ co_organizer_invitations : event_id
+users ||--o{ co_organizer_invitations : user_id
+users |o--o{ co_organizer_invitations : invited_by_user_id
+
+events ||--o{ event_logs : event_id
+event_groups |o--o{ event_logs : group_id
+users |o--o{ event_logs : actor_id
+event_logs }o--o{ event_logs : reverted_log_id
+
+users |o--o{ villain_definitions : owner_id
+users |o--o{ inter_pod_card_definitions : owner_id
+
+events ||--o{ selected_inter_pod_card_definitions : event_id
+inter_pod_card_definitions ||--o{ selected_inter_pod_card_definitions : inter_pod_card_definition_id
+
+events ||--o{ inter_pod_card_instances : event_id
+pods ||--o{ inter_pod_card_instances : pod_id
+event_groups ||--o{ inter_pod_card_instances : source_group_id
+inter_pod_card_definitions |o--o{ inter_pod_card_instances : inter_pod_card_definition_id
+
+@enduml
