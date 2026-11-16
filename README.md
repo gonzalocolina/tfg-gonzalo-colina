@@ -111,6 +111,7 @@ reset-db.ps1        Reinicio de la base de datos local
 
 - **Autor:** Gonzalo José Colina Báscones
 - **Tutor:** Mario Corrales Astorgano
+- **Calificación:** 9,7 / 10
 - **Licencia:** [MIT](LICENSE)
 
 ## Aviso
