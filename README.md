@@ -8,6 +8,39 @@ El sistema conecta en tiempo real al equipo organizador con los representantes d
 
 El proyecto se ha desarrollado como Trabajo de Fin de Grado del Grado en Ingeniería Informática de la Universidad de Valladolid.
 
+## Capturas
+
+<p align="center">
+  <img src="docs/capturas/landing-page.png" alt="Portal de entrada: unirse a la partida desde el móvil u organizarla desde escritorio" width="860">
+</p>
+
+**Organizador (escritorio):** panel de partida en directo y estadísticas al terminar.
+
+| Panel de partida | Estadísticas finales |
+| --- | --- |
+| <img src="docs/capturas/org-partida-1.png" alt="Panel de partida del organizador con vida del villano, amenaza y temporizador" width="420"> | <img src="docs/capturas/org-stats-1.png" alt="Resumen final y estadísticas de la partida" width="420"> |
+
+**Representante de mesa (móvil):** unirse con el código del evento, seguir el estado global y reportar el progreso de la mesa.
+
+<p align="center">
+  <img src="docs/capturas/player-unirseapartida.png" alt="Unirse a una partida con el código del evento" width="230">
+  &nbsp;
+  <img src="docs/capturas/player-partida.png" alt="Vista de partida en el móvil con temporizador, vida del villano y amenaza" width="230">
+  &nbsp;
+  <img src="docs/capturas/player-vercartasinternodo.png" alt="Cartas inter-nodo activas" width="230">
+</p>
+
+## Resultados de las pruebas de carga
+
+Medido con el [arnés de carga](load-tests/README.md) (clientes sintéticos con login HTTP y WebSocket/STOMP), con 100 clientes conectados a la vez durante 30 s de carga estable:
+
+| Escenario | Operaciones | Entregas en tiempo real | Errores | HTTP p95 | Propagación a todos los clientes p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100 clientes, 20 escritores/s | 600 | 60 100 | 0 | 14 ms | 8 ms |
+| 100 clientes, 100 escritores/s | 3 000 | 300 300 | 0 | 29 ms | 12 ms |
+
+El requisito no funcional de latencia (p95 HTTP < 500 ms) se cumple con margen. Las pruebas se hicieron en local, sin latencia de red; en un despliegue real los valores serán algo mayores.
+
 ## Manuales
 
 - [Manual de instalación y despliegue](docs/manual-instalacion.md)
@@ -70,6 +103,7 @@ reset-db.ps1        Reinicio de la base de datos local
 ## Documentación técnica
 
 - [Pruebas de carga](load-tests/README.md)
+- [Diagrama de arquitectura lógica](docs/diagrama-arquitectura-sistema.puml)
 - [Diagrama del modelo de dominio](docs/diagrama-modelo-dominio.puml)
 - [Diagrama entidad-relación](docs/diagrama-entidad-relacion.puml)
 

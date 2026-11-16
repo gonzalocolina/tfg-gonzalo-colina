@@ -1,0 +1,60 @@
+@startuml diagrama-arquitectura-sistema
+left to right direction
+skinparam shadowing true
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam roundcorner 4
+skinparam linetype ortho
+skinparam nodesep 22
+skinparam ranksep 18
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam packageBorderColor #616161
+skinparam packageFontStyle bold
+skinparam arrowColor #424242
+skinparam arrowThickness 1.2
+
+title Arquitectura lógica por capas del sistema
+
+skinparam actorBackgroundColor #FFB74D
+skinparam actorBorderColor #E65100
+
+actor "Usuarios\n(organizador, coorganizadores\ny representantes de mesa)" as Users
+
+package " " as ColumnaPrincipal #white;line:white {
+  top to bottom direction
+
+  package "Capa de presentación" as CapaPresentacion #FFE0B2 {
+    component "Componentes de\ninterfaz de usuario" as UI
+    component "Cliente de API\ny suscripción\nen tiempo real" as Cliente
+    UI -[hidden]down- Cliente
+  }
+
+  package "Capa de lógica de negocio" as CapaNegocio #90CAF9 {
+    component "Puntos de entrada\n(controladores REST\ny canal en tiempo real)" as Entrada
+    component "Servicios de\naplicación" as Servicios
+    component "Publicador de eventos\nen tiempo real" as Publicador
+    component "Entidades\ndel dominio" as Dominio
+    Entrada -[hidden]down- Servicios
+    Servicios -[hidden]down- Publicador
+    Dominio -[hidden]right- Publicador
+  }
+
+  package "Capa de persistencia" as CapaPersistencia #A5D6A7 {
+    component "Componentes de\nacceso a datos\n(repositorios)" as Repositorios
+    database "Almacén de\ndatos relacional" as Datos
+    Repositorios -[hidden]down- Datos
+  }
+
+  Users -down-> UI
+  UI -down-> Cliente
+  Cliente -down-> Entrada : invoca
+  Entrada -down-> Servicios
+  Servicios -down-> Repositorios
+  Servicios ..> Dominio : utiliza
+  Servicios -down-> Publicador : tras persistir
+  Publicador -up-> Cliente : difunde\nestado
+  Repositorios -down-> Datos
+}
+
+@enduml
